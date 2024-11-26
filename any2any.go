@@ -29,9 +29,9 @@ func any2any(from, to string) error {
 	// create source
 	source := getSource(l, from)
 	// create sink
-	sink := getSink(ctx, to)
+	sink := getSink(l, to)
 	// initiate pipeline
-	p := pipeline.NewSimplePipeline(source, sink)
+	p := pipeline.NewSimplePipeline(l, source, sink)
 	defer p.Close()
 
 	select {

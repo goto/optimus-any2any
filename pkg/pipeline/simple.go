@@ -1,21 +1,27 @@
 package pipeline
 
 import (
+	"log/slog"
+
 	"github.com/goto/optimus-any2any/pkg/connector"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
 // SimplePipeline is a simple pipeline that connects a source to a sink.
 type SimplePipeline struct {
-	source flow.Source
-	sink   flow.Sink
+	logger  *slog.Logger
+	source  flow.Source
+	connect flow.Connect
+	sink    flow.Sink
 }
 
 // NewSimplePipeline creates a new simple pipeline.
-func NewSimplePipeline(source flow.Source, sink flow.Sink) *SimplePipeline {
+func NewSimplePipeline(l *slog.Logger, source flow.Source, sink flow.Sink) *SimplePipeline {
 	return &SimplePipeline{
-		source: source,
-		sink:   sink,
+		logger:  l,
+		source:  source,
+		connect: connector.PassThrough(l),
+		sink:    sink,
 	}
 }
 
@@ -24,7 +30,7 @@ func (p *SimplePipeline) Run() <-chan uint8 {
 	done := make(chan uint8)
 	go func() {
 		defer close(done)
-		connector.PassThrough(p.source, p.sink)
+		p.connect(p.source, p.sink)
 		p.sink.Wait()
 	}()
 	return done

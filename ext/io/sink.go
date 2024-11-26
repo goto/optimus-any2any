@@ -1,62 +1,48 @@
 package io
 
 import (
-	"context"
 	"fmt"
-	"time"
+	"io"
+	"log/slog"
+	"os"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/goto/optimus-any2any/pkg/sink"
 )
 
 type IOSink struct {
-	ctx  context.Context
-	done chan uint8
-	c    chan any
+	*sink.Common
+	logger *slog.Logger
+	w      io.Writer
 }
 
 var _ flow.Sink = (*IOSink)(nil)
 
-func NewSink(ctx context.Context, opts ...flow.Option) *IOSink {
+func NewSink(l *slog.Logger, opts ...flow.Option) *IOSink {
+	// create common
+	common := sink.NewCommon(l, opts...)
 	s := &IOSink{
-		ctx:  ctx,
-		done: make(chan uint8),
-		c:    make(chan any),
+		Common: common,
+		logger: l,
+		w:      os.Stdout,
 	}
-	for _, opt := range opts {
-		opt(s)
-	}
-	s.init()
+
+	// add clean func
+	common.AddCleanFunc(func() {
+		l.Debug("sink: close func called")
+	})
+	// register process, it will immediately start the process
+	// in a separate goroutine
+	common.RegisterProcess(s.process)
+
 	return s
 }
 
-func (s *IOSink) init() {
-	go func() {
-		defer func() {
-			println("DEBUG: sink: close success")
-			s.done <- 0
-		}()
-		for v := range s.c {
-			println("DEBUG: sink: send:", string(v.([]byte)))
-			fmt.Printf("%s\n", string(v.([]byte)))
-			time.Sleep(2 * time.Second)
-			println("DEBUG: sink: done:", string(v.([]byte)))
-		}
-	}()
-}
-
-func (s *IOSink) SetBufferSize(size int) {
-	s.c = make(chan any, size)
-}
-
-func (s *IOSink) In() chan<- any {
-	return s.c
-}
-
-func (s *IOSink) Wait() {
-	<-s.done
-	close(s.done)
-}
-
-func (mc *IOSink) Close() {
-	println("DEBUG: sink: close")
+func (s *IOSink) process() {
+	// read from channel
+	for v := range s.Read() {
+		s.logger.Debug(fmt.Sprintf("sink: read: %s", string(v.([]byte))))
+		fmt.Fprintf(s.w, "%s\n", string(v.([]byte)))
+		s.logger.Debug(fmt.Sprintf("sink: done: %s", string(v.([]byte))))
+	}
 }

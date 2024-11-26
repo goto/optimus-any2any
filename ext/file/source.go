@@ -13,7 +13,8 @@ import (
 // FileSource is a source that reads data from a file.
 type FileSource struct {
 	*source.Common
-	f *os.File
+	logger *slog.Logger
+	f      *os.File
 }
 
 var _ flow.Source = (*FileSource)(nil)
@@ -30,6 +31,7 @@ func NewSource(l *slog.Logger, path string, opts ...flow.Option) (*FileSource, e
 	// create source
 	fs := &FileSource{
 		Common: common,
+		logger: l,
 		f:      f,
 	}
 
@@ -54,9 +56,10 @@ func (fs *FileSource) process() {
 		line, _, err := r.ReadLine()
 		if err != nil {
 			if err == io.EOF {
+				fs.logger.Debug("source: end of file")
 				break
 			}
-			println(err.Error())
+			fs.logger.Error(err.Error())
 			continue
 		}
 		// send to channel

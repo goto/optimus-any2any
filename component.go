@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/ext/file"
@@ -18,6 +17,6 @@ func getSource(l *slog.Logger, source string) flow.Source {
 }
 
 // TODO: add more sink components.
-func getSink(ctx context.Context, sink string) flow.Sink {
-	return io.NewSink(ctx, flow.WithBufferSize(5))
+func getSink(l *slog.Logger, sink string) flow.Sink {
+	return io.NewSink(l, flow.WithBufferSize(5))
 }

@@ -1,22 +1,22 @@
 package maxcompute
 
 import (
-	"context"
 	"fmt"
+	"log/slog"
 
-	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/goto/optimus-any2any/pkg/sink"
 	"github.com/pkg/errors"
 )
 
 type MaxcomputeSink struct {
-	ctx         context.Context
-	client      *odps.Odps
-	destination *odps.Table
-	done        chan uint8
-	c           chan any
+	*sink.Common
+	logger       *slog.Logger
+	session      *tunnel.UploadSession
+	recordWriter *tunnel.RecordProtocWriter
+	tableSchema  tableschema.TableSchema
 }
 
 var _ flow.Sink = (*MaxcomputeSink)(nil)
@@ -24,7 +24,11 @@ var _ flow.Sink = (*MaxcomputeSink)(nil)
 // NewSink creates a new MaxcomputeSink
 // svcAcc is the service account json string refer to maxComputeCredentials
 // tableID is the table ID to write to, it must be in the format of project_name.schema_name.table_name
-func NewSink(ctx context.Context, svcAcc string, tableID string, opts ...flow.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...flow.Option) (*MaxcomputeSink, error) {
+	// create common sink
+	common := sink.NewCommon(l, opts...)
+
+	// create client for maxcompute
 	client, err := NewClient(svcAcc)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -35,92 +39,62 @@ func NewSink(ctx context.Context, svcAcc string, tableID string, opts ...flow.Op
 		return nil, errors.WithStack(err)
 	}
 
-	mc := &MaxcomputeSink{
-		ctx:         ctx,
-		client:      client,
-		destination: destination,
-		done:        make(chan uint8),
-		c:           make(chan any),
-	}
-
-	for _, opt := range opts {
-		opt(mc)
-	}
-
-	if err = mc.init(); err != nil {
+	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
+	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+
+	session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	recordWriter, err := session.OpenRecordWriter(0) // TODO: use proper block id
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	mc := &MaxcomputeSink{
+		Common:       common,
+		logger:       l,
+		session:      session,
+		recordWriter: recordWriter,
+		tableSchema:  session.Schema(),
+	}
+
+	// add clean func
+	common.AddCleanFunc(func() {
+		l.Debug("sink: close record writer")
+		_ = recordWriter.Close()
+	})
+	// register process, it will immediately start the process
+	common.RegisterProcess(mc.process)
+
 	return mc, nil
 }
 
-func (mc *MaxcomputeSink) init() error {
-	// Initialize tunnel
-	t, err := tunnel.NewTunnelFromProject(mc.client.DefaultProject())
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Create session for upload
-	session, err := t.CreateUploadSession(mc.destination.ProjectName(), mc.destination.Name())
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Get schema of the destination table
-	schema := session.Schema()
-
-	// Open protoc record writer
-	recordWriter, err := session.OpenRecordWriter(0) // TODO: use proper block id
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// Ready to write records
-	go func(w *tunnel.RecordProtocWriter, s tableschema.TableSchema) {
-		defer func() {
-			// TODO: properly handle writer close + session commit
-			_ = w.Close()
-			err = session.Commit([]int{0})
-			if err != nil {
-				// TODO: log error
-				fmt.Println(err.Error())
-			}
-			mc.done <- 0
-		}()
-		// Write records individually
-		for msg := range mc.c {
-			b, ok := msg.(string)
-			if !ok {
-				fmt.Println("invalid message")
-				// TODO: log error
-				continue
-			}
-			record, err := createRecord([]byte(b), s)
-			if err != nil {
-				fmt.Println(err.Error())
-				// TODO: log error
-				continue
-			}
-			w.Write(record)
+func (mc *MaxcomputeSink) process() {
+	for msg := range mc.Read() {
+		b, ok := msg.([]byte)
+		if !ok {
+			mc.logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
+			continue
 		}
-	}(recordWriter, schema)
-
-	return nil
-}
-
-func (mc *MaxcomputeSink) SetBufferSize(size int) {
-	mc.c = make(chan any, size)
-}
-
-func (mc *MaxcomputeSink) In() chan<- any {
-	return mc.c
-}
-
-func (mc *MaxcomputeSink) Wait() {
-	<-mc.done
-	close(mc.done)
-}
-
-func (mc *MaxcomputeSink) Close() {
-	println("DEBUG: sink: close")
+		mc.logger.Debug(fmt.Sprintf("sink: message: %s", string(b)))
+		record, err := createRecord(b, mc.tableSchema)
+		if err != nil {
+			mc.logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
+			continue
+		}
+		mc.logger.Debug(fmt.Sprintf("sink: record: %s", record.String()))
+		if err := mc.recordWriter.Write(record); err != nil {
+			mc.logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
+		}
+	}
+	if err := mc.recordWriter.Close(); err != nil {
+		mc.logger.Error(fmt.Sprintf("record writer close error: %s", err.Error()))
+	}
+	if err := mc.session.Commit([]int{0}); err != nil {
+		mc.logger.Error(fmt.Sprintf("session commit error: %s", err.Error()))
+	}
 }
