@@ -3,6 +3,7 @@ package io
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
@@ -31,12 +32,13 @@ func NewSink(ctx context.Context, opts ...flow.Option) *IOSink {
 func (s *IOSink) init() {
 	go func() {
 		defer func() {
-			println("DEBUG: sink: close")
+			println("DEBUG: sink: close success")
 			s.done <- 0
 		}()
 		for v := range s.c {
 			println("DEBUG: sink: send:", string(v.([]byte)))
 			fmt.Printf("%s\n", string(v.([]byte)))
+			time.Sleep(2 * time.Second)
 			println("DEBUG: sink: done:", string(v.([]byte)))
 		}
 	}()
@@ -51,9 +53,10 @@ func (s *IOSink) In() chan<- any {
 }
 
 func (s *IOSink) Wait() {
-	select {
-	case <-s.ctx.Done():
-	case <-s.done:
-	}
+	<-s.done
 	close(s.done)
+}
+
+func (mc *IOSink) Close() {
+	println("DEBUG: sink: close")
 }

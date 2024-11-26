@@ -11,17 +11,21 @@ type Outlet interface {
 }
 
 // Source is an interface for source components.
-// It contains Options interface for setting options.
+// It contains Options interface for setting options,
+// and Close method for closing the source.
 type Source interface {
 	Outlet
 	Options
+	Close()
 }
 
 // Sink is an interface for sink components.
-// It contains Options interface for setting options.
-// It also contains Wait method for waiting until the sink is done.
+// It contains Options interface for setting options,
+// Close method for closing the sink,
+// and Wait method for waiting until the sink is done.
 type Sink interface {
 	Inlet
 	Options
+	Close()
 	Wait()
 }

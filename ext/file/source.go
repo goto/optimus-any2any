@@ -2,51 +2,53 @@ package file
 
 import (
 	"bufio"
-	"context"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/goto/optimus-any2any/pkg/source"
 )
 
+// FileSource is a source that reads data from a file.
 type FileSource struct {
-	ctx  context.Context
-	path string
-	c    chan any
+	*source.Common
+	f *os.File
 }
 
 var _ flow.Source = (*FileSource)(nil)
 
-func NewSource(ctx context.Context, path string, opts ...flow.Option) *FileSource {
+// NewSource creates a new file source.
+func NewSource(l *slog.Logger, path string, opts ...flow.Option) (*FileSource, error) {
+	// create common
+	common := source.NewCommonSource(l, opts...)
+	// open file
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	// create source
 	fs := &FileSource{
-		ctx:  ctx,
-		path: path,
-		c:    make(chan any),
+		Common: common,
+		f:      f,
 	}
-	for _, opt := range opts {
-		opt(fs)
-	}
-	go fs.init()
-	return fs
+
+	// add clean func
+	common.AddCleanFunc(func() {
+		l.Debug("source: close file")
+		f.Close()
+	})
+	// register process, it will immediately start the process
+	// in a separate goroutine
+	common.RegisterProcess(fs.process)
+
+	return fs, nil
 }
 
-func (fs *FileSource) init() {
-	defer func() {
-		println("DEBUG: source: close")
-		close(fs.c)
-	}()
-	// open file
-	f, err := os.Open(fs.path)
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	defer func() {
-		f.Close()
-	}()
-
+// process reads data from the file and sends it to the channel.
+func (fs *FileSource) process() {
 	// read file
-	r := bufio.NewReader(f)
+	r := bufio.NewReader(fs.f)
 	for {
 		// read line
 		line, _, err := r.ReadLine()
@@ -58,16 +60,6 @@ func (fs *FileSource) init() {
 			continue
 		}
 		// send to channel
-		println("DEBUG: source: send:", string(line))
-		fs.c <- line
-		println("DEBUG: source: done:", string(line))
+		fs.Send(line)
 	}
-}
-
-func (fs *FileSource) SetBufferSize(size int) {
-	fs.c = make(chan any, size)
-}
-
-func (fs *FileSource) Out() <-chan any {
-	return fs.c
 }

@@ -117,9 +117,10 @@ func (mc *MaxcomputeSink) In() chan<- any {
 }
 
 func (mc *MaxcomputeSink) Wait() {
-	select {
-	case <-mc.ctx.Done():
-	case <-mc.done:
-	}
+	<-mc.done
 	close(mc.done)
+}
+
+func (mc *MaxcomputeSink) Close() {
+	println("DEBUG: sink: close")
 }

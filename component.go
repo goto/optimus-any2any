@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/io"
@@ -11,8 +12,9 @@ import (
 // TODO: restructure the code to make it more modular and testable.
 
 // TODO: add more source components.
-func getSource(ctx context.Context, source string) flow.Source {
-	return file.NewSource(ctx, "in.txt", flow.WithBufferSize(5))
+func getSource(l *slog.Logger, source string) flow.Source {
+	fs, _ := file.NewSource(l, "in.txt", flow.WithBufferSize(5))
+	return fs
 }
 
 // TODO: add more sink components.
