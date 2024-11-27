@@ -10,26 +10,34 @@ import (
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
+	"github.com/pkg/errors"
 )
 
 func any2any(from, to string) error {
 	// create logger
 	l, err := logger.NewLogger(slog.LevelDebug.String())
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// load config
-	_ = config.NewConfig()
+	cfg := config.NewConfig()
 
 	// graceful shutdown
 	ctx, cancelFn := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancelFn()
 
 	// create source
-	source := getSource(l, from)
+	source, err := getSource(l, cfg, Component(from))
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	// create sink
-	sink := getSink(l, to)
+	sink, err := getSink(l, cfg, Component(to))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	// initiate pipeline
 	p := pipeline.NewSimplePipeline(l, source, sink)
 	defer p.Close()

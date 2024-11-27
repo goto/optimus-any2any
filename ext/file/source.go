@@ -6,43 +6,43 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/goto/optimus-any2any/internal/component/option"
+	"github.com/goto/optimus-any2any/internal/component/source"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/goto/optimus-any2any/pkg/source"
+	"github.com/pkg/errors"
 )
 
 // FileSource is a source that reads data from a file.
 type FileSource struct {
-	*source.Common
-	logger *slog.Logger
-	f      *os.File
+	*source.CommonSource
+	f *os.File
 }
 
 var _ flow.Source = (*FileSource)(nil)
 
 // NewSource creates a new file source.
-func NewSource(l *slog.Logger, path string, opts ...flow.Option) (*FileSource, error) {
-	// create common
-	common := source.NewCommonSource(l, opts...)
+func NewSource(l *slog.Logger, path string, opts ...option.Option) (*FileSource, error) {
+	// create commonSource
+	commonSource := source.NewCommonSource(l, opts...)
 	// open file
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	// create source
 	fs := &FileSource{
-		Common: common,
-		logger: l,
-		f:      f,
+		CommonSource: commonSource,
+		f:            f,
 	}
 
 	// add clean func
-	common.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() {
 		l.Debug("source: close file")
 		f.Close()
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
-	common.RegisterProcess(fs.process)
+	commonSource.RegisterProcess(fs.process)
 
 	return fs, nil
 }
@@ -56,10 +56,10 @@ func (fs *FileSource) process() {
 		line, _, err := r.ReadLine()
 		if err != nil {
 			if err == io.EOF {
-				fs.logger.Debug("source: end of file")
+				fs.Logger.Debug("source: end of file")
 				break
 			}
-			fs.logger.Error(err.Error())
+			fs.Logger.Error(err.Error())
 			continue
 		}
 		// send to channel
