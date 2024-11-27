@@ -1,11 +1,14 @@
 package config
 
-// TODO: Add the necessary configuration options for the application.
+// Config is a common configuration for the component.
 type Config struct {
-	LogLevel                  string
-	OtelCollectorGRPCEndpoint string
+	LogLevel                  string `env:"LOG_LEVEL" envDefault:"INFO"`
+	OtelCollectorGRPCEndpoint string `env:"OTEL_COLLECTOR_GRPC_ENDPOINT"`
+	OtelAttributes            string `env:"OTEL_ATTRIBUTES"`
+	BufferSize                int    `env:"BUFFER_SIZE"`
 }
 
-func NewConfig() *Config {
-	return &Config{}
+// NewConfig parses the environment variables and returns the common configuration.
+func NewConfig(envs ...string) (*Config, error) {
+	return parse[Config](envs...)
 }

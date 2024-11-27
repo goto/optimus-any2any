@@ -37,7 +37,7 @@ func NewSource(l *slog.Logger, path string, opts ...option.Option) (*FileSource,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		l.Debug("source: close file")
+		commonSource.Logger.Debug("source: close file")
 		f.Close()
 	})
 	// register process, it will immediately start the process

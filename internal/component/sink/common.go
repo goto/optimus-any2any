@@ -1,9 +1,11 @@
 package sink
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/internal/component/option"
+	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
@@ -60,8 +62,12 @@ func (commonSink *CommonSink) SetOtelSDK() {
 
 }
 
-func (commonSink *CommonSink) SetLogger(string) {
-
+func (commonSink *CommonSink) SetLogger(logLevel string) {
+	logger, err := logger.NewLogger(logLevel)
+	if err != nil {
+		commonSink.Logger.Error(fmt.Sprintf("sink: set logger error: %s", err.Error()))
+	}
+	commonSink.Logger = logger
 }
 
 // Read reads data from the channel.

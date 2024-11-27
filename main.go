@@ -1,10 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/goto/optimus-any2any/internal/logger"
+	"github.com/spf13/pflag"
 )
 
 func main() {
@@ -12,13 +13,20 @@ func main() {
 	l := logger.NewDefaultLogger()
 
 	// parse flags
-	source := flag.String("from", "file", "source component")
-	sink := flag.String("to", "io", "sink component")
+	var source string
+	var sink string
+	var envs []string
+	pflag.StringVar(&source, "from", "file", "source component")
+	pflag.StringVar(&sink, "to", "io", "sink component")
+	pflag.StringArrayVar(&envs, "env", []string{}, "Pass env as argument (can be used multiple times)")
+
+	// Parse the flags.
+	pflag.Parse()
 
 	// any2any is the main function to execute the data transfer from any source to any destination.
 	// It also handles graceful shutdown by listening to os signals.
 	// It returns error if any.
-	if err := any2any(*source, *sink); err != nil {
+	if err := any2any(l, strings.ToUpper(source), strings.ToUpper(sink), envs); err != nil {
 		l.Error(fmt.Sprintf("error: %s", err.Error()))
 		fmt.Printf("error: %+v\n", err)
 		return

@@ -14,12 +14,14 @@ type Option func(SetupOptions)
 // SetupBufferSize sets up the buffer size for the component.
 func SetupBufferSize(bufferSize int) Option {
 	return func(o SetupOptions) {
-		o.SetBufferSize(bufferSize)
+		if bufferSize > 0 {
+			o.SetBufferSize(bufferSize)
+		}
 	}
 }
 
 // SetupOtelSDK sets up the OpenTelemetry SDK for the component.
-func SetupOtelSDK() Option {
+func SetupOtelSDK(otelCollectorGRPCEndpoint string, otelAttributes string) Option {
 	return func(o SetupOptions) {
 		o.SetOtelSDK()
 	}

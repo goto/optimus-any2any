@@ -63,7 +63,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...option.Optio
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		l.Debug("sink: close record writer")
+		commonSink.Logger.Debug("sink: close record writer")
 		_ = recordWriter.Close()
 	})
 	// register process, it will immediately start the process

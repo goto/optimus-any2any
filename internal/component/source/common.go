@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/internal/component/option"
+	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
@@ -54,8 +55,12 @@ func (commonSource *CommonSource) SetOtelSDK() {
 
 }
 
-func (commonSource *CommonSource) SetLogger(string) {
-
+func (commonSource *CommonSource) SetLogger(logLevel string) {
+	logger, err := logger.NewLogger(logLevel)
+	if err != nil {
+		commonSource.Logger.Error(fmt.Sprintf("source: set logger error: %s", err.Error()))
+	}
+	commonSource.Logger = logger
 }
 
 // Send sends data to the channel.
