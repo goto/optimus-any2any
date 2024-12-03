@@ -3,7 +3,7 @@ module github.com/goto/optimus-any2any
 go 1.22.3
 
 require (
-	github.com/aliyun/aliyun-odps-go-sdk v0.3.16
+	github.com/aliyun/aliyun-odps-go-sdk v0.3.18-0.20241203092832-bc4e03d5fb46
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/pflag v1.0.5

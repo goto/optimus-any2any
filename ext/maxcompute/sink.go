@@ -44,7 +44,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...option.Optio
 		return nil, errors.WithStack(err)
 	}
 
-	session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name())
+	session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(), tunnel.SessionCfg.WithSchemaName(destination.SchemaName()))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

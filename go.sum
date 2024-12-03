@@ -16,6 +16,10 @@ github.com/alibabacloud-go/tea v1.2.2 h1:aTsR6Rl3ANWPfqeQugPglfurloyBJY85eFy7Gc1
 github.com/alibabacloud-go/tea v1.2.2/go.mod h1:CF3vOzEMAG+bR4WOql8gc2G9H3EkH3ZLAQdpmpXMgwk=
 github.com/aliyun/aliyun-odps-go-sdk v0.3.16 h1:f3YKYhFrAZyPmiL0dfJerK+POg1DilyOKLPkeyy4y28=
 github.com/aliyun/aliyun-odps-go-sdk v0.3.16/go.mod h1:t/tgF/iN5aAs/gLL7sEI8/qdax4NuFCKEjO3OJbHZqI=
+github.com/aliyun/aliyun-odps-go-sdk v0.3.17 h1:1dSUL31Z/xbg42j8DpOemyyMgYb9giJfRpLI7YEmw/Y=
+github.com/aliyun/aliyun-odps-go-sdk v0.3.17/go.mod h1:h3n3Jy9qCcq9GhKakuF7Y47W1EP71hfTDx8MCEeQYbA=
+github.com/aliyun/aliyun-odps-go-sdk v0.3.18-0.20241203092832-bc4e03d5fb46 h1:Mv5z+drcGIc0CMAyIA9h5xFCEBSJvM253UUGvVTHZFM=
+github.com/aliyun/aliyun-odps-go-sdk v0.3.18-0.20241203092832-bc4e03d5fb46/go.mod h1:h3n3Jy9qCcq9GhKakuF7Y47W1EP71hfTDx8MCEeQYbA=
 github.com/aliyun/credentials-go v1.3.10 h1:45Xxrae/evfzQL9V10zL3xX31eqgLWEaIdCoPipOEQA=
 github.com/aliyun/credentials-go v1.3.10/go.mod h1:Jm6d+xIgwJVLVWT561vy67ZRP4lPTQxMbEYRuT2Ti1U=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
@@ -140,6 +144,7 @@ github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
+github.com/stretchr/testify v1.8.2/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
 github.com/stretchr/testify v1.8.4 h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=
 github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXlSw2iwfAo=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
