@@ -2,30 +2,42 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/goto/optimus-any2any/internal/component"
+	"github.com/goto/optimus-any2any/internal/config"
+	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
 	"github.com/pkg/errors"
 )
 
 // any2any creates a pipeline from source to sink.
-// TODO: load config in a single place, for now, log level not working on connector component (it defines in pipeline).
-func any2any(l *slog.Logger, from, to string, envs []string) error {
+func any2any(from, to string, envs []string) error {
+	// load config
+	cfg, err := config.NewConfig(envs...)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// set up logger
+	l, err := logger.NewLogger(cfg.LogLevel)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
 	// graceful shutdown
 	ctx, cancelFn := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancelFn()
 
 	// create source
-	source, err := component.GetSource(l, component.Type(from), envs...)
+	source, err := component.GetSource(l, component.Type(from), cfg, envs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// create sink
-	sink, err := component.GetSink(l, component.Type(to), envs...)
+	sink, err := component.GetSink(l, component.Type(to), cfg, envs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}

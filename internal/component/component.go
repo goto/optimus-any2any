@@ -23,20 +23,11 @@ const (
 
 // GetSource returns a source based on the given type.
 // It will return an error if the source is unknown.
-func GetSource(l *slog.Logger, source Type, envs ...string) (flow.Source, error) {
-	// load config
-	cfg, err := config.NewConfig(envs...)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
+func GetSource(l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
-	opts := []option.Option{
-		option.SetupLogger(cfg.LogLevel),
-		option.SetupOtelSDK(cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
-		option.SetupBufferSize(cfg.BufferSize),
-	}
+	opts := getOpts(cfg)
 
+	// create source based on type
 	switch source {
 	case MC:
 	case FILE:
@@ -52,20 +43,11 @@ func GetSource(l *slog.Logger, source Type, envs ...string) (flow.Source, error)
 
 // GetSink returns a sink based on the given type.
 // It will return an error if the sink is unknown.
-func GetSink(l *slog.Logger, sink Type, envs ...string) (flow.Sink, error) {
-	// load config
-	cfg, err := config.NewConfig(envs...)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
+func GetSink(l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
-	opts := []option.Option{
-		option.SetupLogger(cfg.LogLevel),
-		option.SetupOtelSDK(cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
-		option.SetupBufferSize(cfg.BufferSize),
-	}
+	opts := getOpts(cfg)
 
+	// create sink based on type
 	switch sink {
 	case MC:
 		sinkCfg, err := config.SinkMC(envs...)
@@ -78,4 +60,13 @@ func GetSink(l *slog.Logger, sink Type, envs ...string) (flow.Sink, error) {
 		return io.NewSink(l), nil
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
+}
+
+// getOpts returns options based on the given config.
+func getOpts(cfg *config.Config) []option.Option {
+	return []option.Option{
+		option.SetupLogger(cfg.LogLevel),
+		option.SetupOtelSDK(cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
+		option.SetupBufferSize(cfg.BufferSize),
+	}
 }

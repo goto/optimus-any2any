@@ -26,7 +26,7 @@ func main() {
 	// any2any is the main function to execute the data transfer from any source to any destination.
 	// It also handles graceful shutdown by listening to os signals.
 	// It returns error if any.
-	if err := any2any(l, strings.ToUpper(source), strings.ToUpper(sink), envs); err != nil {
+	if err := any2any(strings.ToUpper(source), strings.ToUpper(sink), envs); err != nil {
 		l.Error(fmt.Sprintf("error: %s", err.Error()))
 		fmt.Printf("error: %+v\n", err)
 		return
