@@ -1,6 +1,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -23,9 +24,9 @@ const (
 
 // GetSource returns a source based on the given type.
 // It will return an error if the source is unknown.
-func GetSource(l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
+func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
-	opts := getOpts(cfg)
+	opts := getOpts(ctx, cfg)
 
 	// create source based on type
 	switch source {
@@ -43,9 +44,9 @@ func GetSource(l *slog.Logger, source Type, cfg *config.Config, envs ...string) 
 
 // GetSink returns a sink based on the given type.
 // It will return an error if the sink is unknown.
-func GetSink(l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
+func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
-	opts := getOpts(cfg)
+	opts := getOpts(ctx, cfg)
 
 	// create sink based on type
 	switch sink {
@@ -63,10 +64,10 @@ func GetSink(l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flo
 }
 
 // getOpts returns options based on the given config.
-func getOpts(cfg *config.Config) []option.Option {
+func getOpts(ctx context.Context, cfg *config.Config) []option.Option {
 	return []option.Option{
 		option.SetupLogger(cfg.LogLevel),
-		option.SetupOtelSDK(cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
+		option.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
 		option.SetupBufferSize(cfg.BufferSize),
 	}
 }

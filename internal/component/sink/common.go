@@ -1,18 +1,23 @@
 package sink
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/logger"
+	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/flow"
+	opentelemetry "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // CommonSink is a sink that provides commonSink functionality.
 // It is used as a base for other sinks.
 type CommonSink struct {
 	Logger     *slog.Logger
+	m          metric.Meter
 	done       chan uint8
 	c          chan any
 	cleanFuncs []func()
@@ -26,6 +31,7 @@ var _ option.SetupOptions = (*CommonSink)(nil)
 func NewCommonSink(l *slog.Logger, opts ...option.Option) *CommonSink {
 	commonSink := &CommonSink{
 		Logger:     l,
+		m:          opentelemetry.GetMeterProvider().Meter("source"),
 		done:       make(chan uint8),
 		c:          make(chan any),
 		cleanFuncs: []func(){},
@@ -58,8 +64,17 @@ func (commonSink *CommonSink) SetBufferSize(bufferSize int) {
 	commonSink.c = make(chan any, bufferSize)
 }
 
-func (commonSink *CommonSink) SetOtelSDK() {
-
+func (commonSink *CommonSink) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
+	commonSink.Logger.Debug(fmt.Sprintf("sink: set otel sdk: %s", otelCollectorGRPCEndpoint))
+	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
+	if err != nil {
+		commonSink.Logger.Error(fmt.Sprintf("sink: set otel sdk error: %s", err.Error()))
+	}
+	commonSink.AddCleanFunc(func() {
+		if err := shutdownFunc(); err != nil {
+			commonSink.Logger.Error(fmt.Sprintf("source: otel sdk shutdown error: %s", err.Error()))
+		}
+	})
 }
 
 func (commonSink *CommonSink) SetLogger(logLevel string) {

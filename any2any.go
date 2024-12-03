@@ -32,12 +32,12 @@ func any2any(from, to string, envs []string) error {
 	defer cancelFn()
 
 	// create source
-	source, err := component.GetSource(l, component.Type(from), cfg, envs...)
+	source, err := component.GetSource(ctx, l, component.Type(from), cfg, envs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// create sink
-	sink, err := component.GetSink(l, component.Type(to), cfg, envs...)
+	sink, err := component.GetSink(ctx, l, component.Type(to), cfg, envs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
