@@ -10,14 +10,16 @@ import (
 // PassThrough is a connector that passes data from outlet to inlet.
 func PassThrough(l *slog.Logger) flow.Connect {
 	return func(outlet flow.Outlet, inlet flow.Inlet) {
-		defer func() {
-			l.Debug("connector: close")
-			close(inlet.In())
+		go func() {
+			defer func() {
+				l.Debug("connector: close")
+				close(inlet.In())
+			}()
+			for v := range outlet.Out() {
+				l.Debug(fmt.Sprintf("connector: send: %s", string(v.([]byte))))
+				inlet.In() <- v
+				l.Debug(fmt.Sprintf("connector: done: %s", string(v.([]byte))))
+			}
 		}()
-		for v := range outlet.Out() {
-			l.Debug(fmt.Sprintf("connector: send: %s", string(v.([]byte))))
-			inlet.In() <- v
-			l.Debug(fmt.Sprintf("connector: done: %s", string(v.([]byte))))
-		}
 	}
 }

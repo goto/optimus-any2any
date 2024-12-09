@@ -7,10 +7,10 @@ import (
 
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/io"
-	"github.com/goto/optimus-any2any/ext/jq"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/config"
+	"github.com/goto/optimus-any2any/pkg/connector"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -67,17 +67,18 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }
 
-// GetProcessor returns a processor based on the given type.
-// For now it only supports JQ processor.
-func GetProcessor(ctx context.Context, l *slog.Logger, cfg *config.Config, envs ...string) (flow.Processor, error) {
+// GetConnector returns a connector to connect source to sink.
+// For now it only supports PassThrough and JQ processor.
+// TODO: refactor to support more processors.
+func GetConnector(ctx context.Context, l *slog.Logger, cfg *config.Config, envs ...string) (flow.Connect, error) {
 	processorCfg, err := config.ProcessorJQ(envs...)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	if processorCfg.Query == "" {
-		return nil, nil
+		return connector.PassThrough(l), nil
 	}
-	return jq.NewJQProcessor(l, processorCfg.Query, cfg.BufferSize)
+	return connector.JQProcessor(l, processorCfg.Query), nil
 }
 
 // getOpts returns options based on the given config.

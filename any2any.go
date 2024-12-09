@@ -41,14 +41,14 @@ func any2any(from, to string, envs []string) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// create processor
-	processor, err := component.GetProcessor(ctx, l, cfg, envs...)
+	// create connector
+	connector, err := component.GetConnector(ctx, l, cfg, envs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	// initiate pipeline
-	p := pipeline.NewSimplePipeline(l, source, sink, processor)
+	p := pipeline.NewSimplePipeline(l, source, sink, connector)
 	defer p.Close()
 
 	select {
