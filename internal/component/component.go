@@ -7,6 +7,7 @@ import (
 
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/io"
+	"github.com/goto/optimus-any2any/ext/jq"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/config"
@@ -14,7 +15,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Type string
+type (
+	Type          string
+	ProcessorType string
+)
 
 const (
 	MC   Type = "MC"
@@ -61,6 +65,19 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		return io.NewSink(l), nil
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
+}
+
+// GetProcessor returns a processor based on the given type.
+// For now it only supports JQ processor.
+func GetProcessor(ctx context.Context, l *slog.Logger, cfg *config.Config, envs ...string) (flow.Processor, error) {
+	processorCfg, err := config.ProcessorJQ(envs...)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if processorCfg.Query == "" {
+		return nil, nil
+	}
+	return jq.NewJQProcessor(l, processorCfg.Query, cfg.BufferSize)
 }
 
 // getOpts returns options based on the given config.

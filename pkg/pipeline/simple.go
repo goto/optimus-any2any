@@ -9,20 +9,25 @@ import (
 
 // SimplePipeline is a simple pipeline that connects a source to a sink.
 type SimplePipeline struct {
-	logger  *slog.Logger
-	source  flow.Source
-	connect flow.Connect
-	sink    flow.Sink
+	logger    *slog.Logger
+	source    flow.Source
+	connect   flow.Connect
+	processor flow.Processor
+	sink      flow.Sink
 }
 
 // NewSimplePipeline creates a new simple pipeline.
-func NewSimplePipeline(l *slog.Logger, source flow.Source, sink flow.Sink) *SimplePipeline {
-	return &SimplePipeline{
+func NewSimplePipeline(l *slog.Logger, source flow.Source, sink flow.Sink, processors ...flow.Processor) *SimplePipeline {
+	p := &SimplePipeline{
 		logger:  l,
 		source:  source,
 		connect: connector.PassThrough(l),
 		sink:    sink,
 	}
+	if len(processors) > 0 && processors[0] != nil {
+		p.processor = processors[0]
+	}
+	return p
 }
 
 // Run runs the pipeline by connecting source to sink.
@@ -30,7 +35,12 @@ func (p *SimplePipeline) Run() <-chan uint8 {
 	done := make(chan uint8)
 	go func() {
 		defer close(done)
-		p.connect(p.source, p.sink)
+		if p.processor != nil {
+			p.connect(p.source, p.processor)
+			p.connect(p.processor, p.sink)
+		} else {
+			p.connect(p.source, p.sink)
+		}
 		p.sink.Wait()
 	}()
 	return done

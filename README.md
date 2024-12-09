@@ -43,3 +43,24 @@ It expects configuration from env variables. Or you can pass configuration from 
 - FILE__PATH: Path to the input file.
 - MC__SERVICE_ACCOUNT: Service account for MaxCompute.
 - MC__DESTINATION_TABLE_ID: Destination table ID in MaxCompute.
+
+
+## Supported Sources
+
+| Component | Configuration | Description |
+|---|---|---|
+| FILE | FILE__PATH | Path to the input file. |
+
+## Supported Sinks
+
+| Component | Configuration | Description |
+|---|---|---|
+| MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
+| | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
+| IO | - | - |
+
+## Supported Processors
+
+| Component | Configuration | Description |
+|---|---|---|
+| JQ | JQ__QUERY | Any valid jq query. |
