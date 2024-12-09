@@ -74,6 +74,7 @@ func (commonSource *CommonSource) SetLogger(logLevel string) {
 	logger, err := logger.NewLogger(logLevel)
 	if err != nil {
 		commonSource.Logger.Error(fmt.Sprintf("source: set logger error: %s", err.Error()))
+		return
 	}
 	commonSource.Logger = logger
 }

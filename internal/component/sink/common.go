@@ -81,6 +81,7 @@ func (commonSink *CommonSink) SetLogger(logLevel string) {
 	logger, err := logger.NewLogger(logLevel)
 	if err != nil {
 		commonSink.Logger.Error(fmt.Sprintf("sink: set logger error: %s", err.Error()))
+		return
 	}
 	commonSink.Logger = logger
 }
