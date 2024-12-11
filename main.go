@@ -16,8 +16,8 @@ func main() {
 	var source string
 	var sink string
 	var envs []string
-	pflag.StringVar(&source, "from", "file", "source component")
-	pflag.StringVar(&sink, "to", "io", "sink component")
+	pflag.StringVar(&source, "from", "", "source component")
+	pflag.StringVar(&sink, "to", "", "sink component")
 	pflag.StringArrayVar(&envs, "env", []string{}, "Pass env as argument (can be used multiple times)")
 
 	// Parse the flags.

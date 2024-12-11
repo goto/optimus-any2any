@@ -8,6 +8,7 @@ require (
 	github.com/itchyny/gojq v0.12.17
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/pflag v1.0.5
+	go.opentelemetry.io/contrib/instrumentation/runtime v0.57.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.32.0
 	go.opentelemetry.io/otel/metric v1.32.0

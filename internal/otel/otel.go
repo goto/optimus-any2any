@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -36,6 +37,10 @@ func SetupOTelSDK(ctx context.Context, collectorGRPCEndpoint string, attributes 
 		metric.WithReader(metric.NewPeriodicReader(metricExporter, metric.WithInterval(5*time.Second))),
 	)
 	otel.SetMeterProvider(meterProvider)
+
+	// start runtime metrics collection
+	// this will collect metrics like memory usage, goroutines, etc.
+	runtime.Start(runtime.WithMinimumReadMemStatsInterval(1 * time.Second))
 
 	return func() error {
 		return meterProvider.Shutdown(context.Background())
