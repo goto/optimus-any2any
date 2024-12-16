@@ -8,6 +8,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/io"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
+	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/connector"
@@ -24,6 +25,7 @@ const (
 	MC   Type = "MC"
 	FILE Type = "FILE"
 	IO   Type = "IO"
+	SF   Type = "SF"
 )
 
 // GetSource returns a source based on the given type.
@@ -41,6 +43,14 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 			return nil, errors.WithStack(err)
 		}
 		return file.NewSource(l, sourceCfg.Path, opts...)
+	case SF:
+		sourceCfg, err := config.SourceSalesforce(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return salesforce.NewSource(l,
+			sourceCfg.Host, sourceCfg.User, sourceCfg.Pass, sourceCfg.Token,
+			sourceCfg.SOQLFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
