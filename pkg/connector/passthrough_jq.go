@@ -8,8 +8,8 @@ import (
 	"github.com/itchyny/gojq"
 )
 
-// JQPassthrough is a connector that passes data from outlet to inlet with jq query transformation.
-func JQPassthrough(l *slog.Logger, query string) flow.Connect {
+// PassThroughWithJQ is a connector that passes data from outlet to inlet with jq query transformation.
+func PassThroughWithJQ(l *slog.Logger, query string) flow.Connect {
 	jqQuery, err := gojq.Parse(query)
 	if err != nil {
 		l.Error(fmt.Sprintf("connector: failed to parse jq query: %v", err))
