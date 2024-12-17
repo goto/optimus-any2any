@@ -15,7 +15,7 @@ type SimplePipeline struct {
 }
 
 // NewSimplePipeline creates a new simple pipeline.
-func NewSimplePipeline(l *slog.Logger, source flow.Source, sink flow.Sink, connect flow.Connect) *SimplePipeline {
+func NewSimplePipeline(l *slog.Logger, source flow.Source, connect flow.Connect, sink flow.Sink) *SimplePipeline {
 	p := &SimplePipeline{
 		logger:  l,
 		source:  source,

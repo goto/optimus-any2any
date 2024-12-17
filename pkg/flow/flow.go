@@ -28,3 +28,6 @@ type Sink interface {
 
 // Connect is a function type that connects source and sink components.
 type Connect func(Outlet, Inlet)
+
+// ConnectMultiSink is a function type that connects source and multiple sink components.
+type ConnectMultiSink func(Outlet, ...Inlet)
