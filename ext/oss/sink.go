@@ -121,8 +121,8 @@ func (o *OSSSink) upload(records []string) error {
 		return errors.WithStack(err)
 	}
 
-	o.Logger.Info(fmt.Sprintf("sink: uploaded %d records to path %s (UploadID: %s, Response OSS: %d)",
-		len(records), objectKey, *uploadResult.UploadId, uploadResult.StatusCode))
+	o.Logger.Info(fmt.Sprintf("sink: uploaded %d records to path %s (Response OSS: %d)",
+		len(records), objectKey, uploadResult.StatusCode))
 
 	return nil
 }
