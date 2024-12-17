@@ -78,7 +78,7 @@ func GetConnector(ctx context.Context, l *slog.Logger, cfg *config.Config, envs 
 	if processorCfg.Query == "" {
 		return connector.PassThrough(l), nil
 	}
-	return connector.JQProcessor(l, processorCfg.Query), nil
+	return connector.JQPassthrough(l, processorCfg.Query), nil
 }
 
 // getOpts returns options based on the given config.
