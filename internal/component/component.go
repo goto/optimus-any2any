@@ -9,9 +9,9 @@ import (
 	"github.com/goto/optimus-any2any/ext/io"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
+	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/config"
-	"github.com/goto/optimus-any2any/pkg/connector"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -25,6 +25,7 @@ const (
 	MC   Type = "MC"
 	FILE Type = "FILE"
 	IO   Type = "IO"
+	SF   Type = "SF"
 	OSS  Type = "OSS"
 )
 
@@ -43,6 +44,14 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 			return nil, errors.WithStack(err)
 		}
 		return file.NewSource(l, sourceCfg.Path, opts...)
+	case SF:
+		sourceCfg, err := config.SourceSalesforce(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return salesforce.NewSource(l,
+			sourceCfg.Host, sourceCfg.User, sourceCfg.Pass, sourceCfg.Token,
+			sourceCfg.SOQLFilePath, sourceCfg.ColumnMappingFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
@@ -76,20 +85,6 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
-}
-
-// GetConnector returns a connector to connect source to sink.
-// For now it only supports PassThrough and JQ processor.
-// TODO: refactor to support more processors.
-func GetConnector(ctx context.Context, l *slog.Logger, cfg *config.Config, envs ...string) (flow.Connect, error) {
-	processorCfg, err := config.ProcessorJQ(envs...)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	if processorCfg.Query == "" {
-		return connector.PassThrough(l), nil
-	}
-	return connector.JQProcessor(l, processorCfg.Query), nil
 }
 
 // getOpts returns options based on the given config.
