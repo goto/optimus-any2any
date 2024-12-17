@@ -4,17 +4,20 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/goto/optimus-any2any/internal/component"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
+	"github.com/goto/optimus-any2any/pkg/connector"
+	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
 	"github.com/pkg/errors"
 )
 
 // any2any creates a pipeline from source to sink.
-func any2any(from, to string, envs []string) error {
+func any2any(from string, to []string, envs []string) error {
 	// load config
 	cfg, err := config.NewConfig(envs...)
 	if err != nil {
@@ -32,23 +35,30 @@ func any2any(from, to string, envs []string) error {
 	defer cancelFn()
 
 	// create source
-	source, err := component.GetSource(ctx, l, component.Type(from), cfg, envs...)
+	source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// create sink
-	sink, err := component.GetSink(ctx, l, component.Type(to), cfg, envs...)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	// create connector
-	connector, err := component.GetConnector(ctx, l, cfg, envs...)
-	if err != nil {
-		return errors.WithStack(err)
+	// create sinks (multiple)
+	var sinks []flow.Sink
+	for _, t := range to {
+		sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		sinks = append(sinks, sink)
 	}
 
 	// initiate pipeline
-	p := pipeline.NewSimplePipeline(l, source, sink, connector)
+	var p interface {
+		Run() <-chan uint8
+		Close()
+	}
+	if len(sinks) == 1 {
+		p = pipeline.NewSimplePipeline(l, source, connector.PassThrough(l), sinks[0])
+	} else {
+		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOut(l), sinks...)
+	}
 	defer p.Close()
 
 	select {
