@@ -73,6 +73,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...option.Optio
 }
 
 func (mc *MaxcomputeSink) process() {
+	mc.Logger.Info(fmt.Sprintf("sink: start writing records to table: %s", mc.tableSchema.TableName))
 	mc.Logger.Debug(fmt.Sprintf("sink: record column: %+v", mc.tableSchema.Columns))
 	countRecord := 0
 	for msg := range mc.Read() {
