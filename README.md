@@ -58,6 +58,10 @@ It expects configuration from env variables. Or you can pass configuration from 
 | MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | IO | - | - |
+| OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
+| | OSS__BATCH_SIZE | If set, resulting files will be batched to the set number, for each file. |
+| | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name |
+| | OSS__FILENAME_PREFIX | Prefix to be used in the generated file names |
 
 ## Supported Processors
 
