@@ -8,6 +8,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/io"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
+	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/config"
@@ -25,6 +26,7 @@ const (
 	FILE Type = "FILE"
 	IO   Type = "IO"
 	SF   Type = "SF"
+	OSS  Type = "OSS"
 )
 
 // GetSource returns a source based on the given type.
@@ -72,6 +74,15 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 	case FILE:
 	case IO:
 		return io.NewSink(l), nil
+	case OSS:
+		sinkCfg, err := config.SinkOSS(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return oss.NewSink(l, sinkCfg.ServiceAccount,
+			sinkCfg.DestinationBucketPath, sinkCfg.FilenamePrefix,
+			int64(sinkCfg.BatchSize), opts...)
+
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }

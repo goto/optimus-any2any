@@ -1,0 +1,43 @@
+package oss
+
+import (
+	"encoding/json"
+
+	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"
+	"github.com/pkg/errors"
+)
+
+type ossCredentials struct {
+	AccessID      string `json:"access_key_id"`
+	AccessKey     string `json:"access_key_secret"`
+	Endpoint      string `json:"endpoint"`
+	Region        string `json:"region"`
+	SecurityToken string `json:"security_token"`
+}
+
+func parseOSSCredentials(data []byte) (*ossCredentials, error) {
+	cred := new(ossCredentials)
+	if err := json.Unmarshal(data, cred); err != nil {
+		return nil, err
+	}
+
+	return cred, nil
+}
+
+func NewOSSClient(svcAcc string) (*oss.Client, error) {
+	cred, err := parseOSSCredentials([]byte(svcAcc))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	credProvider := credentials.NewStaticCredentialsProvider(cred.AccessID, cred.AccessKey, cred.SecurityToken)
+	cfg := oss.LoadDefaultConfig().
+		WithCredentialsProvider(credProvider).
+		WithEndpoint(cred.Endpoint).
+		WithRegion(cred.Region)
+
+	client := oss.NewClient(cfg)
+
+	return client, nil
+}
