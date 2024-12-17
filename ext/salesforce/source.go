@@ -29,7 +29,7 @@ var _ flow.Source = (*SalesforceSource)(nil)
 // columnMapFilePath is the path to the column map file
 func NewSource(l *slog.Logger,
 	sfURL, sfUser, sfPassword, sfToken string,
-	soqlFilePath, mappingFilePath string, opts ...option.Option) (*SalesforceSource, error) {
+	soqlFilePath, columnMappingFilePath string, opts ...option.Option) (*SalesforceSource, error) {
 	// create commonSource
 	commonSource := source.NewCommonSource(l, opts...)
 	// create salesforce client
@@ -43,7 +43,7 @@ func NewSource(l *slog.Logger,
 		return nil, errors.WithStack(err)
 	}
 	// read column map
-	columnMap, err := getColumnMap(mappingFilePath)
+	columnMap, err := getColumnMap(columnMappingFilePath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

@@ -50,7 +50,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		}
 		return salesforce.NewSource(l,
 			sourceCfg.Host, sourceCfg.User, sourceCfg.Pass, sourceCfg.Token,
-			sourceCfg.SOQLFilePath, sourceCfg.MappingFilePath, opts...)
+			sourceCfg.SOQLFilePath, sourceCfg.ColumnMappingFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
