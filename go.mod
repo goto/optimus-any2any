@@ -3,6 +3,7 @@ module github.com/goto/optimus-any2any
 go 1.22.3
 
 require (
+	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.1.3
 	github.com/aliyun/aliyun-odps-go-sdk v0.3.18-0.20241203092832-bc4e03d5fb46
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/itchyny/gojq v0.12.17
@@ -39,6 +40,7 @@ require (
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.20.0 // indirect
+	golang.org/x/time v0.4.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241202173237-19429a94021a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241202173237-19429a94021a // indirect
