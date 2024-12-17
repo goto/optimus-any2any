@@ -73,6 +73,8 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...option.Optio
 }
 
 func (mc *MaxcomputeSink) process() {
+	mc.Logger.Debug(fmt.Sprintf("sink: record column: %+v", mc.tableSchema.Columns))
+	countRecord := 0
 	for msg := range mc.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
@@ -88,7 +90,15 @@ func (mc *MaxcomputeSink) process() {
 		mc.Logger.Debug(fmt.Sprintf("sink: record: %s", record.String()))
 		if err := mc.recordWriter.Write(record); err != nil {
 			mc.Logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
+			continue
 		}
+		countRecord++
+		if countRecord%100 == 0 {
+			mc.Logger.Info(fmt.Sprintf("sink: write %d records", countRecord))
+		}
+	}
+	if countRecord > 0 {
+		mc.Logger.Info(fmt.Sprintf("sink: write %d records", countRecord))
 	}
 	if err := mc.recordWriter.Close(); err != nil {
 		mc.Logger.Error(fmt.Sprintf("record writer close error: %s", err.Error()))
