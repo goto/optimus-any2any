@@ -1,6 +1,7 @@
 package salesforce
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,17 +13,23 @@ import (
 	"github.com/simpleforce/simpleforce"
 )
 
+// SalesforceSource is a source that reads data from Salesforce.
 type SalesforceSource struct {
 	*source.CommonSource
 	client    *simpleforce.Client
 	soqlQuery string
+	columnMap map[string]string
 }
 
 var _ flow.Source = (*SalesforceSource)(nil)
 
+// NewSource creates a new SalesforceSource
+// sfURL, sfUser, sfPassword, sfToken are the Salesforce credentials
+// soqlFilePath is the path to the SOQL query file
+// columnMapFilePath is the path to the column map file
 func NewSource(l *slog.Logger,
 	sfURL, sfUser, sfPassword, sfToken string,
-	soqlFilePath string, opts ...option.Option) (*SalesforceSource, error) {
+	soqlFilePath, mappingFilePath string, opts ...option.Option) (*SalesforceSource, error) {
 	// create commonSource
 	commonSource := source.NewCommonSource(l, opts...)
 	// create salesforce client
@@ -35,11 +42,17 @@ func NewSource(l *slog.Logger,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	// read column map
+	columnMap, err := getColumnMap(mappingFilePath)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	// create source
 	sf := &SalesforceSource{
 		CommonSource: commonSource,
 		client:       client,
 		soqlQuery:    string(soqlQueryRaw),
+		columnMap:    columnMap,
 	}
 
 	// add clean func
@@ -65,9 +78,36 @@ func (sf *SalesforceSource) process() {
 			sf.Logger.Error(fmt.Sprintf("source: failed to query more salesforce: %s", err.Error()))
 			return
 		}
+		for _, v := range currentResult.Records {
+			record := map[string]interface{}(v)
+			sf.Send(sf.mapping(record))
+		}
 		result = currentResult
-		for _, record := range result.Records {
-			sf.Send(record)
+	}
+}
+
+// mapping maps the column name from Salesforce to the column name in the column map.
+func (sf *SalesforceSource) mapping(value map[string]interface{}) map[string]interface{} {
+	mappedValue := make(map[string]interface{})
+	for key, val := range value {
+		if mappedKey, ok := sf.columnMap[key]; ok {
+			mappedValue[mappedKey] = val
+		} else {
+			mappedValue[key] = val
 		}
 	}
+	return mappedValue
+}
+
+// getColumnMap reads the column map from the file.
+func getColumnMap(columnMapFilePath string) (map[string]string, error) {
+	columnMapRaw, err := os.ReadFile(columnMapFilePath)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	columnMap := make(map[string]string)
+	if err = json.Unmarshal(columnMapRaw, &columnMap); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return columnMap, nil
 }
