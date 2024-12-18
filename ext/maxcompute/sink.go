@@ -80,17 +80,20 @@ func (mc *MaxcomputeSink) process() {
 		b, ok := msg.([]byte)
 		if !ok {
 			mc.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
+			mc.SetError(errors.New(fmt.Sprintf("message type assertion error: %T", msg)))
 			continue
 		}
 		mc.Logger.Debug(fmt.Sprintf("sink: message: %s", string(b)))
 		record, err := createRecord(b, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
+			mc.SetError(err)
 			continue
 		}
 		mc.Logger.Debug(fmt.Sprintf("sink: record: %s", record.String()))
 		if err := mc.recordWriter.Write(record); err != nil {
 			mc.Logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
+			mc.SetError(err)
 			continue
 		}
 		countRecord++
@@ -103,8 +106,10 @@ func (mc *MaxcomputeSink) process() {
 	}
 	if err := mc.recordWriter.Close(); err != nil {
 		mc.Logger.Error(fmt.Sprintf("record writer close error: %s", err.Error()))
+		mc.SetError(err)
 	}
 	if err := mc.session.Commit([]int{0}); err != nil {
 		mc.Logger.Error(fmt.Sprintf("session commit error: %s", err.Error()))
+		mc.SetError(err)
 	}
 }

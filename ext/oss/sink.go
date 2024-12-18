@@ -75,6 +75,7 @@ func (o *OSSSink) process() {
 		b, ok := msg.([]byte)
 		if !ok {
 			o.Logger.Error(fmt.Sprintf("sink: message type assertion error: %T", msg))
+			o.SetError(errors.New(fmt.Sprintf("sink: message type assertion error: %T", msg)))
 			continue
 		}
 		record := string(b)
@@ -85,6 +86,7 @@ func (o *OSSSink) process() {
 			o.Logger.Info(fmt.Sprintf("sink: (batch %d) uploading %d records", batchCount, len(records)))
 			if err := o.upload(records); err != nil {
 				o.Logger.Error(fmt.Sprintf("sink: (batch %d) failed to upload records: %s", batchCount, err.Error()))
+				o.SetError(err)
 			}
 
 			batchCount++
@@ -98,6 +100,7 @@ func (o *OSSSink) process() {
 		o.Logger.Info(fmt.Sprintf("sink: (batch %d) uploading %d records", batchCount, len(records)))
 		if err := o.upload(records); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink: (batch %d) failed to upload records: %s", batchCount, err.Error()))
+			o.SetError(err)
 		}
 	}
 }

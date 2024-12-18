@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/spf13/pflag"
@@ -28,6 +29,6 @@ func main() {
 	if err := any2any(source, sinks, envs); err != nil {
 		l.Error(fmt.Sprintf("error: %s", err.Error()))
 		fmt.Printf("error: %+v\n", err)
-		return
+		os.Exit(1)
 	}
 }

@@ -2,6 +2,7 @@ package sink
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -20,6 +21,7 @@ type CommonSink struct {
 	m          metric.Meter
 	done       chan uint8
 	c          chan any
+	err        error
 	cleanFuncs []func()
 }
 
@@ -34,6 +36,7 @@ func NewCommonSink(l *slog.Logger, opts ...option.Option) *CommonSink {
 		m:          opentelemetry.GetMeterProvider().Meter("source"),
 		done:       make(chan uint8),
 		c:          make(chan any),
+		err:        nil,
 		cleanFuncs: []func(){},
 	}
 
@@ -112,4 +115,15 @@ func (commonSink *CommonSink) RegisterProcess(f func()) {
 		}()
 		f()
 	}()
+}
+
+// SetError sets the error of the sink.
+// This is additional functionality that is not part of the flow.Sink interface.
+func (commonSink *CommonSink) SetError(err error) {
+	commonSink.err = errors.Join(commonSink.err, err)
+}
+
+// Err returns the error of the sink.
+func (commonSink *CommonSink) Err() error {
+	return commonSink.err
 }

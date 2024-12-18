@@ -15,6 +15,7 @@ type Outlet interface {
 type Source interface {
 	Outlet
 	Close()
+	Err() error
 }
 
 // Sink is an interface for sink components.
@@ -24,6 +25,7 @@ type Sink interface {
 	Inlet
 	Close()
 	Wait()
+	Err() error
 }
 
 // Connect is a function type that connects source and sink components.

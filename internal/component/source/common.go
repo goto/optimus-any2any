@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -19,6 +20,7 @@ type CommonSource struct {
 	Logger     *slog.Logger
 	m          metric.Meter
 	c          chan any
+	err        error
 	cleanFuncs []func()
 }
 
@@ -32,6 +34,7 @@ func NewCommonSource(l *slog.Logger, opts ...option.Option) *CommonSource {
 		Logger:     l,
 		m:          opentelemetry.GetMeterProvider().Meter("source"),
 		c:          make(chan any),
+		err:        nil,
 		cleanFuncs: []func(){},
 	}
 
@@ -119,4 +122,15 @@ func (commonSource *CommonSource) RegisterProcess(f func()) {
 		}()
 		f()
 	}()
+}
+
+// SetError sets the error of the source.
+// This is additional functionality that is not part of the flow.Source interface.
+func (commonSource *CommonSource) SetError(err error) {
+	commonSource.err = errors.Join(commonSource.err, err)
+}
+
+// Err returns the error of the source.
+func (commonSource *CommonSource) Err() error {
+	return commonSource.err
 }

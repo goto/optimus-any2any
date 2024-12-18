@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"errors"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -41,6 +42,16 @@ func (p *MultiSinkPipeline) Run() <-chan uint8 {
 		}
 	}()
 	return done
+}
+
+// Err returns the error from source or sink.
+func (p *MultiSinkPipeline) Err() error {
+	var errs error
+	errs = errors.Join(errs, p.source.Err())
+	for _, sink := range p.sinks {
+		errs = errors.Join(errs, sink.Err())
+	}
+	return errs
 }
 
 // Close closes source and sink gracefully.

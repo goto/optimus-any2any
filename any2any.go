@@ -57,6 +57,7 @@ func any2any(from string, to []string, envs []string) error {
 	// initiate pipeline
 	var p interface {
 		Run() <-chan uint8
+		Err() error
 		Close()
 	}
 	// create pipeline based on number of sinks
@@ -70,6 +71,9 @@ func any2any(from string, to []string, envs []string) error {
 	select {
 	// run pipeline until done
 	case <-p.Run():
+		if err := p.Err(); err != nil {
+			return errors.WithStack(err)
+		}
 	// or until context is cancelled
 	case <-ctx.Done():
 	}
