@@ -25,9 +25,9 @@ Transfer data from a file to MaxCompute (MC):
 ./any2any --from=file --to=mc
 ```
 
-Transfer data from MaxCompute (MC) to Kafka:
+Transfer data from MaxCompute (MC) to Kafka and OSS:
 ```sh
-./any2any --from=mc --to=kafka
+./any2any --from=mc --to=kafka --to=oss
 ```
 
 It expects configuration from env variables. Or you can pass configuration from arguments env directly:
