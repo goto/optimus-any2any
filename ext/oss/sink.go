@@ -29,7 +29,12 @@ type OSSSink struct {
 
 var _ flow.Sink = (*OSSSink)(nil)
 
-func NewSink(l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix string, batchSize int64, opts ...option.Option) (*OSSSink, error) {
+// NewSink creates a new OSSSink
+// svcAcc is the service account json string refer to ossCredentials
+// destinationBucketPath is the bucket path to write to, it must be in the format of bucket_name/path
+// filenamePrefix is the prefix of the filename to write to
+// batchSize is the number of records to batch before uploading
+func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix string, batchSize int64, opts ...option.Option) (*OSSSink, error) {
 	commonSink := sink.NewCommonSink(l, opts...)
 
 	client, err := NewOSSClient(svcAcc)
@@ -52,7 +57,7 @@ func NewSink(l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix strin
 		bucket:       parsedURL.Host,
 		objectPrefix: objectPrefix,
 		batchSize:    batchSize,
-		ctx:          context.Background(),
+		ctx:          ctx,
 	}
 
 	// add clean func
