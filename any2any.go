@@ -48,16 +48,22 @@ func any2any(from string, to []string, envs []string) error {
 		}
 		sinks = append(sinks, sink)
 	}
+	// get jq query for filtering / transforming data between source and sink
+	jqQuery, err := component.GetJQQuery(l, envs...)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	// initiate pipeline
 	var p interface {
 		Run() <-chan uint8
 		Close()
 	}
+	// create pipeline based on number of sinks
 	if len(sinks) == 1 {
-		p = pipeline.NewSimplePipeline(l, source, connector.PassThrough(l), sinks[0])
+		p = pipeline.NewSimplePipeline(l, source, connector.PassThroughWithJQ(l, jqQuery), sinks[0])
 	} else {
-		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOut(l), sinks...)
+		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
 	}
 	defer p.Close()
 

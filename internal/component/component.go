@@ -87,6 +87,16 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }
 
+// GetJQQuery returns a jq query based on the given environment variables.
+// jq query is used for JSON transformation, it acts as a filter and map for JSON data.
+func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
+	jqCfg, err := config.ProcessorJQ(envs...)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return jqCfg.Query, nil
+}
+
 // getOpts returns options based on the given config.
 func getOpts(ctx context.Context, cfg *config.Config) []option.Option {
 	return []option.Option{
