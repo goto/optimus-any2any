@@ -10,6 +10,9 @@ import (
 
 // FanOutWithJQ is a connector that passes data from outlet to multiple inlets with jq query transformation.
 func FanOutWithJQ(l *slog.Logger, query string) flow.ConnectMultiSink {
+	if query == "" {
+		return FanOut(l) // fallback to fanout
+	}
 	jqQuery, err := gojq.Parse(query)
 	if err != nil {
 		l.Error(fmt.Sprintf("connector: failed to parse jq query: %v", err))

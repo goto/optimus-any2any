@@ -78,9 +78,16 @@ func (sf *SalesforceSource) process() {
 			sf.Logger.Error(fmt.Sprintf("source: failed to query more salesforce: %s", err.Error()))
 			return
 		}
+		sf.Logger.Info(fmt.Sprintf("source: fetched %d records", len(currentResult.Records)))
 		for _, v := range currentResult.Records {
 			record := map[string]interface{}(v)
-			sf.Send(sf.mapping(record))
+			mappedRecord := sf.mapping(record)
+			raw, err := json.Marshal(mappedRecord)
+			if err != nil {
+				sf.Logger.Error(fmt.Sprintf("source: failed to marshal record: %s", err.Error()))
+				continue
+			}
+			sf.Send(raw)
 		}
 		result = currentResult
 	}
@@ -88,6 +95,7 @@ func (sf *SalesforceSource) process() {
 
 // mapping maps the column name from Salesforce to the column name in the column map.
 func (sf *SalesforceSource) mapping(value map[string]interface{}) map[string]interface{} {
+	sf.Logger.Debug(fmt.Sprintf("source: record before map: %v", value))
 	mappedValue := make(map[string]interface{})
 	for key, val := range value {
 		if mappedKey, ok := sf.columnMap[key]; ok {
@@ -96,6 +104,7 @@ func (sf *SalesforceSource) mapping(value map[string]interface{}) map[string]int
 			mappedValue[key] = val
 		}
 	}
+	sf.Logger.Debug(fmt.Sprintf("source: record after map: %v", mappedValue))
 	return mappedValue
 }
 

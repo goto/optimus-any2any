@@ -10,6 +10,9 @@ import (
 
 // PassThroughWithJQ is a connector that passes data from outlet to inlet with jq query transformation.
 func PassThroughWithJQ(l *slog.Logger, query string) flow.Connect {
+	if query == "" {
+		return PassThrough(l) // fallback to fanout
+	}
 	jqQuery, err := gojq.Parse(query)
 	if err != nil {
 		l.Error(fmt.Sprintf("connector: failed to parse jq query: %v", err))
