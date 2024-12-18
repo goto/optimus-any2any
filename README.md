@@ -50,12 +50,12 @@ It expects configuration from env variables. Or you can pass configuration from 
 | Component | Configuration | Description |
 |---|---|---|
 | FILE | FILE__PATH | Path to the input file. |
-| SF | SALESFORCE__HOST | Salesforce instance host. |
-| | SALESFORCE__USER | Salesforce username. |
-| | SALESFORCE__PASS | Salesforce password. |
-| | SALESFORCE__TOKEN | Salesforce security token. |
-| | SALESFORCE__SOQL_FILE_PATH | Path to the SOQL query file. (default: /data/in/main.soql)|
-| | SALESFORCE__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for salesforce record result. (default: /data/in/mapping.columns) |
+| SF | SF__HOST | Salesforce instance host. |
+| | SF__USER | Salesforce username. |
+| | SF__PASS | Salesforce password. |
+| | SF__TOKEN | Salesforce security token. |
+| | SF__SOQL_FILE_PATH | Path to the SOQL query file. (default: /data/in/main.soql)|
+| | SF__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for salesforce record result. (default: /data/in/mapping.columns) |
 
 ## Supported Sinks
 
