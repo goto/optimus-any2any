@@ -28,7 +28,7 @@ func NewSink(l *slog.Logger, opts ...option.Option) *IOSink {
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink: close func called")
+		commonSink.Logger.Debug("sink(io): close func called")
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
@@ -40,8 +40,8 @@ func NewSink(l *slog.Logger, opts ...option.Option) *IOSink {
 func (s *IOSink) process() {
 	// read from channel
 	for v := range s.Read() {
-		s.Logger.Debug(fmt.Sprintf("sink: read: %s", string(v.([]byte))))
+		s.Logger.Debug(fmt.Sprintf("sink(io): read: %s", string(v.([]byte))))
 		fmt.Fprintf(s.w, "%s\n", string(v.([]byte)))
-		s.Logger.Debug(fmt.Sprintf("sink: done: %s", string(v.([]byte))))
+		s.Logger.Debug(fmt.Sprintf("sink(io): done: %s", string(v.([]byte))))
 	}
 }

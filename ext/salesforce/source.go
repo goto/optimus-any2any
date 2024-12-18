@@ -57,7 +57,7 @@ func NewSource(l *slog.Logger,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source: close salesforce client")
+		commonSource.Logger.Debug("source(sf): close salesforce client")
 	})
 	commonSource.RegisterProcess(sf.process)
 
@@ -75,17 +75,17 @@ func (sf *SalesforceSource) process() {
 	for !result.Done {
 		currentResult, err := sf.client.Query(result.NextRecordsURL)
 		if err != nil {
-			sf.Logger.Error(fmt.Sprintf("source: failed to query more salesforce: %s", err.Error()))
+			sf.Logger.Error(fmt.Sprintf("source(sf): failed to query more salesforce: %s", err.Error()))
 			sf.SetError(err)
 			return
 		}
-		sf.Logger.Info(fmt.Sprintf("source: fetched %d records", len(currentResult.Records)))
+		sf.Logger.Info(fmt.Sprintf("source(sf): fetched %d records", len(currentResult.Records)))
 		for _, v := range currentResult.Records {
 			record := map[string]interface{}(v)
 			mappedRecord := sf.mapping(record)
 			raw, err := json.Marshal(mappedRecord)
 			if err != nil {
-				sf.Logger.Error(fmt.Sprintf("source: failed to marshal record: %s", err.Error()))
+				sf.Logger.Error(fmt.Sprintf("source(sf): failed to marshal record: %s", err.Error()))
 				sf.SetError(err)
 				continue
 			}
@@ -97,7 +97,7 @@ func (sf *SalesforceSource) process() {
 
 // mapping maps the column name from Salesforce to the column name in the column map.
 func (sf *SalesforceSource) mapping(value map[string]interface{}) map[string]interface{} {
-	sf.Logger.Debug(fmt.Sprintf("source: record before map: %v", value))
+	sf.Logger.Debug(fmt.Sprintf("source(sf): record before map: %v", value))
 	mappedValue := make(map[string]interface{})
 	for key, val := range value {
 		if mappedKey, ok := sf.columnMap[key]; ok {
@@ -106,7 +106,7 @@ func (sf *SalesforceSource) mapping(value map[string]interface{}) map[string]int
 			mappedValue[key] = val
 		}
 	}
-	sf.Logger.Debug(fmt.Sprintf("source: record after map: %v", mappedValue))
+	sf.Logger.Debug(fmt.Sprintf("source(sf): record after map: %v", mappedValue))
 	return mappedValue
 }
 

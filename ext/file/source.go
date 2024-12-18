@@ -37,7 +37,7 @@ func NewSource(l *slog.Logger, path string, opts ...option.Option) (*FileSource,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source: close file")
+		commonSource.Logger.Debug("source(file): close file")
 		f.Close()
 	})
 	// register process, it will immediately start the process
@@ -56,7 +56,7 @@ func (fs *FileSource) process() {
 		line, _, err := r.ReadLine()
 		if err != nil {
 			if err == io.EOF {
-				fs.Logger.Debug("source: end of file")
+				fs.Logger.Debug("source(file): end of file")
 				break
 			}
 			fs.Logger.Error(err.Error())

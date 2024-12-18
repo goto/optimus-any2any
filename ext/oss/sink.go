@@ -57,7 +57,7 @@ func NewSink(l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix strin
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink: close record writer")
+		commonSink.Logger.Debug("sink(oss): close record writer")
 		// oss uploader already handles the cleanup, so there's no need to explicitly call
 	})
 
@@ -74,18 +74,18 @@ func (o *OSSSink) process() {
 	for msg := range o.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
-			o.Logger.Error(fmt.Sprintf("sink: message type assertion error: %T", msg))
-			o.SetError(errors.New(fmt.Sprintf("sink: message type assertion error: %T", msg)))
+			o.Logger.Error(fmt.Sprintf("sink(oss): message type assertion error: %T", msg))
+			o.SetError(errors.New(fmt.Sprintf("sink(oss): message type assertion error: %T", msg)))
 			continue
 		}
 		record := string(b)
-		o.Logger.Debug(fmt.Sprintf("sink: received message: %s", record))
+		o.Logger.Debug(fmt.Sprintf("sink(oss): received message: %s", record))
 
 		records = append(records, record)
 		if int64(len(records)) >= o.batchSize {
-			o.Logger.Info(fmt.Sprintf("sink: (batch %d) uploading %d records", batchCount, len(records)))
+			o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
 			if err := o.upload(records); err != nil {
-				o.Logger.Error(fmt.Sprintf("sink: (batch %d) failed to upload records: %s", batchCount, err.Error()))
+				o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
 				o.SetError(err)
 			}
 
@@ -97,9 +97,9 @@ func (o *OSSSink) process() {
 
 	// Upload remaining records
 	if len(records) > 0 {
-		o.Logger.Info(fmt.Sprintf("sink: (batch %d) uploading %d records", batchCount, len(records)))
+		o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
 		if err := o.upload(records); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink: (batch %d) failed to upload records: %s", batchCount, err.Error()))
+			o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
 			o.SetError(err)
 		}
 	}
@@ -112,7 +112,7 @@ func (o *OSSSink) upload(records []string) error {
 	// Create the object key (filename) for the upload
 	objectKey := fmt.Sprintf("%s-%d.json", o.objectPrefix, time.Now().UnixNano())
 
-	o.Logger.Info(fmt.Sprintf("sink: uploading %d records to path %s",
+	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s",
 		len(records), objectKey))
 
 	// Upload the data to OSS
@@ -124,7 +124,7 @@ func (o *OSSSink) upload(records []string) error {
 		return errors.WithStack(err)
 	}
 
-	o.Logger.Info(fmt.Sprintf("sink: uploaded %d records to path %s (Response OSS: %d)",
+	o.Logger.Info(fmt.Sprintf("sink(oss): uploaded %d records to path %s (Response OSS: %d)",
 		len(records), objectKey, uploadResult.StatusCode))
 
 	return nil

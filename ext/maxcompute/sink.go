@@ -63,7 +63,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...option.Optio
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink: close record writer")
+		commonSink.Logger.Debug("sink(mc): close record writer")
 		_ = recordWriter.Close()
 	})
 	// register process, it will immediately start the process
@@ -73,8 +73,8 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, opts ...option.Optio
 }
 
 func (mc *MaxcomputeSink) process() {
-	mc.Logger.Info(fmt.Sprintf("sink: start writing records to table: %s", mc.tableSchema.TableName))
-	mc.Logger.Debug(fmt.Sprintf("sink: record column: %+v", mc.tableSchema.Columns))
+	mc.Logger.Info(fmt.Sprintf("sink(mc): start writing records to table: %s", mc.tableSchema.TableName))
+	mc.Logger.Debug(fmt.Sprintf("sink(mc): record column: %+v", mc.tableSchema.Columns))
 	countRecord := 0
 	for msg := range mc.Read() {
 		b, ok := msg.([]byte)
@@ -83,14 +83,14 @@ func (mc *MaxcomputeSink) process() {
 			mc.SetError(errors.New(fmt.Sprintf("message type assertion error: %T", msg)))
 			continue
 		}
-		mc.Logger.Debug(fmt.Sprintf("sink: message: %s", string(b)))
+		mc.Logger.Debug(fmt.Sprintf("sink(mc): message: %s", string(b)))
 		record, err := createRecord(b, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
 			mc.SetError(err)
 			continue
 		}
-		mc.Logger.Debug(fmt.Sprintf("sink: record: %s", record.String()))
+		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %s", record.String()))
 		if err := mc.recordWriter.Write(record); err != nil {
 			mc.Logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
 			mc.SetError(err)
@@ -98,11 +98,11 @@ func (mc *MaxcomputeSink) process() {
 		}
 		countRecord++
 		if countRecord%100 == 0 {
-			mc.Logger.Info(fmt.Sprintf("sink: write %d records", countRecord))
+			mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 		}
 	}
 	if countRecord > 0 {
-		mc.Logger.Info(fmt.Sprintf("sink: write %d records", countRecord))
+		mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 	}
 	if err := mc.recordWriter.Close(); err != nil {
 		mc.Logger.Error(fmt.Sprintf("record writer close error: %s", err.Error()))
