@@ -79,7 +79,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSink(l, sinkCfg.ServiceAccount,
+		return oss.NewSink(ctx, l, sinkCfg.ServiceAccount,
 			sinkCfg.DestinationBucketPath, sinkCfg.FilenamePrefix,
 			int64(sinkCfg.BatchSize), opts...)
 
