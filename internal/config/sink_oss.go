@@ -5,6 +5,7 @@ type SinkOSSConfig struct {
 	BatchSize             int    `env:"OSS__BATCH_SIZE" envDefault:"1000"`
 	ServiceAccount        string `env:"OSS__SERVICE_ACCOUNT"`
 	FilenamePrefix        string `env:"OSS__FILENAME_PREFIX"`
+	EnableTruncate        bool   `env:"OSS__ENABLE_TRUNCATE" envDefault:"false"`
 }
 
 func SinkOSS(envs ...string) (*SinkOSSConfig, error) {

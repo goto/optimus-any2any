@@ -81,7 +81,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		}
 		return oss.NewSink(ctx, l, sinkCfg.ServiceAccount,
 			sinkCfg.DestinationBucketPath, sinkCfg.FilenamePrefix,
-			int64(sinkCfg.BatchSize), opts...)
+			int64(sinkCfg.BatchSize), sinkCfg.EnableTruncate, opts...)
 
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
