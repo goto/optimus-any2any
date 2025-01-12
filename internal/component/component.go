@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/ext/file"
+	"github.com/goto/optimus-any2any/ext/gmail"
 	"github.com/goto/optimus-any2any/ext/io"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
@@ -22,11 +23,12 @@ type (
 )
 
 const (
-	MC   Type = "MC"
-	FILE Type = "FILE"
-	IO   Type = "IO"
-	SF   Type = "SF"
-	OSS  Type = "OSS"
+	MC    Type = "MC"
+	FILE  Type = "FILE"
+	IO    Type = "IO"
+	SF    Type = "SF"
+	OSS   Type = "OSS"
+	GMAIL Type = "GMAIL"
 )
 
 // GetSource returns a source based on the given type.
@@ -52,6 +54,14 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		return salesforce.NewSource(l,
 			sourceCfg.Host, sourceCfg.User, sourceCfg.Pass, sourceCfg.Token,
 			sourceCfg.SOQLFilePath, sourceCfg.ColumnMappingFilePath, opts...)
+	case GMAIL:
+		sourceCfg, err := config.SourceGmail(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return gmail.NewSource(ctx, l, sourceCfg.Token, sourceCfg.Filter,
+			sourceCfg.ExtractorSource, sourceCfg.ExtractorPattern, sourceCfg.ExtractorFileFormat,
+			sourceCfg.ResultFilenameColumn, sourceCfg.ColumnMappingFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
