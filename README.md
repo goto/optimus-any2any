@@ -65,10 +65,10 @@ It expects configuration from env variables. Or you can pass configuration from 
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | IO | - | - |
 | OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
-| | OSS__BATCH_SIZE | If set, resulting files will be batched to the set number, for each file. |
-| | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name |
-| | OSS__FILENAME_PREFIX | Prefix to be used in the generated file names |
-| | OSS__ENABLE_TRUNCATE | Flag to truncate the file given destination bucket path and filename prefix |
+| | OSS__BATCH_SIZE | If set, resulting files will be batched to the set number. |
+| | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name. |
+| | OSS__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
+| | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 
 ## Supported Processors
 
