@@ -131,21 +131,22 @@ func (o *OSSSink) process() {
 func (o *OSSSink) upload(records []string, filename string) error {
 	// Convert records to the format required by OSS
 	data := strings.Join(records, "\n")
+	path := fmt.Sprintf("%s/%s", o.pathPrefix, filename)
 
-	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), filename))
+	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), path))
 	uploader := o.client.NewUploader()
 
 	// Upload the data to OSS
 	uploadResult, err := uploader.UploadFrom(o.ctx, &oss.PutObjectRequest{
 		Bucket: oss.Ptr(o.bucket),
-		Key:    oss.Ptr(filename),
+		Key:    oss.Ptr(path),
 	}, strings.NewReader(data))
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	o.Logger.Info(fmt.Sprintf("sink(oss): uploaded %d records to path %s (Response OSS: %d)",
-		len(records), filename, uploadResult.StatusCode))
+		len(records), path, uploadResult.StatusCode))
 
 	return nil
 }
