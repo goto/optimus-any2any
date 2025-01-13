@@ -32,3 +32,6 @@ dockers:
     dockerfile: Dockerfile
     image_templates:
       - 'docker.io/gotocompany/{{.ProjectName}}:{{ .Version }}'
+
+release:
+  disable: true

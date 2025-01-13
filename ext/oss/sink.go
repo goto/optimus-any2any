@@ -132,6 +132,7 @@ func (o *OSSSink) upload(records []string) error {
 
 	// Create the object key (filename) for the upload
 	objectKey := path.Join(parsedURL.Path, fmt.Sprintf("%s-%d.json", o.filenamePattern, time.Now().UnixNano()))
+	objectKey = strings.TrimPrefix(objectKey, "/")
 
 	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), objectKey))
 	uploader := o.client.NewUploader()
@@ -157,11 +158,12 @@ func (o *OSSSink) truncate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	pathPrefix := strings.TrimPrefix(parsedURL.Path, "/")
 
 	// List all objects with the given prefix
 	objectResult, err := o.client.ListObjectsV2(o.ctx, &oss.ListObjectsV2Request{
 		Bucket: oss.Ptr(parsedURL.Host),
-		Prefix: oss.Ptr(parsedURL.Path),
+		Prefix: oss.Ptr(pathPrefix),
 	})
 	if err != nil {
 		return errors.WithStack(err)

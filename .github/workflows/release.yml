@@ -29,6 +29,6 @@ jobs:
         with:
           distribution: goreleaser
           version: '~> v2'
-          args: release --clean --skip=publish
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GO_RELEASER_TOKEN }}
