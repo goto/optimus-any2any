@@ -23,10 +23,11 @@ type OSSSink struct {
 
 	client *oss.Client
 
-	destinationBucketPath string
-	filenamePattern       string
-	batchSize             int64
-	enableOverwrite       bool
+	bucket          string
+	pathPrefix      string
+	filenamePattern string
+	batchSize       int64
+	enableOverwrite bool
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -44,19 +45,20 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	// parse the given destinationBucketPath, so we can obtain both the bucket and the path
 	// to be used as the uploaded object's prefix
-	// parsedURL, err := url.Parse(fmt.Sprintf("oss://%s", destinationBucketPath))
-	// if err != nil {
-	// 	return nil, errors.WithStack(err)
-	// }
+	parsedURL, err := url.Parse(fmt.Sprintf("oss://%s", destinationBucketPath))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	ossSink := &OSSSink{
-		CommonSink:            commonSink,
-		ctx:                   ctx,
-		client:                client,
-		destinationBucketPath: destinationBucketPath,
-		filenamePattern:       filenamePattern,
-		batchSize:             batchSize,
-		enableOverwrite:       enableOverwrite,
+		CommonSink:      commonSink,
+		ctx:             ctx,
+		client:          client,
+		bucket:          parsedURL.Host,
+		pathPrefix:      strings.TrimPrefix(parsedURL.Path, "/"),
+		filenamePattern: filenamePattern,
+		batchSize:       batchSize,
+		enableOverwrite: enableOverwrite,
 	}
 
 	// add clean func
@@ -76,14 +78,14 @@ func (o *OSSSink) process() {
 	batchCount := 1
 
 	if o.enableOverwrite {
-		o.Logger.Info(fmt.Sprintf("sink(oss): truncating the object on %s", o.destinationBucketPath))
-		// Truncate the object prefix
+		o.Logger.Info(fmt.Sprintf("sink(oss): truncating the object on %s/%s", o.bucket, o.pathPrefix))
+		// Truncate the objects
 		if err := o.truncate(); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object: %s", err.Error()))
 			o.SetError(err)
 			return
 		}
-		o.Logger.Info("sink(oss): object prefix truncated")
+		o.Logger.Info("sink(oss): objects truncated")
 	}
 
 	for msg := range o.Read() {
@@ -121,25 +123,18 @@ func (o *OSSSink) process() {
 }
 
 func (o *OSSSink) upload(records []string) error {
-	// Parse the given destinationBucketPath
-	parsedURL, err := url.Parse(fmt.Sprintf("oss://%s", o.destinationBucketPath))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
 	// Convert records to the format required by OSS
 	data := strings.Join(records, "\n")
 
 	// Create the object key (filename) for the upload
-	objectKey := path.Join(parsedURL.Path, fmt.Sprintf("%s-%d.json", o.filenamePattern, time.Now().UnixNano()))
-	objectKey = strings.TrimPrefix(objectKey, "/")
+	objectKey := path.Join(o.pathPrefix, fmt.Sprintf("%s-%d.json", o.filenamePattern, time.Now().UnixNano()))
 
 	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), objectKey))
 	uploader := o.client.NewUploader()
 
 	// Upload the data to OSS
 	uploadResult, err := uploader.UploadFrom(o.ctx, &oss.PutObjectRequest{
-		Bucket: oss.Ptr(parsedURL.Host),
+		Bucket: oss.Ptr(o.bucket),
 		Key:    oss.Ptr(objectKey),
 	}, strings.NewReader(data))
 	if err != nil {
@@ -153,17 +148,10 @@ func (o *OSSSink) upload(records []string) error {
 }
 
 func (o *OSSSink) truncate() error {
-	// Parse the given destinationBucketPath
-	parsedURL, err := url.Parse(fmt.Sprintf("oss://%s", o.destinationBucketPath))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	pathPrefix := strings.TrimPrefix(parsedURL.Path, "/")
-
-	// List all objects with the given prefix
+	// List all objects with the given path prefix
 	objectResult, err := o.client.ListObjectsV2(o.ctx, &oss.ListObjectsV2Request{
-		Bucket: oss.Ptr(parsedURL.Host),
-		Prefix: oss.Ptr(pathPrefix),
+		Bucket: oss.Ptr(o.bucket),
+		Prefix: oss.Ptr(o.pathPrefix),
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -176,14 +164,14 @@ func (o *OSSSink) truncate() error {
 
 	// Truncate the objects
 	response, err := o.client.DeleteMultipleObjects(o.ctx, &oss.DeleteMultipleObjectsRequest{
-		Bucket:  oss.Ptr(parsedURL.Host),
+		Bucket:  oss.Ptr(o.bucket),
 		Objects: objects,
 	})
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if response.StatusCode >= 400 {
-		return errors.New(fmt.Sprintf("failed to truncate object prefix: %d", response.StatusCode))
+		return errors.New(fmt.Sprintf("failed to truncate object: %d", response.StatusCode))
 	}
 	o.Logger.Info(fmt.Sprintf("sink(oss): truncated %d objects", len(objects)))
 	return nil
