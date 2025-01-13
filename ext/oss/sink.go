@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/goto/optimus-any2any/internal/component/option"
@@ -22,20 +21,20 @@ type OSSSink struct {
 
 	client *oss.Client
 
-	bucket         string
-	objectPrefix   string
-	batchSize      int64
-	enableTruncate bool
+	bucket          string
+	pathPrefix      string
+	filenamePattern string
+	batchSize       int64
+	enableOverwrite bool
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
-// svcAcc is the service account json string refer to ossCredentials
-// destinationBucketPath is the bucket path to write to, it must be in the format of bucket_name/path
-// filenamePrefix is the prefix of the filename to write to
-// batchSize is the number of records to batch before uploading
-func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix string, batchSize int64, enableTruncate bool, opts ...option.Option) (*OSSSink, error) {
+func NewSink(ctx context.Context, l *slog.Logger,
+	svcAcc, destinationBucketPath, filenamePattern string,
+	batchSize int64, enableOverwrite bool,
+	opts ...option.Option) (*OSSSink, error) {
 	commonSink := sink.NewCommonSink(l, opts...)
 
 	client, err := NewOSSClient(svcAcc)
@@ -49,16 +48,16 @@ func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	objectPrefix := fmt.Sprintf("%s/%s", strings.Trim(parsedURL.Path, "/\\"), filenamePrefix)
 
 	ossSink := &OSSSink{
-		CommonSink:     commonSink,
-		ctx:            ctx,
-		client:         client,
-		bucket:         parsedURL.Host,
-		objectPrefix:   objectPrefix,
-		batchSize:      batchSize,
-		enableTruncate: enableTruncate,
+		CommonSink:      commonSink,
+		ctx:             ctx,
+		client:          client,
+		bucket:          parsedURL.Host,
+		pathPrefix:      strings.TrimPrefix(parsedURL.Path, "/"),
+		filenamePattern: filenamePattern,
+		batchSize:       batchSize,
+		enableOverwrite: enableOverwrite,
 	}
 
 	// add clean func
@@ -75,17 +74,18 @@ func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath,
 
 func (o *OSSSink) process() {
 	records := []string{}
+	values := map[string]string{}
 	batchCount := 1
 
-	if o.enableTruncate {
-		o.Logger.Info(fmt.Sprintf("sink(oss): truncating the object with prefix %s", o.objectPrefix))
-		// Truncate the object prefix
+	if o.enableOverwrite {
+		o.Logger.Info(fmt.Sprintf("sink(oss): truncating the object on %s/%s", o.bucket, o.pathPrefix))
+		// Truncate the objects
 		if err := o.truncate(); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object prefix: %s", err.Error()))
+			o.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object: %s", err.Error()))
 			o.SetError(err)
 			return
 		}
-		o.Logger.Info("sink(oss): object prefix truncated")
+		o.Logger.Info("sink(oss): objects truncated")
 	}
 
 	for msg := range o.Read() {
@@ -101,7 +101,10 @@ func (o *OSSSink) process() {
 		records = append(records, record)
 		if int64(len(records)) >= o.batchSize {
 			o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
-			if err := o.upload(records); err != nil {
+			values["batch_start"] = fmt.Sprintf("%d", batchCount*int(o.batchSize))
+			values["batch_end"] = fmt.Sprintf("%d", (batchCount+1)*int(o.batchSize))
+			filename := renderFilename(o.filenamePattern, values)
+			if err := o.upload(records, filename); err != nil {
 				o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
 				o.SetError(err)
 			}
@@ -115,51 +118,53 @@ func (o *OSSSink) process() {
 	// Upload remaining records
 	if len(records) > 0 {
 		o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
-		if err := o.upload(records); err != nil {
+		values["batch_start"] = fmt.Sprintf("%d", batchCount*int(o.batchSize))
+		values["batch_end"] = fmt.Sprintf("%d", batchCount*int(o.batchSize)+len(records))
+		filename := renderFilename(o.filenamePattern, values)
+		if err := o.upload(records, filename); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
 			o.SetError(err)
 		}
 	}
 }
 
-func (o *OSSSink) upload(records []string) error {
+func (o *OSSSink) upload(records []string, filename string) error {
 	// Convert records to the format required by OSS
 	data := strings.Join(records, "\n")
 
-	// Create the object key (filename) for the upload
-	objectKey := fmt.Sprintf("%s-%d.json", o.objectPrefix, time.Now().UnixNano())
-
-	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), objectKey))
+	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), filename))
 	uploader := o.client.NewUploader()
 
 	// Upload the data to OSS
 	uploadResult, err := uploader.UploadFrom(o.ctx, &oss.PutObjectRequest{
 		Bucket: oss.Ptr(o.bucket),
-		Key:    oss.Ptr(objectKey),
+		Key:    oss.Ptr(filename),
 	}, strings.NewReader(data))
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	o.Logger.Info(fmt.Sprintf("sink(oss): uploaded %d records to path %s (Response OSS: %d)",
-		len(records), objectKey, uploadResult.StatusCode))
+		len(records), filename, uploadResult.StatusCode))
 
 	return nil
 }
 
 func (o *OSSSink) truncate() error {
-	// List all objects with the given prefix
+	// List all objects with the given path prefix
 	objectResult, err := o.client.ListObjectsV2(o.ctx, &oss.ListObjectsV2Request{
 		Bucket: oss.Ptr(o.bucket),
-		Prefix: oss.Ptr(o.objectPrefix),
+		Prefix: oss.Ptr(o.pathPrefix),
 	})
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
 	objects := make([]oss.DeleteObject, len(objectResult.Contents))
 	for i, obj := range objectResult.Contents {
 		objects[i] = oss.DeleteObject{Key: obj.Key}
 	}
+
 	// Truncate the objects
 	response, err := o.client.DeleteMultipleObjects(o.ctx, &oss.DeleteMultipleObjectsRequest{
 		Bucket:  oss.Ptr(o.bucket),
@@ -169,8 +174,16 @@ func (o *OSSSink) truncate() error {
 		return errors.WithStack(err)
 	}
 	if response.StatusCode >= 400 {
-		return errors.New(fmt.Sprintf("failed to truncate object prefix: %d", response.StatusCode))
+		return errors.New(fmt.Sprintf("failed to truncate object: %d", response.StatusCode))
 	}
 	o.Logger.Info(fmt.Sprintf("sink(oss): truncated %d objects", len(objects)))
 	return nil
+}
+
+func renderFilename(filenamePattern string, values map[string]string) string {
+	// Replace the filename pattern with the values
+	for k, v := range values {
+		filenamePattern = strings.ReplaceAll(filenamePattern, fmt.Sprintf("{%s}", k), v)
+	}
+	return filenamePattern
 }
