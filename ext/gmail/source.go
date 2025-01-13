@@ -188,7 +188,10 @@ func (gs *GmailSource) convertToRecords(data []byte, filename string) ([]map[str
 			for j, value := range row {
 				record[rows[0][j]] = value
 			}
-			record[gs.resultFilenameColumn] = filename
+			// set filename if result filename column is set
+			if gs.resultFilenameColumn != "" {
+				record[gs.resultFilenameColumn] = filename
+			}
 			records = append(records, record)
 		}
 	}
