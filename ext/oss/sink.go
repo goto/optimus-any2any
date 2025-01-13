@@ -20,11 +20,12 @@ type OSSSink struct {
 
 	ctx context.Context
 
-	uploader *oss.Uploader
+	client *oss.Client
 
-	bucket       string
-	objectPrefix string
-	batchSize    int64
+	bucket         string
+	objectPrefix   string
+	batchSize      int64
+	enableTruncate bool
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -34,7 +35,7 @@ var _ flow.Sink = (*OSSSink)(nil)
 // destinationBucketPath is the bucket path to write to, it must be in the format of bucket_name/path
 // filenamePrefix is the prefix of the filename to write to
 // batchSize is the number of records to batch before uploading
-func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix string, batchSize int64, opts ...option.Option) (*OSSSink, error) {
+func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath, filenamePrefix string, batchSize int64, enableTruncate bool, opts ...option.Option) (*OSSSink, error) {
 	commonSink := sink.NewCommonSink(l, opts...)
 
 	client, err := NewOSSClient(svcAcc)
@@ -50,14 +51,14 @@ func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath,
 	}
 	objectPrefix := fmt.Sprintf("%s/%s", strings.Trim(parsedURL.Path, "/\\"), filenamePrefix)
 
-	uploader := client.NewUploader()
 	ossSink := &OSSSink{
-		CommonSink:   commonSink,
-		uploader:     uploader,
-		bucket:       parsedURL.Host,
-		objectPrefix: objectPrefix,
-		batchSize:    batchSize,
-		ctx:          ctx,
+		CommonSink:     commonSink,
+		ctx:            ctx,
+		client:         client,
+		bucket:         parsedURL.Host,
+		objectPrefix:   objectPrefix,
+		batchSize:      batchSize,
+		enableTruncate: enableTruncate,
 	}
 
 	// add clean func
@@ -75,6 +76,17 @@ func NewSink(ctx context.Context, l *slog.Logger, svcAcc, destinationBucketPath,
 func (o *OSSSink) process() {
 	records := []string{}
 	batchCount := 1
+
+	if o.enableTruncate {
+		o.Logger.Info(fmt.Sprintf("sink(oss): truncating the object with prefix %s", o.objectPrefix))
+		// Truncate the object prefix
+		if err := o.truncate(); err != nil {
+			o.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object prefix: %s", err.Error()))
+			o.SetError(err)
+			return
+		}
+		o.Logger.Info("sink(oss): object prefix truncated")
+	}
 
 	for msg := range o.Read() {
 		b, ok := msg.([]byte)
@@ -117,11 +129,11 @@ func (o *OSSSink) upload(records []string) error {
 	// Create the object key (filename) for the upload
 	objectKey := fmt.Sprintf("%s-%d.json", o.objectPrefix, time.Now().UnixNano())
 
-	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s",
-		len(records), objectKey))
+	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), objectKey))
+	uploader := o.client.NewUploader()
 
 	// Upload the data to OSS
-	uploadResult, err := o.uploader.UploadFrom(o.ctx, &oss.PutObjectRequest{
+	uploadResult, err := uploader.UploadFrom(o.ctx, &oss.PutObjectRequest{
 		Bucket: oss.Ptr(o.bucket),
 		Key:    oss.Ptr(objectKey),
 	}, strings.NewReader(data))
@@ -132,5 +144,33 @@ func (o *OSSSink) upload(records []string) error {
 	o.Logger.Info(fmt.Sprintf("sink(oss): uploaded %d records to path %s (Response OSS: %d)",
 		len(records), objectKey, uploadResult.StatusCode))
 
+	return nil
+}
+
+func (o *OSSSink) truncate() error {
+	// List all objects with the given prefix
+	objectResult, err := o.client.ListObjectsV2(o.ctx, &oss.ListObjectsV2Request{
+		Bucket: oss.Ptr(o.bucket),
+		Prefix: oss.Ptr(o.objectPrefix),
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	objects := make([]oss.DeleteObject, len(objectResult.Contents))
+	for i, obj := range objectResult.Contents {
+		objects[i] = oss.DeleteObject{Key: obj.Key}
+	}
+	// Truncate the objects
+	response, err := o.client.DeleteMultipleObjects(o.ctx, &oss.DeleteMultipleObjectsRequest{
+		Bucket:  oss.Ptr(o.bucket),
+		Objects: objects,
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if response.StatusCode >= 400 {
+		return errors.New(fmt.Sprintf("failed to truncate object prefix: %d", response.StatusCode))
+	}
+	o.Logger.Info(fmt.Sprintf("sink(oss): truncated %d objects", len(objects)))
 	return nil
 }
