@@ -99,6 +99,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, loadMethod string, o
 			commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, deleting temporary table: %s", mc.tableIDTransition))
 			if err := dropTable(client, mc.tableIDTransition); err != nil {
 				commonSink.Logger.Error(fmt.Sprintf("sink(mc): delete temporary table error: %s", err.Error()))
+				mc.SetError(err)
 			}
 		}
 	})
