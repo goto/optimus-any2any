@@ -114,6 +114,10 @@ func (mc *MaxcomputeSink) process() {
 	mc.Logger.Debug(fmt.Sprintf("sink(mc): record column: %+v", mc.tableSchema.Columns))
 	countRecord := 0
 	for msg := range mc.Read() {
+		if mc.Err() != nil {
+			mc.Logger.Error("sink(mc): got an error, skip processing")
+			continue
+		}
 		b, ok := msg.([]byte)
 		if !ok {
 			mc.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
@@ -138,6 +142,11 @@ func (mc *MaxcomputeSink) process() {
 			mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 		}
 	}
+	if mc.Err() != nil {
+		// don't commit if there's an error
+		return
+	}
+
 	if countRecord > 0 {
 		mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 	}
