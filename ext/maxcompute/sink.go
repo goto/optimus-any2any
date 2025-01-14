@@ -68,7 +68,10 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, loadMethod string, o
 		return nil, errors.WithStack(err)
 	}
 
-	session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(), tunnel.SessionCfg.WithSchemaName(destination.SchemaName()))
+	session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+		tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
+		tunnel.SessionCfg.WithAllowSchemaMismatch(true),
+	)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
