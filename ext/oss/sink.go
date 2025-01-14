@@ -83,12 +83,15 @@ func (o *OSSSink) process() {
 		if err := o.truncate(); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object: %s", err.Error()))
 			o.SetError(err)
-			return
 		}
 		o.Logger.Info("sink(oss): objects truncated")
 	}
 
 	for msg := range o.Read() {
+		if o.Err() != nil {
+			o.Logger.Error("sink(oss): got an error, skip processing")
+			continue
+		}
 		b, ok := msg.([]byte)
 		if !ok {
 			o.Logger.Error(fmt.Sprintf("sink(oss): message type assertion error: %T", msg))
@@ -160,6 +163,10 @@ func (o *OSSSink) truncate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	// if len(objectResult.Contents) == 0 {
+	// 	o.Logger.Info("sink(oss): no objects found")
+	// 	return nil
+	// }
 
 	objects := make([]oss.DeleteObject, len(objectResult.Contents))
 	for i, obj := range objectResult.Contents {
