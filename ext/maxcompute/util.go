@@ -12,12 +12,110 @@ import (
 	"github.com/pkg/errors"
 )
 
-func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
-	parts := strings.Split(tableID, ".")
-	if len(parts) != 3 {
-		return nil, errors.WithStack(fmt.Errorf("tableID must be in the format of project_name.schema_name.table_name, found %s", tableID))
+func insertOverwrite(client *odps.Odps, destinationTableID, sourceTableID string) error {
+	table, err := getTable(client, destinationTableID)
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	return odps.NewTable(client, parts[0], parts[1], parts[2]), nil
+	orderedColumns := []string{}
+	for _, column := range table.Schema().Columns {
+		orderedColumns = append(orderedColumns, column.Name)
+	}
+
+	instance, err := client.ExecSQl(fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", destinationTableID, strings.Join(orderedColumns, ","), sourceTableID))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	if err := instance.WaitForSuccess(); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func dropTable(client *odps.Odps, tableID string) error {
+	// save current project and schema
+	currProject := client.DefaultProjectName()
+	currSchema := client.CurrentSchemaName()
+	defer func() {
+		// restore current project and schema
+		client.SetDefaultProjectName(currProject)
+		client.SetCurrentSchemaName(currSchema)
+	}()
+
+	splittedTableID := strings.Split(tableID, ".")
+	if len(splittedTableID) != 3 {
+		return errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+	}
+	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+
+	// set project and schema to the table
+	client.SetDefaultProjectName(project)
+	client.SetCurrentSchemaName(schema)
+
+	return client.Tables().Delete(name, true)
+}
+
+func createTable(client *odps.Odps, tableID string, tableIDReference string) error {
+	// save current project and schema
+	currProject := client.DefaultProjectName()
+	currSchema := client.CurrentSchemaName()
+	defer func() {
+		// restore current project and schema
+		client.SetDefaultProjectName(currProject)
+		client.SetCurrentSchemaName(currSchema)
+	}()
+
+	splittedTableID := strings.Split(tableID, ".")
+	if len(splittedTableID) != 3 {
+		return errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+	}
+	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+
+	// set project and schema to the table
+	client.SetDefaultProjectName(project)
+	client.SetCurrentSchemaName(schema)
+
+	// get table reference
+	tableReference, err := getTable(client, tableIDReference)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	tempSchema := tableschema.NewSchemaBuilder().
+		Columns(tableReference.Schema().Columns...).
+		Build()
+	tempSchema.TableName = name
+
+	// create table
+	return client.Tables().Create(tempSchema, true, map[string]string{}, map[string]string{})
+}
+
+func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
+	// save current project and schema
+	currProject := client.DefaultProjectName()
+	currSchema := client.CurrentSchemaName()
+	defer func() {
+		// restore current project and schema
+		client.SetDefaultProjectName(currProject)
+		client.SetCurrentSchemaName(currSchema)
+	}()
+
+	splittedTableID := strings.Split(tableID, ".")
+	if len(splittedTableID) != 3 {
+		return nil, errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+	}
+	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+
+	// set project and schema to the table
+	client.SetDefaultProjectName(project)
+	client.SetCurrentSchemaName(schema)
+
+	// get table
+	table := client.Tables().Get(name)
+	if err := table.Load(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return table, nil
 }
 
 func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error) {
