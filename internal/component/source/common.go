@@ -54,7 +54,6 @@ func (commonSource *CommonSource) Close() {
 	for _, clean := range commonSource.cleanFuncs {
 		clean()
 	}
-	close(commonSource.c)
 }
 
 func (commonSource *CommonSource) SetBufferSize(bufferSize int) {

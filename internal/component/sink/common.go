@@ -61,7 +61,6 @@ func (commonSink *CommonSink) Close() {
 	for _, clean := range commonSink.cleanFuncs {
 		clean()
 	}
-	close(commonSink.c)
 }
 
 func (commonSink *CommonSink) SetBufferSize(bufferSize int) {
