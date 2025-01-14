@@ -60,6 +60,17 @@ func NewSink(ctx context.Context, l *slog.Logger,
 		enableOverwrite: enableOverwrite,
 	}
 
+	// preprocess, truncate the objects if overwrite is enabled
+	if ossSink.enableOverwrite {
+		ossSink.Logger.Info(fmt.Sprintf("sink(oss): truncating the object on %s/%s", ossSink.bucket, ossSink.pathPrefix))
+		// Truncate the objects
+		if err := ossSink.truncate(); err != nil {
+			ossSink.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object: %s", err.Error()))
+			return nil, err
+		}
+		ossSink.Logger.Info("sink(oss): objects truncated")
+	}
+
 	// add clean func
 	commonSink.AddCleanFunc(func() {
 		commonSink.Logger.Debug("sink(oss): close record writer")
@@ -77,21 +88,7 @@ func (o *OSSSink) process() {
 	values := map[string]string{}
 	batchCount := 1
 
-	if o.enableOverwrite {
-		o.Logger.Info(fmt.Sprintf("sink(oss): truncating the object on %s/%s", o.bucket, o.pathPrefix))
-		// Truncate the objects
-		if err := o.truncate(); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object: %s", err.Error()))
-			o.SetError(err)
-		}
-		o.Logger.Info("sink(oss): objects truncated")
-	}
-
 	for msg := range o.Read() {
-		if o.Err() != nil {
-			o.Logger.Error("sink(oss): got an error, skip processing")
-			continue
-		}
 		b, ok := msg.([]byte)
 		if !ok {
 			o.Logger.Error(fmt.Sprintf("sink(oss): message type assertion error: %T", msg))
@@ -163,10 +160,10 @@ func (o *OSSSink) truncate() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// if len(objectResult.Contents) == 0 {
-	// 	o.Logger.Info("sink(oss): no objects found")
-	// 	return nil
-	// }
+	if len(objectResult.Contents) == 0 {
+		o.Logger.Info("sink(oss): no objects found")
+		return nil
+	}
 
 	objects := make([]oss.DeleteObject, len(objectResult.Contents))
 	for i, obj := range objectResult.Contents {
