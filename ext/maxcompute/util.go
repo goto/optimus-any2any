@@ -152,48 +152,86 @@ func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error)
 func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 	switch dt.ID() {
 	case datatype.TINYINT:
+		if value == nil {
+			return data.TinyInt(0), nil
+		}
 		curr, ok := value.(int8)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a tinyint, found %+v, type %T", value, value))
 		}
 		return data.TinyInt(curr), nil
 	case datatype.SMALLINT:
+		if value == nil {
+			return data.SmallInt(0), nil
+		}
 		curr, ok := value.(int16)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a smallint, found %+v, type %T", value, value))
 		}
 		return data.SmallInt(curr), nil
 	case datatype.INT:
+		if value == nil {
+			return data.Int(0), nil
+		}
 		curr, ok := value.(int32)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not an int, found %+v, type %T", value, value))
 		}
 		return data.Int(curr), nil
 	case datatype.BIGINT:
+		if value == nil {
+			return data.BigInt(0), nil
+		}
 		curr, ok := value.(int64)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a bigint, found %+v, type %T", value, value))
 		}
 		return data.BigInt(curr), nil
 	case datatype.DECIMAL, datatype.FLOAT, datatype.DOUBLE:
+		if value == nil {
+			return data.Double(0), nil
+		}
 		curr, ok := value.(float64)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a float64, found %+v, type %T", value, value))
 		}
 		return data.Double(curr), nil
 	case datatype.BINARY:
+		if value == nil {
+			return data.Binary(nil), nil
+		}
 		curr, ok := value.([]byte)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a binary, found %+v, type %T", value, value))
 		}
 		return data.Binary(curr), nil
 	case datatype.BOOLEAN:
+		if value == nil {
+			return data.Bool(false), nil
+		}
 		curr, ok := value.(bool)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a boolean, found %+v, type %T", value, value))
 		}
 		return data.Bool(curr), nil
 	case datatype.DATE, datatype.DATETIME, datatype.TIMESTAMP, datatype.TIMESTAMP_NTZ, datatype.STRING, datatype.CHAR, datatype.VARCHAR:
+		if value == nil {
+			switch dt.ID() {
+			case datatype.DATE:
+				return data.NewDate("0001-01-01")
+			case datatype.DATETIME:
+				return data.NewDateTime("0001-01-01 00:00:00")
+			case datatype.TIMESTAMP:
+				return data.NewTimestamp("0001-01-01 00:00:00.000")
+			case datatype.TIMESTAMP_NTZ:
+				return data.NewTimestampNtz("0001-01-01 00:00:00.000")
+			case datatype.CHAR:
+				return data.NewChar(dt.(datatype.CharType).Length, "")
+			case datatype.VARCHAR:
+				return data.NewVarChar(dt.(datatype.VarcharType).Length, "")
+			}
+			return data.String(""), nil
+		}
 		curr, ok := value.(string)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a string, found %+v, type %T", value, value))
