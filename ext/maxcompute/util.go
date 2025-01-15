@@ -331,15 +331,36 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 
 func parseTime(curr string) (time.Time, error) {
 	var e error
-	// try to parse with RFC3339
-	t, err := time.Parse(time.RFC3339, curr)
+	// try to parse with ISO non-standard format
+	t, err := time.Parse(ISONonStandardDateTimeFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
 	} else {
 		return t, nil
 	}
-	// try to parse with ISO non-standard format
-	t, err = time.Parse(ISONonStandardDateTimeFormat, curr)
+	// try to parse with RFC3339
+	t, err = time.Parse(time.RFC3339, curr)
+	if err != nil {
+		e = errs.Join(e, err)
+	} else {
+		return t, nil
+	}
+	// try to parse with TimeStampFormat
+	t, err = time.Parse(data.TimeStampFormat, curr)
+	if err != nil {
+		e = errs.Join(e, err)
+	} else {
+		return t, nil
+	}
+	// try to parse with DateTimeFormat
+	t, err = time.Parse(data.DateTimeFormat, curr)
+	if err != nil {
+		e = errs.Join(e, err)
+	} else {
+		return t, nil
+	}
+	// try to parse with DateFormat
+	t, err = time.Parse(data.DateFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
 		return time.Time{}, errors.WithStack(e)
