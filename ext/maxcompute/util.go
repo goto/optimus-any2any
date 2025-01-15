@@ -14,6 +14,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	ISONonStandardDateTimeFormat = "2006-01-02T15:04:05.000-0700"
+)
+
 func insertOverwrite(client *odps.Odps, destinationTableID, sourceTableID string) error {
 	table, err := getTable(client, destinationTableID)
 	if err != nil {
@@ -209,9 +213,10 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		case datatype.DATETIME:
 			result, err := data.NewDateTime(curr)
 			if err != nil {
-				// try to parse with RFC3339
-				t, err := time.ParseInLocation(time.RFC3339, curr, time.Local)
-				if err != nil {
+				// try to parse with RFC3339 and ISONonStandardDateTimeFormat
+				t, err1 := parseTime(curr)
+				if err1 != nil {
+					err = errs.Join(err, err1)
 					err = errs.Join(err, errors.Errorf("failed to parse datetime: %s", curr))
 					return nil, errors.WithStack(err)
 				}
@@ -221,9 +226,10 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		case datatype.TIMESTAMP:
 			result, err := data.NewTimestamp(curr)
 			if err != nil {
-				// try to parse with RFC3339
-				t, err := time.ParseInLocation(time.RFC3339, curr, time.Local)
-				if err != nil {
+				// try to parse with RFC3339 and ISONonStandardDateTimeFormat
+				t, err1 := parseTime(curr)
+				if err1 != nil {
+					err = errs.Join(err, err1)
 					err = errs.Join(err, errors.Errorf("failed to parse datetime: %s", curr))
 					return nil, errors.WithStack(err)
 				}
@@ -233,9 +239,10 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		case datatype.TIMESTAMP_NTZ:
 			result, err := data.NewTimestampNtz(curr)
 			if err != nil {
-				// try to parse with RFC3339
-				t, err := time.ParseInLocation(time.RFC3339, curr, time.Local)
-				if err != nil {
+				// try to parse with RFC3339 and ISONonStandardDateTimeFormat
+				t, err1 := parseTime(curr)
+				if err1 != nil {
+					err = errs.Join(err, err1)
 					err = errs.Join(err, errors.Errorf("failed to parse datetime: %s", curr))
 					return nil, errors.WithStack(err)
 				}
@@ -291,4 +298,22 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		return record, nil
 	}
 	return nil, errors.WithStack(fmt.Errorf("unsupported column type: %s", dt.ID()))
+}
+
+func parseTime(curr string) (time.Time, error) {
+	var e error
+	// try to parse with RFC3339
+	t, err := time.Parse(time.RFC3339, curr)
+	if err != nil {
+		e = errs.Join(e, err)
+	} else {
+		return t, nil
+	}
+	// try to parse with ISO non-standard format
+	t, err = time.Parse(ISONonStandardDateTimeFormat, curr)
+	if err != nil {
+		e = errs.Join(e, err)
+		return time.Time{}, errors.WithStack(e)
+	}
+	return t, nil
 }
