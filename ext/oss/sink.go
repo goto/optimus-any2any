@@ -106,7 +106,7 @@ func (o *OSSSink) process() {
 			filename := renderFilename(o.filenamePattern, values)
 			if err := o.upload(records, filename); err != nil {
 				o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
-				o.SetError(err)
+				o.SetError(errors.WithStack(err))
 			}
 
 			batchCount++
@@ -123,7 +123,7 @@ func (o *OSSSink) process() {
 		filename := renderFilename(o.filenamePattern, values)
 		if err := o.upload(records, filename); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
-			o.SetError(err)
+			o.SetError(errors.WithStack(err))
 		}
 	}
 }
@@ -179,7 +179,8 @@ func (o *OSSSink) truncate() error {
 		return errors.WithStack(err)
 	}
 	if response.StatusCode >= 400 {
-		return errors.New(fmt.Sprintf("failed to truncate object: %d", response.StatusCode))
+		err := errors.New(fmt.Sprintf("failed to truncate object: %d", response.StatusCode))
+		return errors.WithStack(err)
 	}
 	o.Logger.Info(fmt.Sprintf("sink(oss): truncated %d objects", len(objects)))
 	return nil

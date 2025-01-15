@@ -60,7 +60,7 @@ func (fs *FileSource) process() {
 				break
 			}
 			fs.Logger.Error(err.Error())
-			fs.SetError(err)
+			fs.SetError(errors.WithStack(err))
 			continue
 		}
 		// send to channel

@@ -96,7 +96,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, loadMethod string, o
 			commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, deleting temporary table: %s", mc.tableIDTransition))
 			if err := dropTable(client, mc.tableIDTransition); err != nil {
 				commonSink.Logger.Error(fmt.Sprintf("sink(mc): delete temporary table error: %s", err.Error()))
-				mc.SetError(err)
+				mc.SetError(errors.WithStack(err))
 			}
 		}
 	})
@@ -117,21 +117,22 @@ func (mc *MaxcomputeSink) process() {
 		}
 		b, ok := msg.([]byte)
 		if !ok {
-			mc.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
-			mc.SetError(errors.New(fmt.Sprintf("message type assertion error: %T", msg)))
+			err := errors.New(fmt.Sprintf("message type assertion error: %T", msg))
+			mc.Logger.Error(fmt.Sprintf("sink(mc): message type assertion error: %s", err.Error()))
+			mc.SetError(errors.WithStack(err))
 			continue
 		}
 		mc.Logger.Debug(fmt.Sprintf("sink(mc): message: %s", string(b)))
 		record, err := createRecord(b, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
-			mc.SetError(err)
+			mc.SetError(errors.WithStack(err))
 			continue
 		}
 		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %s", record.String()))
 		if err := mc.packWriter.Append(record); err != nil {
-			mc.Logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
-			mc.SetError(err)
+			mc.Logger.Error(fmt.Sprintf("sink(mc): record write error: %s", err.Error()))
+			mc.SetError(errors.WithStack(err))
 			continue
 		}
 		countRecord++
@@ -139,8 +140,8 @@ func (mc *MaxcomputeSink) process() {
 			mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 			traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
 			if err != nil {
-				mc.Logger.Error(fmt.Sprintf("record flush error: %s", err.Error()))
-				mc.SetError(err)
+				mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
+				mc.SetError(errors.WithStack(err))
 				continue
 			}
 			mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
@@ -157,8 +158,8 @@ func (mc *MaxcomputeSink) process() {
 	// flush remaining records
 	traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
 	if err != nil {
-		mc.Logger.Error(fmt.Sprintf("record flush error: %s", err.Error()))
-		mc.SetError(err)
+		mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
+		mc.SetError(errors.WithStack(err))
 		return
 	}
 	mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
@@ -167,7 +168,7 @@ func (mc *MaxcomputeSink) process() {
 		mc.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
 		if err := insertOverwrite(mc.client, mc.tableIDDestination, mc.tableIDTransition); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): insert overwrite error: %s", err.Error()))
-			mc.SetError(err)
+			mc.SetError(errors.WithStack(err))
 		}
 		mc.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
 	}

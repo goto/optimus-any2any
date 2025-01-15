@@ -76,7 +76,7 @@ func (sf *SalesforceSource) process() {
 		currentResult, err := sf.client.Query(result.NextRecordsURL)
 		if err != nil {
 			sf.Logger.Error(fmt.Sprintf("source(sf): failed to query more salesforce: %s", err.Error()))
-			sf.SetError(err)
+			sf.SetError(errors.WithStack(err))
 			return
 		}
 		sf.Logger.Info(fmt.Sprintf("source(sf): fetched %d records", len(currentResult.Records)))
@@ -86,7 +86,7 @@ func (sf *SalesforceSource) process() {
 			raw, err := json.Marshal(mappedRecord)
 			if err != nil {
 				sf.Logger.Error(fmt.Sprintf("source(sf): failed to marshal record: %s", err.Error()))
-				sf.SetError(err)
+				sf.SetError(errors.WithStack(err))
 				continue
 			}
 			sf.Send(raw)

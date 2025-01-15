@@ -46,7 +46,8 @@ func dropTable(client *odps.Odps, tableID string) error {
 
 	splittedTableID := strings.Split(tableID, ".")
 	if len(splittedTableID) != 3 {
-		return errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+		return errors.WithStack(err)
 	}
 	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
 
@@ -69,7 +70,8 @@ func createTable(client *odps.Odps, tableID string, tableIDReference string) err
 
 	splittedTableID := strings.Split(tableID, ".")
 	if len(splittedTableID) != 3 {
-		return errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+		return errors.WithStack(err)
 	}
 	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
 
