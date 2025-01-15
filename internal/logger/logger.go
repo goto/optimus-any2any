@@ -2,7 +2,6 @@ package logger
 
 import (
 	"log/slog"
-	"os"
 
 	"github.com/pkg/errors"
 )
@@ -13,8 +12,8 @@ func NewLogger(logLevel string) (*slog.Logger, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	writter := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
-	return slog.New(writter), nil
+	slog.SetLogLoggerLevel(level)
+	return slog.Default(), nil
 }
 
 func NewDefaultLogger() *slog.Logger {
