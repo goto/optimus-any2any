@@ -20,6 +20,8 @@ github.com/aliyun/aliyun-odps-go-sdk v0.3.18-0.20241203092832-bc4e03d5fb46 h1:Mv
 github.com/aliyun/aliyun-odps-go-sdk v0.3.18-0.20241203092832-bc4e03d5fb46/go.mod h1:h3n3Jy9qCcq9GhKakuF7Y47W1EP71hfTDx8MCEeQYbA=
 github.com/aliyun/aliyun-odps-go-sdk v0.4.0 h1:QzEjRsMnB+FjTbO33PypiCbFJ4Wba55h3swSoZZVqgM=
 github.com/aliyun/aliyun-odps-go-sdk v0.4.0/go.mod h1:h3n3Jy9qCcq9GhKakuF7Y47W1EP71hfTDx8MCEeQYbA=
+github.com/aliyun/aliyun-odps-go-sdk v0.4.1 h1:vOzO7tOc2CO5IW4a192m3+fwd65rnaLib0a5AN7IZfY=
+github.com/aliyun/aliyun-odps-go-sdk v0.4.1/go.mod h1:h3n3Jy9qCcq9GhKakuF7Y47W1EP71hfTDx8MCEeQYbA=
 github.com/aliyun/credentials-go v1.3.10 h1:45Xxrae/evfzQL9V10zL3xX31eqgLWEaIdCoPipOEQA=
 github.com/aliyun/credentials-go v1.3.10/go.mod h1:Jm6d+xIgwJVLVWT561vy67ZRP4lPTQxMbEYRuT2Ti1U=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
