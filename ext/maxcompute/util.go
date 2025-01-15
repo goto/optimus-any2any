@@ -178,13 +178,7 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 			return nil, errors.WithStack(fmt.Errorf("value is not a bigint, found %+v, type %T", value, value))
 		}
 		return data.BigInt(curr), nil
-	case datatype.DECIMAL, datatype.FLOAT:
-		curr, ok := value.(float32)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("value is not a float64, found %+v, type %T", value, value))
-		}
-		return data.Float(curr), nil
-	case datatype.DOUBLE:
+	case datatype.DECIMAL, datatype.FLOAT, datatype.DOUBLE:
 		curr, ok := value.(float64)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a float64, found %+v, type %T", value, value))
