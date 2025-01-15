@@ -26,9 +26,13 @@ func main() {
 	// any2any is the main function to execute the data transfer from any source to any destination.
 	// It also handles graceful shutdown by listening to os signals.
 	// It returns error if any.
-	if err := any2any(source, sinks, envs); err != nil {
-		l.Error(fmt.Sprintf("error: %s", err.Error()))
-		fmt.Printf("error: %+v\n", err)
-		os.Exit(1)
+	if errs := any2any(source, sinks, envs); len(errs) > 0 {
+		for _, err := range errs {
+			l.Error(fmt.Sprintf("error: %s", err.Error()))
+			fmt.Printf("error: %+v\n", err)
+		}
+		if len(errs) > 0 {
+			os.Exit(1)
+		}
 	}
 }

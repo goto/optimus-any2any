@@ -1,7 +1,6 @@
 package pipeline
 
 import (
-	"errors"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -38,9 +37,15 @@ func (p *SimplePipeline) Run() <-chan uint8 {
 }
 
 // Err returns the error from source or sink.
-func (p *SimplePipeline) Err() error {
-	var errs error
-	return errors.Join(errs, p.source.Err(), p.sink.Err())
+func (p *SimplePipeline) Errs() []error {
+	var errs []error
+	if err := p.source.Err(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := p.sink.Err(); err != nil {
+		errs = append(errs, err)
+	}
+	return errs
 }
 
 // Close closes source and sink gracefully.

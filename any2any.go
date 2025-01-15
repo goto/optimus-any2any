@@ -17,17 +17,17 @@ import (
 )
 
 // any2any creates a pipeline from source to sink.
-func any2any(from string, to []string, envs []string) error {
+func any2any(from string, to []string, envs []string) []error {
 	// load config
 	cfg, err := config.NewConfig(envs...)
 	if err != nil {
-		return errors.WithStack(err)
+		return []error{errors.WithStack(err)}
 	}
 
 	// set up logger
 	l, err := logger.NewLogger(cfg.LogLevel)
 	if err != nil {
-		return errors.WithStack(err)
+		return []error{errors.WithStack(err)}
 	}
 
 	// graceful shutdown
@@ -37,27 +37,27 @@ func any2any(from string, to []string, envs []string) error {
 	// create source
 	source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
 	if err != nil {
-		return errors.WithStack(err)
+		return []error{errors.WithStack(err)}
 	}
 	// create sinks (multiple)
 	var sinks []flow.Sink
 	for _, t := range to {
 		sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
 		if err != nil {
-			return errors.WithStack(err)
+			return []error{errors.WithStack(err)}
 		}
 		sinks = append(sinks, sink)
 	}
 	// get jq query for filtering / transforming data between source and sink
 	jqQuery, err := component.GetJQQuery(l, envs...)
 	if err != nil {
-		return errors.WithStack(err)
+		return []error{errors.WithStack(err)}
 	}
 
 	// initiate pipeline
 	var p interface {
 		Run() <-chan uint8
-		Err() error
+		Errs() []error
 		Close()
 	}
 	// create pipeline based on number of sinks
@@ -71,9 +71,7 @@ func any2any(from string, to []string, envs []string) error {
 	select {
 	// run pipeline until done
 	case <-p.Run():
-		if err := p.Err(); err != nil {
-			return errors.WithStack(err)
-		}
+		return p.Errs()
 	// or until context is cancelled
 	case <-ctx.Done():
 	}

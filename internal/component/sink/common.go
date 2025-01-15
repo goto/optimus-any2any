@@ -2,7 +2,6 @@ package sink
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/pkg/errors"
 	opentelemetry "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -120,7 +120,7 @@ func (commonSink *CommonSink) RegisterProcess(f func()) {
 // SetError sets the error of the sink.
 // This is additional functionality that is not part of the flow.Sink interface.
 func (commonSink *CommonSink) SetError(err error) {
-	commonSink.err = errors.Join(commonSink.err, err)
+	commonSink.err = errors.WithStack(err)
 }
 
 // Err returns the error of the sink.
