@@ -22,9 +22,11 @@ const (
 type MaxcomputeSink struct {
 	*sink.CommonSink
 
-	session     *tunnel.StreamUploadSession
-	packWriter  *tunnel.RecordPackStreamWriter
-	tableSchema tableschema.TableSchema
+	// session     *tunnel.StreamUploadSession
+	// packWriter  *tunnel.RecordPackStreamWriter
+	session      *tunnel.UploadSession
+	recordWriter *tunnel.RecordProtocWriter
+	tableSchema  tableschema.TableSchema
 
 	client             *odps.Odps
 	loadMethod         string
@@ -68,19 +70,28 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, loadMethod string, o
 		return nil, errors.WithStack(err)
 	}
 
-	session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+	// session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+	// 	tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
+	// )
+	session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(),
 		tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	packWriter := session.OpenRecordPackWriter()
+	// packWriter := session.OpenRecordPackWriter()
+	recordWriter, err := session.OpenRecordWriter(0)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	mc := &MaxcomputeSink{
-		CommonSink:         commonSink,
+		CommonSink: commonSink,
+		// session:            session,
+		// packWriter:         packWriter,
 		session:            session,
-		packWriter:         packWriter,
+		recordWriter:       recordWriter,
 		tableSchema:        destination.Schema(),
 		client:             client,
 		loadMethod:         loadMethod,
@@ -130,21 +141,29 @@ func (mc *MaxcomputeSink) process() {
 			continue
 		}
 		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %s", record.String()))
-		if err := mc.packWriter.Append(record); err != nil {
+		// if err := mc.packWriter.Append(record); err != nil {
+		// 	mc.Logger.Error(fmt.Sprintf("sink(mc): record write error: %s", err.Error()))
+		// 	mc.SetError(errors.WithStack(err))
+		// 	continue
+		// }
+		if err := mc.recordWriter.Write(record); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): record write error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 			continue
 		}
 		countRecord++
-		if countRecord%100 == 0 || mc.packWriter.DataSize() > 65536 { // flush every 100 records or 64KB
+		// if countRecord%100 == 0 || mc.packWriter.DataSize() > 65536 { // flush every 100 records or 64KB
+		// 	mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
+		// 	traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
+		// 	if err != nil {
+		// 		mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
+		// 		mc.SetError(errors.WithStack(err))
+		// 		continue
+		// 	}
+		// 	mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
+		// }
+		if countRecord%100 == 0 {
 			mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
-			traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
-			if err != nil {
-				mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
-				mc.SetError(errors.WithStack(err))
-				continue
-			}
-			mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
 		}
 	}
 	if mc.Err() != nil {
@@ -155,14 +174,26 @@ func (mc *MaxcomputeSink) process() {
 	if countRecord > 0 {
 		mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 	}
-	// flush remaining records
-	traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
-	if err != nil {
-		mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
+	// // flush remaining records
+	// traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
+	// if err != nil {
+	// 	mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
+	// 	mc.SetError(errors.WithStack(err))
+	// 	return
+	// }
+	// mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
+
+	if err := mc.recordWriter.Close(); err != nil {
+		mc.Logger.Error(fmt.Sprintf("sink(mc): record writer close error: %s", err.Error()))
 		mc.SetError(errors.WithStack(err))
 		return
 	}
-	mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
+
+	if err := mc.session.Commit([]int{0}); err != nil {
+		mc.Logger.Error(fmt.Sprintf("sink(mc): session commit error: %s", err.Error()))
+		mc.SetError(errors.WithStack(err))
+		return
+	}
 
 	if mc.loadMethod == LOAD_METHOD_REPLACE {
 		mc.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
