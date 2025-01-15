@@ -66,6 +66,7 @@ func NewSource(l *slog.Logger,
 
 // process reads data from Salesforce and sends it to the channel.
 func (sf *SalesforceSource) process() {
+	sf.Logger.Info(fmt.Sprintf("source(sf): start processing query: %s", sf.soqlQuery))
 	// initiate record result
 	result := &simpleforce.QueryResult{
 		Done:           false,
@@ -73,7 +74,6 @@ func (sf *SalesforceSource) process() {
 	}
 	// fetch records until done
 	for !result.Done {
-		sf.Logger.Info(fmt.Sprintf("source(sf): start processing query: %s", result.NextRecordsURL))
 		currentResult, err := sf.client.Query(result.NextRecordsURL)
 		if err != nil {
 			sf.Logger.Error(fmt.Sprintf("source(sf): failed to query more salesforce: %s", err.Error()))
