@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	errs "errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -187,34 +188,52 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 			return nil, errors.WithStack(fmt.Errorf("value is not a bigint, found %+v, type %T", value, value))
 		}
 		return data.BigInt(curr), nil
-	case datatype.DECIMAL, datatype.FLOAT, datatype.DOUBLE:
+	case datatype.DECIMAL:
 		if value == nil {
-			switch dt.ID() {
-			case datatype.DECIMAL:
-				// get decimal precision and scale
-				decimalType, ok := dt.(datatype.DecimalType)
-				if !ok {
-					return nil, errors.WithStack(fmt.Errorf("dt is not a decimal"))
-				}
-				return data.NewDecimal(int(decimalType.Precision), int(decimalType.Scale), "0"), nil
-			case datatype.FLOAT:
-				return data.Float(0), nil
-			}
-			return data.Double(0), nil
-		}
-		curr, ok := value.(float64)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("value is not a float64, found %+v, type %T", value, value))
-		}
-		switch dt.ID() {
-		case datatype.DECIMAL:
 			// get decimal precision and scale
 			decimalType, ok := dt.(datatype.DecimalType)
 			if !ok {
 				return nil, errors.WithStack(fmt.Errorf("dt is not a decimal"))
 			}
-			return data.NewDecimal(int(decimalType.Precision), int(decimalType.Scale), fmt.Sprintf("%f", curr)), nil
-		case datatype.FLOAT:
+			return data.NewDecimal(int(decimalType.Precision), int(decimalType.Scale), "0"), nil
+		}
+
+		var curr float64
+		switch v := value.(type) {
+		case string:
+			// Parse decimal string to float
+			f, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return nil, errors.WithStack(fmt.Errorf("failed to parse decimal string %s: %w", v, err))
+			}
+			curr = float64(f)
+		case float64:
+			curr = v
+		case float32:
+			curr = float64(v)
+		default:
+			return nil, errors.WithStack(fmt.Errorf("unsupported decimal type %T with value %+v", value, value))
+		}
+		// get decimal precision and scale
+		decimalType, ok := dt.(datatype.DecimalType)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("dt is not a decimal"))
+		}
+		return data.NewDecimal(int(decimalType.Precision), int(decimalType.Scale), fmt.Sprintf("%f", curr)), nil
+	case datatype.FLOAT, datatype.DOUBLE:
+		if value == nil {
+			if dt.ID() == datatype.FLOAT {
+				return data.Float(0), nil
+			}
+			return data.Double(0), nil
+		}
+
+		curr, ok := value.(float64)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("value is not a float64, found %+v, type %T", value, value))
+		}
+
+		if dt.ID() == datatype.FLOAT {
 			return data.Float(curr), nil
 		}
 		return data.Double(curr), nil
