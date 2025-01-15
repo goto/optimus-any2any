@@ -114,7 +114,7 @@ func (mc *MaxcomputeSink) process() {
 	countRecord := 0
 	for msg := range mc.Read() {
 		if mc.Err() != nil {
-			mc.Logger.Error("sink(mc): got an error, skip processing")
+			mc.Logger.Debug("sink(mc): got an error, skip processing")
 			continue
 		}
 		b, ok := msg.([]byte)
