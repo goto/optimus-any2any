@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	errs "errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -197,12 +196,7 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		var curr float64
 		switch v := value.(type) {
 		case string:
-			// Parse decimal string to float
-			f, err := strconv.ParseFloat(v, 64)
-			if err != nil {
-				return nil, errors.WithStack(fmt.Errorf("failed to parse decimal string %s: %w", v, err))
-			}
-			curr = float64(f)
+			return data.DecimalFromStr(v)
 		case float64:
 			curr = v
 		case float32:
@@ -255,17 +249,17 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		if value == nil {
 			switch dt.ID() {
 			case datatype.DATE:
-				return data.NewDate("0001-01-01")
+				return data.Date(time.Time{}), nil
 			case datatype.DATETIME:
-				return data.NewDateTime("0001-01-01 00:00:00")
+				return data.DateTime(time.Time{}), nil
 			case datatype.TIMESTAMP:
-				return data.NewTimestamp("0001-01-01 00:00:00.000")
+				return data.Timestamp(time.Time{}), nil
 			case datatype.TIMESTAMP_NTZ:
-				return data.NewTimestampNtz("0001-01-01 00:00:00.000")
+				return data.TimestampNtz(time.Time{}), nil
 			case datatype.CHAR:
-				return data.NewChar(dt.(datatype.CharType).Length, "")
+				return data.Char{}, nil
 			case datatype.VARCHAR:
-				return data.NewVarChar(dt.(datatype.VarcharType).Length, "")
+				return data.VarChar{}, nil
 			}
 			return data.String(""), nil
 		}
