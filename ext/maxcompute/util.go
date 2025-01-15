@@ -146,6 +146,9 @@ func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error)
 }
 
 func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
+	if value == nil {
+		return data.Null, nil
+	}
 	switch dt.ID() {
 	case datatype.TINYINT:
 		curr, ok := value.(int8)
