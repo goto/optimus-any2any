@@ -63,6 +63,7 @@ It expects configuration from env variables. Or you can pass configuration from 
 |---|---|---|
 | MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
+| | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
 | IO | - | - |
 | OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
 | | OSS__BATCH_SIZE | If set, resulting files will be batched to the set number. |

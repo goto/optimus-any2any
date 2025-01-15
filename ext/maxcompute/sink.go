@@ -90,9 +90,7 @@ func NewSink(l *slog.Logger, svcAcc string, tableID string, loadMethod string, o
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink(mc): close record writer")
-		// close record writer
-		// _ = packWriter.Close()
+		commonSink.Logger.Debug("sink(mc): drop temporary table")
 		// delete temporary table if load method is replace
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, deleting temporary table: %s", mc.tableIDTransition))
@@ -156,6 +154,7 @@ func (mc *MaxcomputeSink) process() {
 	if countRecord > 0 {
 		mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 	}
+	// flush remaining records
 	traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
 	if err != nil {
 		mc.Logger.Error(fmt.Sprintf("record flush error: %s", err.Error()))
