@@ -2,8 +2,10 @@ package maxcompute
 
 import (
 	"encoding/json"
+	errs "errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/data"
@@ -195,6 +197,50 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		curr, ok := value.(string)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a string, found %+v, type %T", value, value))
+		}
+		switch dt.ID() {
+		case datatype.DATE:
+			return data.NewDate(curr)
+		case datatype.DATETIME:
+			result, err := data.NewDateTime(curr)
+			if err != nil {
+				// try to parse with RFC3339
+				t, err := time.ParseInLocation(time.RFC3339, curr, time.Local)
+				if err != nil {
+					err = errs.Join(err, errors.Errorf("failed to parse datetime: %s", curr))
+					return nil, errors.WithStack(err)
+				}
+				return data.DateTime(t), nil
+			}
+			return result, nil
+		case datatype.TIMESTAMP:
+			result, err := data.NewTimestamp(curr)
+			if err != nil {
+				// try to parse with RFC3339
+				t, err := time.ParseInLocation(time.RFC3339, curr, time.Local)
+				if err != nil {
+					err = errs.Join(err, errors.Errorf("failed to parse datetime: %s", curr))
+					return nil, errors.WithStack(err)
+				}
+				return data.Timestamp(t), nil
+			}
+			return result, nil
+		case datatype.TIMESTAMP_NTZ:
+			result, err := data.NewTimestampNtz(curr)
+			if err != nil {
+				// try to parse with RFC3339
+				t, err := time.ParseInLocation(time.RFC3339, curr, time.Local)
+				if err != nil {
+					err = errs.Join(err, errors.Errorf("failed to parse datetime: %s", curr))
+					return nil, errors.WithStack(err)
+				}
+				return data.TimestampNtz(t), nil
+			}
+			return result, nil
+		case datatype.CHAR:
+			return data.NewChar(dt.(datatype.CharType).Length, curr)
+		case datatype.VARCHAR:
+			return data.NewVarChar(dt.(datatype.VarcharType).Length, curr)
 		}
 		return data.String(curr), nil
 	case datatype.ARRAY:
