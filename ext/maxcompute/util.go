@@ -189,11 +189,33 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		return data.BigInt(curr), nil
 	case datatype.DECIMAL, datatype.FLOAT, datatype.DOUBLE:
 		if value == nil {
+			switch dt.ID() {
+			case datatype.DECIMAL:
+				// get decimal precision and scale
+				decimalType, ok := dt.(datatype.DecimalType)
+				if !ok {
+					return nil, errors.WithStack(fmt.Errorf("dt is not a decimal"))
+				}
+				return data.NewDecimal(int(decimalType.Precision), int(decimalType.Scale), "0"), nil
+			case datatype.FLOAT:
+				return data.Float(0), nil
+			}
 			return data.Double(0), nil
 		}
 		curr, ok := value.(float64)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a float64, found %+v, type %T", value, value))
+		}
+		switch dt.ID() {
+		case datatype.DECIMAL:
+			// get decimal precision and scale
+			decimalType, ok := dt.(datatype.DecimalType)
+			if !ok {
+				return nil, errors.WithStack(fmt.Errorf("dt is not a decimal"))
+			}
+			return data.NewDecimal(int(decimalType.Precision), int(decimalType.Scale), fmt.Sprintf("%f", curr)), nil
+		case datatype.FLOAT:
+			return data.Float(curr), nil
 		}
 		return data.Double(curr), nil
 	case datatype.BINARY:
