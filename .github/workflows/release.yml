@@ -20,16 +20,22 @@ jobs:
           go-version: '^1.22.3'
       - name: Run Go version
         run: go version
+      - name: Push to latest tag
+        run: |
+          git tag -d latest || true
+          git tag latest
+          git push -d origin latest || true
+          git push origin latest
+        if: github.ref_name == 'main'
       - name: Login to DockerHub
+        if: startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Set VERSION to latest if on main
-        run: export VERSION=latest
-        if: github.ref_name == 'main'
       - name: Run GoReleaser
+        if: startsWith(github.ref, 'refs/tags/')
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
