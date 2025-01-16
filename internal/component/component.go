@@ -61,7 +61,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		}
 		return gmail.NewSource(ctx, l, sourceCfg.Token, sourceCfg.Filter,
 			sourceCfg.ExtractorSource, sourceCfg.ExtractorPattern, sourceCfg.ExtractorFileFormat,
-			sourceCfg.ResultFilenameColumn, sourceCfg.ColumnMappingFilePath, opts...)
+			sourceCfg.FilenameColumn, sourceCfg.ColumnMappingFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)

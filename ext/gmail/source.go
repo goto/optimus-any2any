@@ -28,8 +28,8 @@ type GmailSource struct {
 	extractorPattern    string
 	extractorFileFormat string
 
-	resultFilenameColumn string
-	columnMap            map[string]string
+	filenameColumn string
+	columnMap      map[string]string
 }
 
 var _ flow.Source = (*GmailSource)(nil)
@@ -37,7 +37,7 @@ var _ flow.Source = (*GmailSource)(nil)
 func NewSource(ctx context.Context, l *slog.Logger,
 	tokenJSON string,
 	filterRules, extractorSource, extractorPattern, extractorFileFormat string,
-	resultFilenameColumn, columnMappingFilePath string,
+	filenameColumn, columnMappingFilePath string,
 	opts ...option.Option) (*GmailSource, error) {
 
 	// create commonSource
@@ -55,14 +55,14 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// create source
 	gs := &GmailSource{
-		CommonSource:         commonSource,
-		service:              srv,
-		filterRules:          filterRules,
-		extractorSource:      extractorSource,
-		extractorPattern:     extractorPattern,
-		extractorFileFormat:  extractorFileFormat,
-		resultFilenameColumn: resultFilenameColumn,
-		columnMap:            columnMap,
+		CommonSource:        commonSource,
+		service:             srv,
+		filterRules:         filterRules,
+		extractorSource:     extractorSource,
+		extractorPattern:    extractorPattern,
+		extractorFileFormat: extractorFileFormat,
+		filenameColumn:      filenameColumn,
+		columnMap:           columnMap,
 	}
 
 	// add clean func
@@ -124,11 +124,15 @@ func (gs *GmailSource) process() {
 					return
 				}
 				// convert to json
-				currentRecords, err := gs.convertToRecords(data, p.Filename)
+				currentRecords, err := gs.convertToRecords(data)
 				if err != nil {
 					gs.Logger.Error(fmt.Sprintf("source(gmail): failed to convert attachment to records %s", err.Error()))
 					gs.SetError(errors.WithStack(err))
 					return
+				}
+				// set filename column
+				if gs.filenameColumn != "" {
+					gs.setFilenameColumn(currentRecords, p.Filename)
 				}
 				records = append(records, currentRecords...)
 			}
@@ -157,7 +161,7 @@ func (gs *GmailSource) process() {
 	}
 }
 
-func (gs *GmailSource) convertToRecords(data []byte, filename string) ([]map[string]interface{}, error) {
+func (gs *GmailSource) convertToRecords(data []byte) ([]map[string]interface{}, error) {
 	records := make([]map[string]interface{}, 0)
 	switch gs.extractorFileFormat {
 	case "json":
@@ -188,14 +192,17 @@ func (gs *GmailSource) convertToRecords(data []byte, filename string) ([]map[str
 			for j, value := range row {
 				record[rows[0][j]] = value
 			}
-			// set filename if result filename column is set
-			if gs.resultFilenameColumn != "" {
-				record[gs.resultFilenameColumn] = filename
-			}
 			records = append(records, record)
 		}
 	}
 	return records, nil
+}
+
+func (gs *GmailSource) setFilenameColumn(records []map[string]interface{}, filename string) {
+	gs.Logger.Debug(fmt.Sprintf("source(gmail): add filename column %s and set the value %s", gs.filenameColumn, filename))
+	for i := range records {
+		records[i][gs.filenameColumn] = filename
+	}
 }
 
 // mapping maps the column name from Gmail response to the column name in the column map.

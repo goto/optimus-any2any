@@ -7,7 +7,7 @@ type SourceGmailConfig struct {
 	ExtractorSource       string `env:"GMAIL__EXTRACTOR_SOURCE" envDefault:"attachment"`
 	ExtractorPattern      string `env:"GMAIL__EXTRACTOR_PATTERN" envDefault:".*"`
 	ExtractorFileFormat   string `env:"GMAIL__EXTRACTOR_FILE_FORMAT" envDefault:"csv"`
-	ResultFilenameColumn  string `env:"GMAIL__RESULT_FILENAME_COLUMN"`
+	FilenameColumn        string `env:"GMAIL__FILENAME_COLUMN" envDefault:"__FILENAME__"`
 	ColumnMappingFilePath string `env:"GMAIL__COLUMN_MAPPING_FILE_PATH"`
 }
 
