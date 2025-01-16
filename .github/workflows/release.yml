@@ -10,7 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  release-latest:
+    if: github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,22 +24,48 @@ jobs:
           go-version: '^1.22.3'
       - name: Run Go version
         run: go version
-      - name: Create and push latest tag
-        if: github.ref_name == 'main'
-        run: |
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git config --global user.name "github-actions[bot]"
-          git tag -f latest
-          git push origin latest -f
       - name: Login to DockerHub
-        if: startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Run GoReleaser
-        if: startsWith(github.ref, 'refs/tags/')
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean --skip=validate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GO_RELEASER_TOKEN }}
+          VERSION: "latest"
+  release-tag:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '^1.22.3'
+      - name: Run Go version
+        run: go version
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract tag version
+        id: vars
+        run: |
+          # Extract the tag name from GITHUB_REF, remove 'refs/tags/v' prefix
+          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${TAG#v}"
+      - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -46,3 +73,4 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GO_RELEASER_TOKEN }}
+          VERSION: ${{ steps.vars.outputs.TAG }}

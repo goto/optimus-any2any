@@ -31,7 +31,7 @@ dockers:
       - any2any
     dockerfile: Dockerfile
     image_templates:
-      - 'docker.io/gotocompany/{{.ProjectName}}:{{ .Version }}'
+      - 'docker.io/gotocompany/{{.ProjectName}}:{{ .Env.VERSION }}'
 
 release:
   disable: true
