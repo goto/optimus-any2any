@@ -8,9 +8,6 @@
 
 version: 2
 
-git:
-  no_semver: true
-
 before:
   hooks:
     - go mod tidy
