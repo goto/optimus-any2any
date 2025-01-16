@@ -2,6 +2,8 @@ name: release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -24,6 +26,9 @@ jobs:
           registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set VERSION to latest if on main
+        run: export VERSION=latest
+        if: github.ref_name == 'main'
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

@@ -12,6 +12,8 @@ before:
   hooks:
     - go mod tidy
 
+version: "{{ .Env.VERSION | default .VERSION }}"
+
 builds:
   - id: any2any
     binary: ./build/any2any
