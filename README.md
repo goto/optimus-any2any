@@ -56,6 +56,13 @@ It expects configuration from env variables. Or you can pass configuration from 
 | | SF__TOKEN | Salesforce security token. |
 | | SF__SOQL_FILE_PATH | Path to the SOQL query file. (default: /data/in/main.soql)|
 | | SF__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for salesforce record result. (default: /data/in/mapping.columns) |
+| GMAIL | GMAIL__TOKEN | Token JSON for gmail credentials |
+| | GMAIL__FILTER | Gmail filter based on gmail filter rules |
+| | GMAIL__EXTRACTOR_SOURCE | Which source to read (attachment, body) (default: attachment) |
+| | GMAIL__EXTRACTOR_PATTERN | Pattern of the file to be downloaded (default: *) |
+| | GMAIL__EXTRACTOR_FILE_FORMAT | Which format of file to be extracted (csv, json) (default: csv) |
+| | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__FILENAME__") |
+| | GMAIL__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for gmail record result. "" for ignore (default: "") |
 
 ## Supported Sinks
 
