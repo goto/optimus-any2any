@@ -65,6 +65,8 @@ jobs:
           # Extract the tag name from GITHUB_REF, remove 'refs/tags/v' prefix
           TAG="${GITHUB_REF#refs/tags/}"
           TAG="${TAG#v}"
+          echo "Tag name: $TAG"
+          echo "::set-output name=tag::$TAG"
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
