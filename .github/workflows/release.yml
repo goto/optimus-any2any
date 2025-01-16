@@ -15,19 +15,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '^1.22.3'
       - name: Run Go version
         run: go version
-      - name: Push to latest tag
-        run: |
-          git tag -d latest || true
-          git tag latest
-          git push -d origin latest || true
-          git push origin latest
+      - name: Create and push latest tag
         if: github.ref_name == 'main'
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git tag -f latest
+          git push origin latest -f
       - name: Login to DockerHub
         if: startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
