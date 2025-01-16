@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
@@ -104,7 +105,14 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	return jqCfg.Query, nil
+	if jqCfg.Query != "" {
+		return jqCfg.Query, nil
+	}
+	query, err := os.ReadFile(jqCfg.QueryFilePath)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return string(query), nil
 }
 
 // getOpts returns options based on the given config.

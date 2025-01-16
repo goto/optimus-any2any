@@ -83,4 +83,5 @@ It expects configuration from env variables. Or you can pass configuration from 
 
 | Component | Configuration | Description |
 |---|---|---|
-| JQ | JQ__QUERY | Any valid jq query. |
+| JQ | JQ__QUERY | Any valid jq query. If set, it will override the query from file path. |
+| | JQ__QUERY_FILE_PATH | Any valid jq query loaded from file. |
