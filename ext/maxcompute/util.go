@@ -134,10 +134,6 @@ func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error)
 		return nil, errors.WithStack(err)
 	}
 
-	if len(raw) != len(schema.Columns) {
-		return nil, errors.WithStack(fmt.Errorf("record length mismatch: %d != %d", len(raw), len(schema.Columns)))
-	}
-
 	result := []data.Data{}
 	for _, column := range schema.Columns {
 		d, err := createData(raw[column.Name], column.Type)
