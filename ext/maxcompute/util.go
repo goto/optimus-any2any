@@ -62,6 +62,32 @@ func dropTable(client *odps.Odps, tableID string) error {
 	return client.Tables().Delete(name, true)
 }
 
+func createTableFromSchema(client *odps.Odps, tableID string, s tableschema.TableSchema) error {
+	// save current project and schema
+	currProject := client.DefaultProjectName()
+	currSchema := client.CurrentSchemaName()
+	defer func() {
+		// restore current project and schema
+		client.SetDefaultProjectName(currProject)
+		client.SetCurrentSchemaName(currSchema)
+	}()
+
+	splittedTableID := strings.Split(tableID, ".")
+	if len(splittedTableID) != 3 {
+		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
+		return errors.WithStack(err)
+	}
+	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+
+	// set project and schema to the table
+	client.SetDefaultProjectName(project)
+	client.SetCurrentSchemaName(schema)
+	s.TableName = name
+
+	// create table
+	return client.Tables().Create(s, true, map[string]string{}, map[string]string{})
+}
+
 func createTable(client *odps.Odps, tableID string, tableIDReference string) error {
 	// save current project and schema
 	currProject := client.DefaultProjectName()
@@ -124,6 +150,31 @@ func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
 		return nil, errors.WithStack(err)
 	}
 	return table, nil
+}
+
+func fromRecord(record data.Record, schema tableschema.TableSchema) (map[string]interface{}, error) {
+	m := make(map[string]interface{})
+	if record.Len() != len(schema.Columns) {
+		return nil, errors.WithStack(fmt.Errorf("record length does not match schema column length"))
+	}
+	for i, d := range record {
+		if d == nil {
+			m[schema.Columns[i].Name] = nil
+			continue
+		}
+		// for now it only supports string
+		switch d.Type() {
+		case datatype.StringType:
+			val, ok := d.(data.String)
+			if !ok {
+				return nil, errors.WithStack(fmt.Errorf("expected string, got %T", d))
+			}
+			m[schema.Columns[i].Name] = string(val)
+		default:
+			return nil, errors.WithStack(fmt.Errorf("unsupported data type: %s", d.Type().ID()))
+		}
+	}
+	return m, nil
 }
 
 func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error) {

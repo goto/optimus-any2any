@@ -63,6 +63,9 @@ It expects configuration from env variables. Or you can pass configuration from 
 | | GMAIL__EXTRACTOR_FILE_FORMAT | Which format of file to be extracted (csv, json) (default: csv) |
 | | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__FILENAME__") |
 | | GMAIL__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for gmail record result. "" for ignore (default: "") |
+| MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
+| | MC__QUERY_FILE_PATH | Path to the query file. (default: /data/in/query.sql) |
+| | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 
 ## Supported Sinks
 

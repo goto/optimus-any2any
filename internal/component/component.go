@@ -40,6 +40,11 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 	// create source based on type
 	switch source {
 	case MC:
+		sourceCfg, err := config.SourceMC(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return maxcompute.NewSource(l, sourceCfg.ServiceAccount, sourceCfg.QueryFilePath, sourceCfg.ExecutionProject, opts...)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
