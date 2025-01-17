@@ -113,8 +113,12 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 	if jqCfg.Query != "" {
 		return jqCfg.Query, nil
 	}
+
 	query, err := os.ReadFile(jqCfg.QueryFilePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
 		return "", errors.WithStack(err)
 	}
 	return string(query), nil
