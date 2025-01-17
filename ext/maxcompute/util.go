@@ -158,23 +158,148 @@ func fromRecord(record data.Record, schema tableschema.TableSchema) (map[string]
 		return nil, errors.WithStack(fmt.Errorf("record length does not match schema column length"))
 	}
 	for i, d := range record {
-		if d == nil {
-			m[schema.Columns[i].Name] = nil
-			continue
+		val, err := fromData(d)
+		if err != nil {
+			return nil, errors.WithStack(err)
 		}
-		// for now it only supports string
-		switch d.Type() {
-		case datatype.StringType:
-			val, ok := d.(data.String)
-			if !ok {
-				return nil, errors.WithStack(fmt.Errorf("expected string, got %T", d))
-			}
-			m[schema.Columns[i].Name] = string(val)
-		default:
-			return nil, errors.WithStack(fmt.Errorf("unsupported data type: %s", d.Type().ID()))
-		}
+		m[schema.Columns[i].Name] = val
 	}
 	return m, nil
+}
+
+func fromData(d data.Data) (interface{}, error) {
+	if d == nil {
+		return nil, nil
+	}
+	// for now it only supports string and timestamp
+	switch d.Type().ID() {
+	case datatype.TINYINT:
+		val, ok := d.(data.TinyInt)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected tinyint, got %T", d))
+		}
+		return int8(val), nil
+	case datatype.SMALLINT:
+		val, ok := d.(data.SmallInt)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected smallint, got %T", d))
+		}
+		return int16(val), nil
+	case datatype.INT:
+		val, ok := d.(data.Int)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected int, got %T", d))
+		}
+		return int32(val), nil
+	case datatype.BIGINT:
+		val, ok := d.(data.BigInt)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected bigint, got %T", d))
+		}
+		return int64(val), nil
+	case datatype.FLOAT:
+		val, ok := d.(data.Float)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected float, got %T", d))
+		}
+		return float32(val), nil
+	case datatype.DOUBLE:
+		val, ok := d.(data.Double)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected double, got %T", d))
+		}
+		return float64(val), nil
+	case datatype.DECIMAL:
+		val, ok := d.(data.Decimal)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected decimal, got %T", d))
+		}
+		return val.String(), nil
+	case datatype.CHAR:
+		val, ok := d.(data.Char)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected char, got %T", d))
+		}
+		return val.String(), nil
+	case datatype.VARCHAR:
+		val, ok := d.(data.VarChar)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected varchar, got %T", d))
+		}
+		return val.String(), nil
+	case datatype.STRING:
+		val, ok := d.(data.String)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected string, got %T", d))
+		}
+		return val.String(), nil
+	case datatype.BINARY:
+		val, ok := d.(data.Binary)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected binary, got %T", d))
+		}
+		return []byte(val), nil
+	case datatype.BOOLEAN:
+		val, ok := d.(data.Bool)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected boolean, got %T", d))
+		}
+		return bool(val), nil
+	case datatype.DATE:
+		val, ok := d.(data.Date)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected date, got %T", d))
+		}
+		return val.Time().Format(data.DateFormat), nil
+	case datatype.DATETIME:
+		val, ok := d.(data.DateTime)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected datetime, got %T", d))
+		}
+		return val.Time().Format(data.DateTimeFormat), nil
+	case datatype.TIMESTAMP:
+		val, ok := d.(data.Timestamp)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected timestamp, got %T", d))
+		}
+		return val.Time().Format(data.TimeStampFormat), nil
+	case datatype.TIMESTAMP_NTZ:
+		val, ok := d.(data.TimestampNtz)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected timestamp_ntz, got %T", d))
+		}
+		return val.Time().Format(data.TimeStampFormat), nil
+	case datatype.ARRAY:
+		val, ok := d.(data.Array)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected array, got %T", d))
+		}
+		arr := []interface{}{}
+		for _, currData := range val.ToSlice() {
+			curr, err := fromData(currData)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			arr = append(arr, curr)
+		}
+		return arr, nil
+	case datatype.STRUCT:
+		val, ok := d.(data.Struct)
+		if !ok {
+			return nil, errors.WithStack(fmt.Errorf("expected struct, got %T", d))
+		}
+		m := map[string]interface{}{}
+		for _, field := range val.Fields() {
+			curr, err := fromData(field.Value)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			m[field.Name] = curr
+		}
+		return m, nil
+	default:
+		return nil, errors.WithStack(fmt.Errorf("unsupported data type: %s", d.Type().ID()))
+	}
 }
 
 func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error) {
