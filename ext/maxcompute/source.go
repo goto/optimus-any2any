@@ -6,32 +6,22 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
-	"github.com/aliyun/aliyun-odps-go-sdk/odps/datatype"
-	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/component/source"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/rand"
-)
-
-const (
-	transitionTableColumnName = "json_value"
 )
 
 // MaxcomputeSource is the source component for MaxCompute.
 type MaxcomputeSource struct {
 	*source.CommonSource
 
-	client          *odps.Odps
-	session         *tunnel.DownloadSession
-	query           string
-	tableTransition *odps.Table
+	client *odps.Odps
+	tunnel *tunnel.Tunnel
+	query  string
 }
 
 var _ flow.Source = (*MaxcomputeSource)(nil)
@@ -55,48 +45,23 @@ func NewSource(l *slog.Logger, svcAcc string, queryFilePath string, executionPro
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	query := string(raw)
 
-	// create temporary table
-	tempTableID := fmt.Sprintf("optimus_mc_%s_temp_%d", generateRandomHex(), time.Now().Unix())
-	if err := createTableFromSchema(client, tempTableID, tableschema.NewSchemaBuilder().
-		Column(tableschema.Column{Name: transitionTableColumnName, Type: datatype.StringType}).
-		Build(),
-	); err != nil {
-		return nil, errors.WithStack(err)
-	}
-	commonSource.Logger.Info(fmt.Sprintf("source(mc): temporary table created: %s", tempTableID))
-	tempTable, err := getTable(client, tempTableID)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// create download session
+	// create tunnel
 	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	session, err := t.CreateDownloadSession(tempTable.ProjectName(), tempTable.Name(), tunnel.SessionCfg.WithSchemaName(tempTable.SchemaName()))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	mc := &MaxcomputeSource{
-		CommonSource:    commonSource,
-		client:          client,
-		session:         session,
-		query:           query,
-		tableTransition: tempTable,
+		CommonSource: commonSource,
+		client:       client,
+		tunnel:       t,
+		query:        string(raw),
 	}
 
 	// add clean function
 	commonSource.AddCleanFunc(func() {
 		commonSource.Logger.Debug("source(mc): cleaning up")
-		commonSource.Logger.Info(fmt.Sprintf("source(mc): load method is replace, deleting temporary table: %s", mc.tableTransition.Name()))
-		if err := dropTable(client, mc.tableTransition.Name()); err != nil {
-			commonSource.Logger.Error(fmt.Sprintf("source(mc): delete temporary table error: %s", err.Error()))
-			mc.SetError(errors.WithStack(err))
-		}
 	})
 
 	commonSource.RegisterProcess(mc.process)
@@ -106,15 +71,42 @@ func NewSource(l *slog.Logger, svcAcc string, queryFilePath string, executionPro
 
 // process is the process function for MaxcomputeSource.
 func (mc *MaxcomputeSource) process() {
-	recordCount := mc.session.RecordCount()
+	// run query
+	mc.Logger.Info(fmt.Sprintf("source(mc): running query: %s", mc.query))
+	instance, err := mc.client.ExecSQl(mc.query)
+	if err != nil {
+		mc.Logger.Error(fmt.Sprintf("source(mc): failed to run query: %s", mc.query))
+		mc.SetError(errors.WithStack(err))
+		return
+	}
+
+	// wait for query to finish
+	mc.Logger.Info("source(mc): waiting for query to finish")
+	if err := instance.WaitForSuccess(); err != nil {
+		mc.Logger.Error("source(mc): query failed")
+		mc.SetError(errors.WithStack(err))
+		return
+	}
+
+	// create session for reading records
+	mc.Logger.Info("source(mc): creating session for reading records")
+	session, err := mc.tunnel.CreateInstanceResultDownloadSession(mc.client.DefaultProjectName(), instance.Id())
+	if err != nil {
+		mc.Logger.Error("source(mc): failed to create session for reading records")
+		mc.SetError(errors.WithStack(err))
+		return
+	}
+
+	recordCount := session.RecordCount()
 	mc.Logger.Info(fmt.Sprintf("source(mc): record count: %d", recordCount))
 
 	// read records
 	i := 0
 	step := 1000 // batch size for reading records
 	for i < recordCount {
-		reader, err := mc.session.OpenRecordReader(i, step, nil)
+		reader, err := session.OpenRecordReader(i, step, 0, nil)
 		if err != nil {
+			mc.Logger.Error("source(mc): failed to open record reader")
 			mc.SetError(errors.WithStack(err))
 			return
 		}
@@ -127,24 +119,20 @@ func (mc *MaxcomputeSource) process() {
 				if errors.Is(err, io.EOF) {
 					break
 				}
+				mc.Logger.Error("source(mc): failed to read record")
 				mc.SetError(errors.WithStack(err))
 				return
 			}
 
 			// process record
 			mc.Logger.Debug(fmt.Sprintf("source(mc): record: %s", record))
-			v, err := fromRecord(record, mc.tableTransition.Schema())
+			v, err := fromRecord(record, session.Schema())
 			if err != nil {
+				mc.Logger.Error("source(mc): failed to process record")
 				mc.SetError(errors.WithStack(err))
 				return
 			}
-			val, ok := v[transitionTableColumnName].(string)
-			if !ok {
-				err := fmt.Errorf("expected string, got %T", v[transitionTableColumnName])
-				mc.SetError(errors.WithStack(err))
-				return
-			}
-			raw, err := json.Marshal(val)
+			raw, err := json.Marshal(v)
 			if err != nil {
 				mc.SetError(errors.WithStack(err))
 				return
@@ -155,19 +143,4 @@ func (mc *MaxcomputeSource) process() {
 		i += count
 		mc.Logger.Info(fmt.Sprintf("source(mc): send %d records", count))
 	}
-}
-
-func generateRandomHex() string {
-	const charset = "0123456789abcdef"
-	const length = 4
-
-	rand.Seed(uint64(time.Now().Unix()))
-	var sb strings.Builder
-
-	for i := 0; i < length; i++ {
-		randomIndex := rand.Intn(len(charset))
-		sb.WriteByte(charset[randomIndex])
-	}
-
-	return sb.String()
 }
