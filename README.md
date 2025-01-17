@@ -79,8 +79,8 @@ It expects configuration from env variables. Or you can pass configuration from 
 | OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
 | | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name. |
 | | OSS__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
-| | OSS_BATCH_SIZE | Batch size for the group by BATCH. |
-| | OSS__COLUMN_NAME | Column name for the group by COLUMN. |
+| | OSS__GROUP_BATCH_SIZE | Batch size for the group by BATCH. |
+| | OSS__GROUP_COLUMN_NAME | Column name for the group by COLUMN. |
 | | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 | | OSS__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
