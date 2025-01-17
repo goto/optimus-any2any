@@ -171,7 +171,6 @@ func fromData(d data.Data) (interface{}, error) {
 	if d == nil {
 		return nil, nil
 	}
-	// for now it only supports string and timestamp
 	switch d.Type().ID() {
 	case datatype.TINYINT:
 		val, ok := d.(data.TinyInt)
