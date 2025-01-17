@@ -96,9 +96,10 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			return nil, errors.WithStack(err)
 		}
 		return oss.NewSink(ctx, l, sinkCfg.ServiceAccount,
-			sinkCfg.DestinationBucketPath, sinkCfg.FilenamePattern,
-			int64(sinkCfg.BatchSize), sinkCfg.EnableOverwrite, opts...)
-
+			sinkCfg.DestinationBucketPath,
+			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
+			sinkCfg.ColumnMappingFilePath,
+			sinkCfg.FilenamePattern, sinkCfg.EnableOverwrite, opts...)
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }

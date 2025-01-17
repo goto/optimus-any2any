@@ -77,8 +77,11 @@ It expects configuration from env variables. Or you can pass configuration from 
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
 | IO | - | - |
 | OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
-| | OSS__BATCH_SIZE | If set, resulting files will be batched to the set number. |
 | | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name. |
+| | OSS__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
+| | OSS_BATCH_SIZE | Batch size for the group by BATCH. |
+| | OSS__COLUMN_NAME | Column name for the group by COLUMN. |
+| | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 | | OSS__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 
