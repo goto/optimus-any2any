@@ -9,6 +9,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
 	"github.com/goto/optimus-any2any/ext/io"
+	"github.com/goto/optimus-any2any/ext/kafka"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/salesforce"
@@ -25,6 +26,7 @@ type (
 
 const (
 	MC    Type = "MC"
+	KAFKA Type = "KAFKA"
 	FILE  Type = "FILE"
 	IO    Type = "IO"
 	SF    Type = "SF"
@@ -100,6 +102,12 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
 			sinkCfg.ColumnMappingFilePath,
 			sinkCfg.FilenamePattern, sinkCfg.EnableOverwrite, opts...)
+	case KAFKA:
+		sinkCfg, err := config.SinkKafka(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return kafka.NewSink(ctx, l, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }
