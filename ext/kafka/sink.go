@@ -28,7 +28,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	commonSink := sink.NewCommonSink(l, opts...)
 
 	// create kafka client
-	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic))
+	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
