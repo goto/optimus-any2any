@@ -13,6 +13,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/salesforce"
+	"github.com/goto/optimus-any2any/ext/sftp"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -31,6 +32,7 @@ const (
 	IO    Type = "IO"
 	SF    Type = "SF"
 	OSS   Type = "OSS"
+	SFTP  Type = "SFTP"
 	GMAIL Type = "GMAIL"
 )
 
@@ -102,6 +104,17 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
 			sinkCfg.ColumnMappingFilePath,
 			sinkCfg.FilenamePattern, sinkCfg.EnableOverwrite, opts...)
+	case SFTP:
+		sinkCfg, err := config.SinkSFTP(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return sftp.NewSink(ctx, l,
+			sinkCfg.Address, sinkCfg.Username, sinkCfg.Password, sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
+			sinkCfg.DestinationPath,
+			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
+			sinkCfg.ColumnMappingFilePath,
+			sinkCfg.FilenamePattern, opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {
