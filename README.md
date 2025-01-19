@@ -84,6 +84,18 @@ It expects configuration from env variables. Or you can pass configuration from 
 | | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 | | OSS__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
+| SFTP | SFTP__ADDRESS | SFTP server address, with format `host:port`. |
+| | SFTP__USERNAME | SFTP username for authentication. |
+| | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
+| | SFTP__PASSWORD | SFTP password for authentication. "" for ignore |
+| | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
+| | SFTP__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
+| | SFTP__GROUP_BATCH_SIZE | Batch size for the group by BATCH. |
+| | SFTP__GROUP_COLUMN_NAME | Column name for the group by COLUMN. |
+| | SFTP__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
+| | SFTP__FILE_FORMAT | File format availability: CSV, TSV, JSON. (default: JSON) |
+| | SFTP__DESTINATION_PATH | The destination path in a SFTP server to put the result files. |
+| | SFTP__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
