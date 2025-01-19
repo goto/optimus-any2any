@@ -84,6 +84,8 @@ It expects configuration from env variables. Or you can pass configuration from 
 | | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 | | OSS__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
+| KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
+| | KAFKA__TOPIC | Kafka topic to write the data. |
 
 ## Supported Processors
 
