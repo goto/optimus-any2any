@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/component/sink"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -64,7 +64,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	}
 
 	// read column map
-	columnMap, err := getColumnMap(columnMappingFilePath)
+	columnMap, err := extcommon.GetColumnMap(columnMappingFilePath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -131,7 +131,7 @@ func (o *OSSSink) process() {
 			o.SetError(errors.WithStack(err))
 			continue
 		}
-		val = o.mapping(val)
+		val = extcommon.KeyMapping(o.columnMap, val)
 		raw, err := json.Marshal(val)
 		if err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to marshal message: %s", err.Error()))
@@ -144,7 +144,7 @@ func (o *OSSSink) process() {
 			o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
 			values["batch_start"] = fmt.Sprintf("%d", batchCount*int(o.batchSize))
 			values["batch_end"] = fmt.Sprintf("%d", (batchCount+1)*int(o.batchSize))
-			filename := renderFilename(o.filenamePattern, values)
+			filename := extcommon.RenderFilename(o.filenamePattern, values)
 			if err := o.upload(records, filename); err != nil {
 				o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
 				o.SetError(errors.WithStack(err))
@@ -161,7 +161,7 @@ func (o *OSSSink) process() {
 		o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
 		values["batch_start"] = fmt.Sprintf("%d", batchCount*o.batchSize)
 		values["batch_end"] = fmt.Sprintf("%d", batchCount*o.batchSize+len(records))
-		filename := renderFilename(o.filenamePattern, values)
+		filename := extcommon.RenderFilename(o.filenamePattern, values)
 		if err := o.upload(records, filename); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
 			o.SetError(errors.WithStack(err))
@@ -173,7 +173,7 @@ func (o *OSSSink) process() {
 		// Upload the remaining records
 		if len(records) > 0 {
 			o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records", len(records)))
-			groupedRecords, err := o.groupRecordsByColumn(records)
+			groupedRecords, err := extcommon.GroupRecordsByKey(o.groupByColumn, records)
 			if err != nil {
 				o.Logger.Error(fmt.Sprintf("sink(oss): failed to group records by column: %s", err.Error()))
 				o.SetError(errors.WithStack(err))
@@ -182,7 +182,7 @@ func (o *OSSSink) process() {
 			for groupKey, groupRecords := range groupedRecords {
 				o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records for group %s", len(groupRecords), groupKey))
 				values[o.groupByColumn] = groupKey
-				filename := renderFilename(o.filenamePattern, values)
+				filename := extcommon.RenderFilename(o.filenamePattern, values)
 				if err := o.upload(groupRecords, filename); err != nil {
 					o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload records for group %s: %s", groupKey, err.Error()))
 					o.SetError(errors.WithStack(err))
@@ -195,29 +195,12 @@ func (o *OSSSink) process() {
 	// upload all records if not grouped
 	if len(records) > 0 {
 		o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records", len(records)))
-		filename := renderFilename(o.filenamePattern, values)
+		filename := extcommon.RenderFilename(o.filenamePattern, values)
 		if err := o.upload(records, filename); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload records: %s", err.Error()))
 			o.SetError(errors.WithStack(err))
 		}
 	}
-}
-
-func (o *OSSSink) mapping(value map[string]interface{}) map[string]interface{} {
-	if o.columnMap == nil {
-		return value
-	}
-	o.Logger.Debug(fmt.Sprintf("sink(oss): record before map: %v", value))
-	mappedValue := make(map[string]interface{})
-	for key, val := range value {
-		if mappedKey, ok := o.columnMap[key]; ok {
-			mappedValue[mappedKey] = val
-		} else {
-			mappedValue[key] = val
-		}
-	}
-	o.Logger.Debug(fmt.Sprintf("sink(oss): record after map: %v", mappedValue))
-	return mappedValue
 }
 
 func (o *OSSSink) upload(records [][]byte, filename string) error {
@@ -276,48 +259,4 @@ func (o *OSSSink) truncate() error {
 	}
 	o.Logger.Info(fmt.Sprintf("sink(oss): truncated %d objects", len(objects)))
 	return nil
-}
-
-func (o *OSSSink) groupRecordsByColumn(records [][]byte) (map[string][][]byte, error) {
-	o.Logger.Info(fmt.Sprintf("sink(oss): grouping records by column: %s", o.groupByColumn))
-	groupRecords := map[string][][]byte{}
-	for _, raw := range records {
-		// parse the record
-		var v map[string]interface{}
-		if err := json.Unmarshal(raw, &v); err != nil {
-			return nil, errors.WithStack(err)
-		}
-		groupKeyRaw, ok := v[o.groupByColumn]
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("group by column not found: %s", o.groupByColumn))
-		}
-		groupKey := fmt.Sprintf("%v", groupKeyRaw)
-		groupRecords[groupKey] = append(groupRecords[groupKey], raw)
-	}
-	o.Logger.Info(fmt.Sprintf("sink(oss): %d groups found", len(groupRecords)))
-	return groupRecords, nil
-}
-
-func renderFilename(filenamePattern string, values map[string]string) string {
-	// Replace the filename pattern with the values
-	for k, v := range values {
-		filenamePattern = strings.ReplaceAll(filenamePattern, fmt.Sprintf("{%s}", k), v)
-	}
-	return filenamePattern
-}
-
-// getColumnMap reads the column map from the file.
-func getColumnMap(columnMapFilePath string) (map[string]string, error) {
-	if columnMapFilePath == "" {
-		return nil, nil
-	}
-	columnMapRaw, err := os.ReadFile(columnMapFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	columnMap := make(map[string]string)
-	if err = json.Unmarshal(columnMapRaw, &columnMap); err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return columnMap, nil
 }
