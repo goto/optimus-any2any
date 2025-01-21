@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"log/slog"
+	"sync"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
@@ -36,9 +37,7 @@ func (p *MultiSinkPipeline) Run() <-chan uint8 {
 	go func() {
 		defer close(done)
 		p.connect(p.source, sinks...)
-		for _, sink := range p.sinks {
-			sink.Wait()
-		}
+		p.groupSinkWait(p.sinks...)
 	}()
 	return done
 }
@@ -63,4 +62,17 @@ func (p *MultiSinkPipeline) Close() {
 	for _, sink := range p.sinks {
 		sink.Close()
 	}
+}
+
+// groupSinkWait waits until all sinks are done.
+func (p *MultiSinkPipeline) groupSinkWait(sinks ...flow.Sink) {
+	var wg sync.WaitGroup
+	for _, sink := range sinks {
+		wg.Add(1)
+		go func(sink flow.Sink) {
+			defer wg.Done()
+			sink.Wait()
+		}(sink)
+	}
+	wg.Wait()
 }

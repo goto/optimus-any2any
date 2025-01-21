@@ -55,17 +55,7 @@ func any2any(from string, to []string, envs []string) []error {
 	}
 
 	// initiate pipeline
-	var p interface {
-		Run() <-chan uint8
-		Errs() []error
-		Close()
-	}
-	// create pipeline based on number of sinks
-	if len(sinks) == 1 {
-		p = pipeline.NewSimplePipeline(l, source, connector.PassThroughWithJQ(l, jqQuery), sinks[0])
-	} else {
-		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
-	}
+	p := pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
 	defer p.Close()
 
 	select {
