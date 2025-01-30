@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/goto/optimus-any2any/ext/direct"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
 	"github.com/goto/optimus-any2any/ext/io"
@@ -150,6 +151,20 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 		return "", errors.WithStack(err)
 	}
 	return string(query), nil
+}
+
+func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink Type, cfg *config.Config, envs ...string) (flow.NoFlow, error) {
+	// set up options
+	opts := getOpts(ctx, cfg)
+
+	if source == OSS && sink == MC {
+		directCfg, err := config.OSS2MC(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return direct.NewOSS2MC(ctx, l, directCfg, opts...)
+	}
+	return nil, fmt.Errorf("direct: unknown source-sink: %s-%s", source, sink)
 }
 
 // getOpts returns options based on the given config.

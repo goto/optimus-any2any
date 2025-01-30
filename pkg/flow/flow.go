@@ -28,6 +28,12 @@ type Sink interface {
 	Err() error
 }
 
+// NoFlow is an interface for components that do not have data flow.
+type NoFlow interface {
+	Run() []error
+	Close()
+}
+
 // Connect is a function type that connects source and sink components.
 type Connect func(Outlet, Inlet)
 

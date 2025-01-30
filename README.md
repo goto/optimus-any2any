@@ -45,6 +45,31 @@ It expects configuration from env variables. Or you can pass configuration from 
 - MC__DESTINATION_TABLE_ID: Destination table ID in MaxCompute.
 
 
+### Advanced Usage
+**Use JQ processor to filter or transform data before transferring:**
+
+You can use the JQ processor to filter or transform data before transferring it to the sink. The JQ processor allows you to apply any valid jq query to the data. It's a default processor that can be used with any source or sink.
+
+```sh
+./any2any --from=file --to=mc \
+--env="FILE__PATH=./in.txt" \
+--env="MC__SERVICE_ACCOUNT=svc_account" \
+--env="MC__DESTINATION_TABLE_ID=project.sample.table" \
+--env="JQ__QUERY=.[] | select(.age > 30)"
+```
+
+**Use direct execution without data transfer:**
+
+It applies when sink and source are in the same environment. For example, transferring data from OSS to MaxCompute table. Use the `--no-pipeline` flag to execute the source and sink directly without transferring data.
+
+```sh
+./any2any --from=oss --to=mc --no-pipeline \
+--env="OSS2MC__SOURCE_BUCKET_PATH=bucket/path" \
+--env="OSS2MC__SERVICE_ACCOUNT=svc_account" \
+--env="OSS2MC__DESTINATION_TABLE_ID=project.sample.table"
+```
+
+
 ## Supported Sources
 
 | Component | Configuration | Description |
@@ -109,3 +134,14 @@ It expects configuration from env variables. Or you can pass configuration from 
 |---|---|---|
 | JQ | JQ__QUERY | Any valid jq query. If set, it will override the query from file path. |
 | | JQ__QUERY_FILE_PATH | Any valid jq query loaded from file. |
+
+## Supported Direct Data Transfer
+| Component | Configuration | Description |
+|---|---|---|
+| OSS2MC | OSS2MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
+| | OSS2MC__SOURCE_BUCKET_PATH | The source path in a OSS bucket to read the files. Must include the OSS bucket name. |
+| | OSS2MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
+| | OSS2MC__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |
+| | OSS2MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
+| | OSS2MC__PARTITION_VALUES | Partition values for the destination table. Format partitionkey1=value1,partitionkey2=value2. "" for ignore (default: "") |
+| | OSS2MC__LOG_VIEW_RETENTION_IN_DAYS | Log view retention in days. (default: 2) |
