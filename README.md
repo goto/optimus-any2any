@@ -66,7 +66,11 @@ It expects configuration from env variables. Or you can pass configuration from 
 | MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
 | | MC__QUERY_FILE_PATH | Path to the query file. (default: /data/in/query.sql) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
-
+| OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
+| | OSS__SOURCE_BUCKET_PATH | The source path in a OSS bucket to read the files. Must include the OSS bucket name. |
+| | OSS__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |
+| | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
+| | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 ## Supported Sinks
 
 | Component | Configuration | Description |
