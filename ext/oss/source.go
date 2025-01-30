@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/component/source"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -29,13 +30,15 @@ type OSSSource struct {
 	pathPrefix   string
 	fileFormat   string
 	csvDelimiter rune
+	columnMap    map[string]string
 }
 
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
 func NewSource(ctx context.Context, l *slog.Logger, svcAcc string,
-	sourceBucketPath, fileFormat string, csvDelimiter rune, opts ...option.Option) (*OSSSource, error) {
+	sourceBucketPath, fileFormat string, csvDelimiter rune,
+	columnMappingFilePath string, opts ...option.Option) (*OSSSource, error) {
 	// create commonSource source
 	commonSource := source.NewCommonSource(l, opts...)
 
@@ -50,6 +53,11 @@ func NewSource(ctx context.Context, l *slog.Logger, svcAcc string,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	// read column map
+	columnMap, err := extcommon.GetColumnMap(columnMappingFilePath)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	ossSource := &OSSSource{
 		CommonSource: commonSource,
@@ -59,6 +67,7 @@ func NewSource(ctx context.Context, l *slog.Logger, svcAcc string,
 		pathPrefix:   strings.TrimPrefix(parsedURL.Path, "/"),
 		fileFormat:   fileFormat,
 		csvDelimiter: csvDelimiter,
+		columnMap:    columnMap,
 	}
 
 	// add clean function
@@ -110,12 +119,19 @@ func (o *OSSSource) process() {
 
 		// send records
 		for _, record := range records {
-			o.Send(record)
+			mappedRecord := extcommon.KeyMapping(o.columnMap, record)
+			raw, err := json.Marshal(mappedRecord)
+			if err != nil {
+				o.Logger.Error(fmt.Sprintf("source(oss): failed to marshal record: %s", err.Error()))
+				o.SetError(errors.WithStack(err))
+				continue
+			}
+			o.Send(raw)
 		}
 	}
 }
 
-func (o *OSSSource) unpackRecords(object *oss.GetObjectResult) ([][]byte, error) {
+func (o *OSSSource) unpackRecords(object *oss.GetObjectResult) ([]map[string]interface{}, error) {
 	// unmarshal object based on file format
 	var (
 		records []map[string]interface{}
@@ -132,17 +148,7 @@ func (o *OSSSource) unpackRecords(object *oss.GetObjectResult) ([][]byte, error)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
-	// marshal records
-	raws := make([][]byte, 0, len(records))
-	for _, record := range records {
-		raw, err := json.Marshal(record)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		raws = append(raws, raw)
-	}
-	return raws, nil
+	return records, nil
 }
 
 func (o *OSSSource) unmarshalCSV(object *oss.GetObjectResult) ([]map[string]interface{}, error) {
