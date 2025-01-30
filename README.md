@@ -135,7 +135,7 @@ It applies when sink and source are in the same environment. For example, transf
 | JQ | JQ__QUERY | Any valid jq query. If set, it will override the query from file path. |
 | | JQ__QUERY_FILE_PATH | Any valid jq query loaded from file. |
 
-## Supported Direct Data Transfer
+## Supported Direct Execution For Data Transfer
 | Component | Configuration | Description |
 |---|---|---|
 | OSS2MC | OSS2MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
