@@ -17,7 +17,7 @@ import (
 )
 
 // any2any creates a pipeline from source to sink.
-func any2any(from string, to []string, envs []string) []error {
+func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 	// load config
 	cfg, err := config.NewConfig(envs...)
 	if err != nil {
@@ -34,28 +34,42 @@ func any2any(from string, to []string, envs []string) []error {
 	ctx, cancelFn := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancelFn()
 
-	// create source
-	source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
-	if err != nil {
-		return []error{errors.WithStack(err)}
+	var p interface {
+		Run() <-chan uint8
+		Errs() []error
+		Close()
 	}
-	// create sinks (multiple)
-	var sinks []flow.Sink
-	for _, t := range to {
-		sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
+
+	if noPipeline {
+		directSourceSink, err := component.GetDirectSourceSink(ctx, l, component.Type(strings.ToUpper(from)), component.Type(strings.ToUpper(to[0])), cfg, envs...)
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
-		sinks = append(sinks, sink)
+		// run without pipeline
+		p = pipeline.NewNoPipeline(l, directSourceSink)
+	} else {
+		// create source
+		source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
+		if err != nil {
+			return []error{errors.WithStack(err)}
+		}
+		// create sinks (multiple)
+		var sinks []flow.Sink
+		for _, t := range to {
+			sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
+			if err != nil {
+				return []error{errors.WithStack(err)}
+			}
+			sinks = append(sinks, sink)
+		}
+		// get jq query for filtering / transforming data between source and sink
+		jqQuery, err := component.GetJQQuery(l, envs...)
+		if err != nil {
+			return []error{errors.WithStack(err)}
+		}
+		// run with pipeline
+		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
 	}
-	// get jq query for filtering / transforming data between source and sink
-	jqQuery, err := component.GetJQQuery(l, envs...)
-	if err != nil {
-		return []error{errors.WithStack(err)}
-	}
-
-	// initiate pipeline
-	p := pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
 	defer p.Close()
 
 	select {
