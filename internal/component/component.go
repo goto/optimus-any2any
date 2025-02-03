@@ -78,7 +78,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSource(ctx, l, sourceCfg.Credentials, sourceCfg.SourceBucketPath, sourceCfg.FileFormat, sourceCfg.CSVDelimiter, sourceCfg.ColumnMappingFilePath, opts...)
+		return oss.NewSource(ctx, l, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.FileFormat, sourceCfg.CSVDelimiter, sourceCfg.ColumnMappingFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
@@ -107,7 +107,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			return nil, errors.WithStack(err)
 		}
 		return oss.NewSink(ctx, l, sinkCfg.Credentials,
-			sinkCfg.DestinationBucketPath,
+			sinkCfg.DestinationURI,
 			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
 			sinkCfg.ColumnMappingFilePath,
 			sinkCfg.FilenamePattern, sinkCfg.EnableOverwrite, opts...)

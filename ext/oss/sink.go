@@ -41,7 +41,7 @@ var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
 func NewSink(ctx context.Context, l *slog.Logger,
-	creds, destinationBucketPath string,
+	creds, destinationURI string,
 	groupBy string, groupBatchSize int, groupColumnName string,
 	columnMappingFilePath string,
 	filenamePattern string, enableOverwrite bool,
@@ -58,7 +58,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	// parse the given destinationBucketPath, so we can obtain both the bucket and the path
 	// to be used as the uploaded object's prefix
-	parsedURL, err := url.Parse(fmt.Sprintf("oss://%s", destinationBucketPath))
+	parsedURL, err := url.Parse(destinationURI)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

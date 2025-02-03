@@ -37,7 +37,7 @@ var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
 func NewSource(ctx context.Context, l *slog.Logger, creds string,
-	sourceBucketPath, fileFormat string, csvDelimiter rune,
+	sourceURI, fileFormat string, csvDelimiter rune,
 	columnMappingFilePath string, opts ...option.Option) (*OSSSource, error) {
 	// create commonSource source
 	commonSource := source.NewCommonSource(l, opts...)
@@ -49,7 +49,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	}
 
 	// parse source bucket path
-	parsedURL, err := url.Parse(fmt.Sprintf("oss://%s", sourceBucketPath))
+	parsedURL, err := url.Parse(sourceURI)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

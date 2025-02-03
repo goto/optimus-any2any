@@ -2,7 +2,7 @@ package config
 
 // OSS2MCConfig is a configuration for the OSS to MaxCompute component.
 type OSS2MCConfig struct {
-	SourceBucketPath       string   `env:"OSS2MC__SOURCE_BUCKET_PATH"`
+	SourceURI              string   `env:"OSS2MC__SOURCE_URI"`
 	FileFormat             string   `env:"OSS2MC__FILE_FORMAT" envDefault:"json"`
 	Credentials            string   `env:"OSS2MC__CREDENTIALS"`
 	DestinationTableID     string   `env:"OSS2MC__DESTINATION_TABLE_ID"`

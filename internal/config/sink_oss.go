@@ -2,7 +2,7 @@ package config
 
 type SinkOSSConfig struct {
 	Credentials           string `env:"OSS__CREDENTIALS"`
-	DestinationBucketPath string `env:"OSS__DESTINATION_BUCKET_PATH"`
+	DestinationURI        string `env:"OSS__DESTINATION_URI"`
 	GroupBy               string `env:"OSS__GROUP_BY"`
 	GroupBatchSize        int    `env:"OSS__GROUP_BATCH_SIZE" envDefault:"1000"`
 	GroupColumnName       string `env:"OSS__GROUP_COLUMN_NAME"`

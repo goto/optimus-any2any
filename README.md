@@ -64,7 +64,7 @@ It applies when sink and source are in the same environment. For example, transf
 
 ```sh
 ./any2any --from=oss --to=mc --no-pipeline \
---env="OSS2MC__SOURCE_BUCKET_PATH=bucket/path" \
+--env="OSS2MC__SOURCE_URI=oss://bucket/path" \
 --env="OSS2MC__CREDENTIALS='{creds:1}'" \
 --env="OSS2MC__DESTINATION_TABLE_ID=project.sample.table"
 ```
@@ -92,7 +92,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__QUERY_FILE_PATH | Path to the query file. (default: /data/in/query.sql) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__SOURCE_BUCKET_PATH | The source path in a OSS bucket to read the files. Must include the OSS bucket name. |
+| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder. |
 | | OSS__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
 | | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
@@ -106,7 +106,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name. |
+| | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder |
 | | OSS__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
 | | OSS__GROUP_BATCH_SIZE | Batch size for the group by BATCH. |
 | | OSS__GROUP_COLUMN_NAME | Column name for the group by COLUMN. |
@@ -139,7 +139,7 @@ It applies when sink and source are in the same environment. For example, transf
 | Component | Configuration | Description |
 |---|---|---|
 | OSS2MC | OSS2MC__CREDENTIALS | Credentials for MaxCompute. |
-| | OSS2MC__SOURCE_BUCKET_PATH | The source path in a OSS bucket to read the files. Must include the OSS bucket name. |
+| | OSS2MC__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder |
 | | OSS2MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | OSS2MC__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |
 | | OSS2MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |

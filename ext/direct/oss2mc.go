@@ -120,7 +120,7 @@ func buildQuery(cfg *config.OSS2MCConfig) (string, error) {
 		partition = fmt.Sprintf("partition (%s)", strings.Join(cfg.PartitionValues, ","))
 	}
 	// set oss uri
-	ossURI = fmt.Sprintf("oss://%s", cfg.SourceBucketPath)
+	ossURI = cfg.SourceURI
 	// set storage handler
 	switch strings.ToLower(cfg.FileFormat) {
 	case "json":
