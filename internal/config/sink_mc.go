@@ -2,7 +2,7 @@ package config
 
 // SinkMCConfig is a configuration for the sink maxcompute component.
 type SinkMCConfig struct {
-	ServiceAccount     string `env:"MC__SERVICE_ACCOUNT"`
+	Credentials        string `env:"MC__CREDENTIALS"`
 	DestinationTableID string `env:"MC__DESTINATION_TABLE_ID"`
 	LoadMethod         string `env:"MC__LOAD_METHOD" envDefault:"APPEND"`
 	UploadMode         string `env:"MC__UPLOAD_MODE" envDefault:"STREAM"`

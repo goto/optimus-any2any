@@ -24,8 +24,8 @@ func collectMaxComputeCredential(jsonData []byte) (*maxComputeCredentials, error
 }
 
 // NewClient creates a new MaxCompute client
-func NewClient(svcAcc string) (*odps.Odps, error) {
-	cred, err := collectMaxComputeCredential([]byte(svcAcc))
+func NewClient(rawCreds string) (*odps.Odps, error) {
+	cred, err := collectMaxComputeCredential([]byte(rawCreds))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

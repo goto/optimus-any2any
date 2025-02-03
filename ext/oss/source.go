@@ -36,14 +36,14 @@ type OSSSource struct {
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
-func NewSource(ctx context.Context, l *slog.Logger, svcAcc string,
+func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	sourceBucketPath, fileFormat string, csvDelimiter rune,
 	columnMappingFilePath string, opts ...option.Option) (*OSSSource, error) {
 	// create commonSource source
 	commonSource := source.NewCommonSource(l, opts...)
 
 	// create OSS client
-	client, err := NewOSSClient(svcAcc)
+	client, err := NewOSSClient(creds)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

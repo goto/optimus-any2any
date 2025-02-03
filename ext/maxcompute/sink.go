@@ -40,14 +40,12 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-// svcAcc is the service account json string refer to maxComputeCredentials
-// tableID is the table ID to write to, it must be in the format of project_name.schema_name.table_name
-func NewSink(l *slog.Logger, svcAcc string, tableID string, loadMethod string, uploadMode string, opts ...option.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, creds string, tableID string, loadMethod string, uploadMode string, opts ...option.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
 	commonSink := sink.NewCommonSink(l, opts...)
 
 	// create client for maxcompute
-	client, err := NewClient(svcAcc)
+	client, err := NewClient(creds)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

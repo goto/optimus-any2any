@@ -41,7 +41,7 @@ var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
 func NewSink(ctx context.Context, l *slog.Logger,
-	svcAcc, destinationBucketPath string,
+	creds, destinationBucketPath string,
 	groupBy string, groupBatchSize int, groupColumnName string,
 	columnMappingFilePath string,
 	filenamePattern string, enableOverwrite bool,
@@ -51,7 +51,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	commonSink := sink.NewCommonSink(l, opts...)
 
 	// create OSS client
-	client, err := NewOSSClient(svcAcc)
+	client, err := NewOSSClient(creds)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

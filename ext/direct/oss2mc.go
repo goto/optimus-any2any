@@ -30,7 +30,7 @@ type OSS2MC struct {
 func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig, opts ...option.Option) (flow.NoFlow, error) {
 
 	// create client for maxcompute
-	client, err := maxcompute.NewClient(cfg.ServiceAccount)
+	client, err := maxcompute.NewClient(cfg.Credentials)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

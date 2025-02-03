@@ -25,8 +25,8 @@ func parseOSSCredentials(data []byte) (*ossCredentials, error) {
 	return cred, nil
 }
 
-func NewOSSClient(svcAcc string) (*oss.Client, error) {
-	cred, err := parseOSSCredentials([]byte(svcAcc))
+func NewOSSClient(rawCreds string) (*oss.Client, error) {
+	cred, err := parseOSSCredentials([]byte(rawCreds))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

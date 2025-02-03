@@ -34,14 +34,14 @@ It expects configuration from env variables. Or you can pass configuration from 
 ```sh
 ./any2any --from=file --to=mc \
 --env="FILE__PATH=./in.txt" \
---env="MC__SERVICE_ACCOUNT=svc_account" \
+--env="MC__CREDENTIALS='{creds:1}'" \
 --env="MC__DESTINATION_TABLE_ID=project.sample.table"
 ```
 
 ### Configuration convention
 `<source/sink>__<config_name>`, example:
 - FILE__PATH: Path to the input file.
-- MC__SERVICE_ACCOUNT: Service account for MaxCompute.
+- MC__CREDENTIALS: Credentials for MaxCompute.
 - MC__DESTINATION_TABLE_ID: Destination table ID in MaxCompute.
 
 
@@ -53,7 +53,7 @@ You can use the JQ processor to filter or transform data before transferring it 
 ```sh
 ./any2any --from=file --to=mc \
 --env="FILE__PATH=./in.txt" \
---env="MC__SERVICE_ACCOUNT=svc_account" \
+--env="MC__CREDENTIALS='{creds:1}'" \
 --env="MC__DESTINATION_TABLE_ID=project.sample.table" \
 --env="JQ__QUERY=.[] | select(.age > 30)"
 ```
@@ -65,7 +65,7 @@ It applies when sink and source are in the same environment. For example, transf
 ```sh
 ./any2any --from=oss --to=mc --no-pipeline \
 --env="OSS2MC__SOURCE_BUCKET_PATH=bucket/path" \
---env="OSS2MC__SERVICE_ACCOUNT=svc_account" \
+--env="OSS2MC__CREDENTIALS='{creds:1}'" \
 --env="OSS2MC__DESTINATION_TABLE_ID=project.sample.table"
 ```
 
@@ -88,10 +88,10 @@ It applies when sink and source are in the same environment. For example, transf
 | | GMAIL__EXTRACTOR_FILE_FORMAT | Which format of file to be extracted (csv, json) (default: csv) |
 | | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__FILENAME__") |
 | | GMAIL__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for gmail record result. "" for ignore (default: "") |
-| MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
+| MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__QUERY_FILE_PATH | Path to the query file. (default: /data/in/query.sql) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
-| OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
+| OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__SOURCE_BUCKET_PATH | The source path in a OSS bucket to read the files. Must include the OSS bucket name. |
 | | OSS__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
@@ -100,12 +100,12 @@ It applies when sink and source are in the same environment. For example, transf
 
 | Component | Configuration | Description |
 |---|---|---|
-| MC | MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
+| MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
 | IO | - | - |
-| OSS | OSS__SERVICE_ACCOUNT | Service account for OSS. |
+| OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__DESTINATION_BUCKET_PATH | The destination path in a OSS bucket to put the result files. Must include the OSS bucket name. |
 | | OSS__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
 | | OSS__GROUP_BATCH_SIZE | Batch size for the group by BATCH. |
@@ -138,7 +138,7 @@ It applies when sink and source are in the same environment. For example, transf
 ## Supported Direct Execution For Data Transfer
 | Component | Configuration | Description |
 |---|---|---|
-| OSS2MC | OSS2MC__SERVICE_ACCOUNT | Service account for MaxCompute. |
+| OSS2MC | OSS2MC__CREDENTIALS | Credentials for MaxCompute. |
 | | OSS2MC__SOURCE_BUCKET_PATH | The source path in a OSS bucket to read the files. Must include the OSS bucket name. |
 | | OSS2MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | OSS2MC__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |

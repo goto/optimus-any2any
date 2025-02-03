@@ -50,7 +50,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSource(l, sourceCfg.ServiceAccount, sourceCfg.QueryFilePath, sourceCfg.ExecutionProject, opts...)
+		return maxcompute.NewSource(l, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.ExecutionProject, opts...)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
@@ -78,7 +78,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSource(ctx, l, sourceCfg.ServiceAccount, sourceCfg.SourceBucketPath, sourceCfg.FileFormat, sourceCfg.CSVDelimiter, sourceCfg.ColumnMappingFilePath, opts...)
+		return oss.NewSource(ctx, l, sourceCfg.Credentials, sourceCfg.SourceBucketPath, sourceCfg.FileFormat, sourceCfg.CSVDelimiter, sourceCfg.ColumnMappingFilePath, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
@@ -97,7 +97,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSink(l, sinkCfg.ServiceAccount, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, opts...)
+		return maxcompute.NewSink(l, sinkCfg.Credentials, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, opts...)
 	case FILE:
 	case IO:
 		return io.NewSink(l), nil
@@ -106,7 +106,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSink(ctx, l, sinkCfg.ServiceAccount,
+		return oss.NewSink(ctx, l, sinkCfg.Credentials,
 			sinkCfg.DestinationBucketPath,
 			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
 			sinkCfg.ColumnMappingFilePath,

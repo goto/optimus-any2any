@@ -2,7 +2,7 @@ package config
 
 // SourceOSSConfig is a configuration for the source oss component.
 type SourceOSSConfig struct {
-	ServiceAccount        string `env:"OSS__SERVICE_ACCOUNT"`
+	Credentials           string `env:"OSS__CREDENTIALS"`
 	SourceBucketPath      string `env:"OSS__SOURCE_BUCKET_PATH"`
 	FileFormat            string `env:"OSS__FILE_FORMAT" envDefault:"json"`
 	CSVDelimiter          rune   `env:"OSS__CSV_DELIMITER" envDefault:","`

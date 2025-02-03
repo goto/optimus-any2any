@@ -2,7 +2,7 @@ package config
 
 // SourceMCConfig is a configuration for the source maxcompute component.
 type SourceMCConfig struct {
-	ServiceAccount   string `env:"MC__SERVICE_ACCOUNT"`
+	Credentials      string `env:"MC__CREDENTIALS"`
 	QueryFilePath    string `env:"MC__QUERY_FILE_PATH" envDefault:"/data/in/query.sql"`
 	ExecutionProject string `env:"MC__EXECUTION_PROJECT"`
 }

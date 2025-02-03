@@ -27,12 +27,12 @@ type MaxcomputeSource struct {
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(l *slog.Logger, svcAcc string, queryFilePath string, executionProject string, opts ...option.Option) (*MaxcomputeSource, error) {
+func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProject string, opts ...option.Option) (*MaxcomputeSource, error) {
 	// create commonSource source
 	commonSource := source.NewCommonSource(l, opts...)
 
 	// create client for maxcompute
-	client, err := NewClient(svcAcc)
+	client, err := NewClient(creds)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
