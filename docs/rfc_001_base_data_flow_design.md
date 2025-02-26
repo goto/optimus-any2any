@@ -2,7 +2,7 @@
 
 | RFC | Author | Status | Created Date | Updated Date |
 | --- | ------ | ------ | ------------ | ------------ |
-| 001 | @deryrahman | Accepted | 2024-11-04 | 2025-02-26 |
+| 001 | [@deryrahman](https://github.com/deryrahman) | Accepted | 2024-11-04 | 2025-02-26 |
 
 ## Objective
 Existing plugins are not flexible enough to handle different data sources and data sinks. This RFC proposes a new data flow design that is more flexible and can handle different data sources and data sinks.
