@@ -14,3 +14,6 @@ To support dynamic interpolation, we need to have a flexible way to interpolate 
 
 ## Approach
 Utilizing golang template capability, for any information in the record can be accessed using `{{ index .Record "field_name" }}`. This rendering process will be executed in plugin level.
+
+## Limitation
+- The interpolation is only available in the sink component
