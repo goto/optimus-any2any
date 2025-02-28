@@ -99,6 +99,11 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		}
 		return maxcompute.NewSink(l, sinkCfg.Credentials, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, opts...)
 	case FILE:
+		sinkCfg, err := config.SinkFile(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return file.NewSink(l, sinkCfg.DestinationURI, opts...)
 	case IO:
 		return io.NewSink(l), nil
 	case OSS:
@@ -109,7 +114,6 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		return oss.NewSink(ctx, l, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
-			sinkCfg.ColumnMappingFilePath,
 			sinkCfg.FilenamePattern, sinkCfg.EnableOverwrite, opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)

@@ -3,7 +3,6 @@ package oss
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -27,7 +26,6 @@ type OSSSink struct {
 	bucket          string
 	pathPrefix      string
 	filenamePattern string
-	columnMap       map[string]string
 	enableOverwrite bool
 	// batch size for the sink
 	isGroupByBatch bool
@@ -43,7 +41,6 @@ var _ flow.Sink = (*OSSSink)(nil)
 func NewSink(ctx context.Context, l *slog.Logger,
 	creds, destinationURI string,
 	groupBy string, groupBatchSize int, groupColumnName string,
-	columnMappingFilePath string,
 	filenamePattern string, enableOverwrite bool,
 	opts ...option.Option) (*OSSSink, error) {
 
@@ -63,12 +60,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 		return nil, errors.WithStack(err)
 	}
 
-	// read column map
-	columnMap, err := extcommon.GetColumnMap(columnMappingFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
 	ossSink := &OSSSink{
 		CommonSink:      commonSink,
 		ctx:             ctx,
@@ -76,7 +67,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 		bucket:          parsedURL.Host,
 		pathPrefix:      strings.TrimPrefix(parsedURL.Path, "/"),
 		filenamePattern: filenamePattern,
-		columnMap:       columnMap,
 		enableOverwrite: enableOverwrite,
 		isGroupByBatch:  strings.ToLower(groupBy) == "batch",
 		batchSize:       groupBatchSize,
@@ -124,22 +114,7 @@ func (o *OSSSink) process() {
 		}
 		o.Logger.Debug(fmt.Sprintf("sink(oss): received message: %s", string(b)))
 
-		// modify the message based on the column map
-		var val map[string]interface{}
-		if err := json.Unmarshal(b, &val); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to unmarshal message: %s", err.Error()))
-			o.SetError(errors.WithStack(err))
-			continue
-		}
-		val = extcommon.KeyMapping(o.columnMap, val)
-		raw, err := json.Marshal(val)
-		if err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to marshal message: %s", err.Error()))
-			o.SetError(errors.WithStack(err))
-			continue
-		}
-
-		records = append(records, raw)
+		records = append(records, b)
 		if o.isGroupByBatch && len(records) >= o.batchSize {
 			o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
 			values["batch_start"] = fmt.Sprintf("%d", batchCount*int(o.batchSize))
