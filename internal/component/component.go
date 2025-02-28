@@ -56,7 +56,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSource(l, sourceCfg.Path, opts...)
+		return file.NewSource(l, sourceCfg.SourceURI, opts...)
 	case SF:
 		sourceCfg, err := config.SourceSalesforce(envs...)
 		if err != nil {

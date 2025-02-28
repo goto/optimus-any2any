@@ -74,7 +74,7 @@ It applies when sink and source are in the same environment. For example, transf
 
 | Component | Configuration | Description |
 |---|---|---|
-| FILE | FILE__PATH | Path to the input file. |
+| FILE | FILE__SOURCE_URI | Path to the input file. Format file:///directory/to/folder/or/file.ext |
 | SF | SF__HOST | Salesforce instance host. |
 | | SF__USER | Salesforce username. |
 | | SF__PASS | Salesforce password. |
