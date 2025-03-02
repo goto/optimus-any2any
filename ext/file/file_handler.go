@@ -61,7 +61,7 @@ func (fh *stdFileHandler) Flush() error {
 	}
 	fh.l.Debug(fmt.Sprintf("file handler(%s): persist data: %s", fh.f.Name(), string(bytes.Join(fh.buffer, []byte("")))))
 	if _, err := fh.f.Write(bytes.Join(fh.buffer, []byte(""))); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	fh.buffer = fh.buffer[:0]
 	return nil

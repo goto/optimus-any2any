@@ -142,7 +142,7 @@ func (o *OSSSink) process() {
 		_, err = fh.Write(append(b, '\n'))
 		if err != nil {
 			o.Logger.Error("sink(oss): failed to write to file")
-			o.SetError(fmt.Errorf("failed to write to file"))
+			o.SetError(errors.WithStack(err))
 			continue
 		}
 		o.fileRecordCounters[destinationURI]++
