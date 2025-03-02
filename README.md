@@ -111,7 +111,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
-| | SFTP__DESTINATION_URI | Following the (rfc2396 format)[https://datatracker.ietf.org/doc/html/rfc2396] sftp://user[:password]@host[:port]/path/to/folder/or/file.extension |
+| | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) sftp://user[:password]@host[:port]/path/to/folder/or/file.extension |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
