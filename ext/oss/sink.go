@@ -1,11 +1,13 @@
 package oss
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
@@ -18,21 +20,14 @@ import (
 
 type OSSSink struct {
 	*sink.CommonSink
-
 	ctx context.Context
 
-	client *oss.Client
-
-	bucket          string
-	pathPrefix      string
-	filenamePattern string
-	enableOverwrite bool
-	// batch size for the sink
-	isGroupByBatch bool
-	batchSize      int
-	// group by column for the sink
-	isGroupByColumn bool
-	groupByColumn   string
+	client                 *oss.Client
+	destinationURITemplate *template.Template
+	fileHandlers           map[string]extcommon.FileHandler
+	fileRecordCounters     map[string]int
+	batchSize              int
+	enableOverwrite        bool
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -40,8 +35,7 @@ var _ flow.Sink = (*OSSSink)(nil)
 // NewSink creates a new OSSSink
 func NewSink(ctx context.Context, l *slog.Logger,
 	creds, destinationURI string,
-	groupBy string, groupBatchSize int, groupColumnName string,
-	filenamePattern string, enableOverwrite bool,
+	batchSize int, enableOverwrite bool,
 	opts ...option.Option) (*OSSSink, error) {
 
 	// create common sink
@@ -53,42 +47,29 @@ func NewSink(ctx context.Context, l *slog.Logger,
 		return nil, errors.WithStack(err)
 	}
 
-	// parse the given destinationBucketPath, so we can obtain both the bucket and the path
-	// to be used as the uploaded object's prefix
-	parsedURL, err := url.Parse(destinationURI)
+	// parse destinationURI as template
+	tmpl, err := extcommon.NewTemplate("sink_oss_destination_uri", destinationURI)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, fmt.Errorf("sink(oss): failed to parse destination URI template: %w", err)
 	}
 
 	ossSink := &OSSSink{
-		CommonSink:      commonSink,
-		ctx:             ctx,
-		client:          client,
-		bucket:          parsedURL.Host,
-		pathPrefix:      strings.TrimPrefix(parsedURL.Path, "/"),
-		filenamePattern: filenamePattern,
-		enableOverwrite: enableOverwrite,
-		isGroupByBatch:  strings.ToLower(groupBy) == "batch",
-		batchSize:       groupBatchSize,
-		isGroupByColumn: strings.ToLower(groupBy) == "column",
-		groupByColumn:   groupColumnName,
-	}
-
-	// preprocess, truncate the objects if overwrite is enabled
-	if ossSink.enableOverwrite {
-		ossSink.Logger.Info(fmt.Sprintf("sink(oss): truncating the object on %s/%s", ossSink.bucket, ossSink.pathPrefix))
-		// Truncate the objects
-		if err := ossSink.truncate(); err != nil {
-			ossSink.Logger.Error(fmt.Sprintf("sink(oss): failed to truncate object: %s", err.Error()))
-			return nil, err
-		}
-		ossSink.Logger.Info("sink(oss): objects truncated")
+		CommonSink:             commonSink,
+		ctx:                    ctx,
+		client:                 client,
+		destinationURITemplate: tmpl,
+		fileHandlers:           make(map[string]extcommon.FileHandler),
+		fileRecordCounters:     make(map[string]int),
+		batchSize:              batchSize,
+		enableOverwrite:        enableOverwrite,
 	}
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
 		commonSink.Logger.Debug("sink(oss): close record writer")
-		// oss uploader already handles the cleanup, so there's no need to explicitly call
+		for _, fh := range ossSink.fileHandlers {
+			_ = fh.Close()
+		}
 	})
 
 	// register sink process
@@ -98,10 +79,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (o *OSSSink) process() {
-	records := [][]byte{}
-	values := map[string]string{}
-	batchCount := 1
-
 	for msg := range o.Read() {
 		if o.Err() != nil {
 			continue
@@ -114,124 +91,84 @@ func (o *OSSSink) process() {
 		}
 		o.Logger.Debug(fmt.Sprintf("sink(oss): received message: %s", string(b)))
 
-		records = append(records, b)
-		if o.isGroupByBatch && len(records) >= o.batchSize {
-			o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
-			values["batch_start"] = fmt.Sprintf("%d", batchCount*int(o.batchSize))
-			values["batch_end"] = fmt.Sprintf("%d", (batchCount+1)*int(o.batchSize))
-			filename := extcommon.RenderFilename(o.filenamePattern, values)
-			if err := o.upload(records, filename); err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
-				o.SetError(errors.WithStack(err))
-			}
-
-			batchCount++
-			// free up the memory
-			records = [][]byte{}
-		}
-	}
-
-	// Upload remaining records
-	if o.isGroupByBatch && len(records) > 0 {
-		o.Logger.Info(fmt.Sprintf("sink(oss): (batch %d) uploading %d records", batchCount, len(records)))
-		values["batch_start"] = fmt.Sprintf("%d", batchCount*o.batchSize)
-		values["batch_end"] = fmt.Sprintf("%d", batchCount*o.batchSize+len(records))
-		filename := extcommon.RenderFilename(o.filenamePattern, values)
-		if err := o.upload(records, filename); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): (batch %d) failed to upload records: %s", batchCount, err.Error()))
+		var record map[string]interface{}
+		if err := json.Unmarshal(b, &record); err != nil {
+			o.Logger.Error("sink(oss): invalid data format")
 			o.SetError(errors.WithStack(err))
+			continue
 		}
-		return
-	}
-
-	if o.isGroupByColumn {
-		// Upload the remaining records
-		if len(records) > 0 {
-			o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records", len(records)))
-			groupedRecords, err := extcommon.GroupRecordsByKey(o.groupByColumn, records)
+		destinationURI, err := extcommon.Compile(o.destinationURITemplate, record)
+		if err != nil {
+			o.Logger.Error("sink(oss): failed to compile destination URI")
+			o.SetError(errors.WithStack(err))
+			continue
+		}
+		recordCounter := o.fileRecordCounters[destinationURI]
+		// use uri with batch size for its suffix if batch size is set
+		if o.batchSize > 0 {
+			destinationURI = fmt.Sprintf("%s.%d.%s",
+				destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
+				int(recordCounter/o.batchSize)*o.batchSize,
+				filepath.Ext(destinationURI))
+		}
+		fh, ok := o.fileHandlers[destinationURI]
+		if !ok {
+			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): failed to group records by column: %s", err.Error()))
+				o.Logger.Error(fmt.Sprintf("sink(oss): failed to parse destination URI: %s", destinationURI))
 				o.SetError(errors.WithStack(err))
-				return
+				continue
 			}
-			for groupKey, groupRecords := range groupedRecords {
-				o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records for group %s", len(groupRecords), groupKey))
-				values[o.groupByColumn] = groupKey
-				filename := extcommon.RenderFilename(o.filenamePattern, values)
-				if err := o.upload(groupRecords, filename); err != nil {
-					o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload records for group %s: %s", groupKey, err.Error()))
+			if targetURI.Scheme != "oss" {
+				o.Logger.Error(fmt.Sprintf("sink(oss): invalid scheme: %s", targetURI.Scheme))
+				o.SetError(errors.WithStack(err))
+				continue
+			}
+			if o.enableOverwrite {
+				if err := o.remove(targetURI.Host, targetURI.Path); err != nil {
+					o.Logger.Error(fmt.Sprintf("sink(oss): failed to remove object: %s", destinationURI))
 					o.SetError(errors.WithStack(err))
+					continue
 				}
 			}
+			fh, err = NewOSSFileHandler(o.ctx, o.Logger, o.client, targetURI.Host, strings.TrimLeft(targetURI.Path, "/"))
+			if err != nil {
+				o.Logger.Error("sink(oss): failed to create file handler")
+				o.SetError(errors.WithStack(err))
+				continue
+			}
+			o.fileHandlers[destinationURI] = fh
 		}
-		return
+		_, err = fh.Write(append(b, '\n'))
+		if err != nil {
+			o.Logger.Error("sink(oss): failed to write to file")
+			o.SetError(fmt.Errorf("failed to write to file"))
+			continue
+		}
+		o.fileRecordCounters[destinationURI]++
+		o.Logger.Debug(fmt.Sprintf("sink(oss): written to file: %s", destinationURI))
 	}
 
-	// upload all records if not grouped
-	if len(records) > 0 {
-		o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records", len(records)))
-		filename := extcommon.RenderFilename(o.filenamePattern, values)
-		if err := o.upload(records, filename); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload records: %s", err.Error()))
+	for uri, fh := range o.fileHandlers {
+		if err := fh.Flush(); err != nil {
+			o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush file: %s", uri))
 			o.SetError(errors.WithStack(err))
 		}
 	}
 }
 
-func (o *OSSSink) upload(records [][]byte, filename string) error {
-	// Convert records to the format required by OSS
-	data := bytes.Join(records, []byte("\n"))
-	path := fmt.Sprintf("%s/%s", o.pathPrefix, filename)
-
-	o.Logger.Info(fmt.Sprintf("sink(oss): uploading %d records to path %s", len(records), path))
-	uploader := o.client.NewUploader()
-
-	// Upload the data to OSS
-	uploadResult, err := uploader.UploadFrom(o.ctx, &oss.PutObjectRequest{
-		Bucket: oss.Ptr(o.bucket),
+func (o *OSSSink) remove(bucket, path string) error {
+	response, err := o.client.DeleteObject(o.ctx, &oss.DeleteObjectRequest{
+		Bucket: oss.Ptr(bucket),
 		Key:    oss.Ptr(path),
-	}, bytes.NewReader(data))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	o.Logger.Info(fmt.Sprintf("sink(oss): uploaded %d records to path %s (Response OSS: %d)",
-		len(records), path, uploadResult.StatusCode))
-
-	return nil
-}
-
-func (o *OSSSink) truncate() error {
-	// List all objects with the given path prefix
-	objectResult, err := o.client.ListObjectsV2(o.ctx, &oss.ListObjectsV2Request{
-		Bucket: oss.Ptr(o.bucket),
-		Prefix: oss.Ptr(o.pathPrefix),
-	})
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	if len(objectResult.Contents) == 0 {
-		o.Logger.Info("sink(oss): no objects found")
-		return nil
-	}
-
-	objects := make([]oss.DeleteObject, len(objectResult.Contents))
-	for i, obj := range objectResult.Contents {
-		objects[i] = oss.DeleteObject{Key: obj.Key}
-	}
-
-	// Truncate the objects
-	response, err := o.client.DeleteMultipleObjects(o.ctx, &oss.DeleteMultipleObjectsRequest{
-		Bucket:  oss.Ptr(o.bucket),
-		Objects: objects,
 	})
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if response.StatusCode >= 400 {
-		err := errors.New(fmt.Sprintf("failed to truncate object: %d", response.StatusCode))
+		err := errors.New(fmt.Sprintf("failed to delete object: %d", response.StatusCode))
 		return errors.WithStack(err)
 	}
-	o.Logger.Info(fmt.Sprintf("sink(oss): truncated %d objects", len(objects)))
+	o.Logger.Info(fmt.Sprintf("sink(oss): delete %s objects", path))
 	return nil
 }

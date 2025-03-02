@@ -107,12 +107,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder |
-| | OSS__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
-| | OSS__GROUP_BATCH_SIZE | Batch size for the group by BATCH. |
-| | OSS__GROUP_COLUMN_NAME | Column name for the group by COLUMN. |
-| | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
-| | OSS__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
+| | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder/or/file.extension |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | SFTP | SFTP__ADDRESS | SFTP server address, with format `host:port`. |
 | | SFTP__USERNAME | SFTP username for authentication. |
