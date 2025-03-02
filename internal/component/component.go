@@ -120,11 +120,8 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			return nil, errors.WithStack(err)
 		}
 		return sftp.NewSink(ctx, l,
-			sinkCfg.Address, sinkCfg.Username, sinkCfg.Password, sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
-			sinkCfg.DestinationPath,
-			sinkCfg.GroupBy, sinkCfg.GroupBatchSize, sinkCfg.GroupColumnName,
-			sinkCfg.ColumnMappingFilePath,
-			sinkCfg.FilenamePattern, opts...)
+			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
+			sinkCfg.DestinationURI, opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {

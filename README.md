@@ -109,18 +109,9 @@ It applies when sink and source are in the same environment. For example, transf
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder/or/file.extension |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
-| SFTP | SFTP__ADDRESS | SFTP server address, with format `host:port`. |
-| | SFTP__USERNAME | SFTP username for authentication. |
-| | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
-| | SFTP__PASSWORD | SFTP password for authentication. "" for ignore |
+| SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
-| | SFTP__GROUP_BY | Available option: BATCH, COLUMN. "" for ignore |
-| | SFTP__GROUP_BATCH_SIZE | Batch size for the group by BATCH. |
-| | SFTP__GROUP_COLUMN_NAME | Column name for the group by COLUMN. |
-| | SFTP__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
-| | SFTP__FILE_FORMAT | File format availability: CSV, TSV, JSON. (default: JSON) |
-| | SFTP__DESTINATION_PATH | The destination path in a SFTP server to put the result files. |
-| | SFTP__FILENAME_PATTERN | Pattern to be used in the generated file names. eg `sample-{batch_start}-{batch_end}.json`. |
+| | SFTP__DESTINATION_URI | Following the (rfc2396 format)[https://datatracker.ietf.org/doc/html/rfc2396] sftp://user[:password]@host[:port]/path/to/folder/or/file.extension |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
