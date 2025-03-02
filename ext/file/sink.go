@@ -71,6 +71,7 @@ func (fs *FileSink) process() {
 		}
 		fh, ok := fs.fileHandlers[destinationURI]
 		if !ok {
+			fs.Logger.Debug(fmt.Sprintf("sink(file): create new file handler: %s", destinationURI))
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
 				fs.Logger.Error(fmt.Sprintf("sink(file): failed to parse destination URI: %s", destinationURI))
@@ -90,6 +91,7 @@ func (fs *FileSink) process() {
 			}
 			fs.fileHandlers[destinationURI] = fh
 		}
+		fs.Logger.Debug(fmt.Sprintf("sink(file): write %s", string(raw)))
 		_, err = fh.Write(append(raw, '\n'))
 		if err != nil {
 			fs.Logger.Error("sink(file): failed to write to file")

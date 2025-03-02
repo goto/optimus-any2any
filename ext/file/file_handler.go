@@ -2,6 +2,7 @@ package file
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -38,6 +39,8 @@ func (fh *stdFileHandler) Write(p []byte) (n int, err error) {
 			return 0, err
 		}
 	}
+	fh.l.Debug(fmt.Sprintf("file handler(%s): writing %d bytes", fh.f.Name(), len(p)))
+	fh.l.Debug(fmt.Sprintf("file handler(%s): data: %s", fh.f.Name(), string(p)))
 	fh.buffer = append(fh.buffer, p)
 	return len(p), nil
 }
@@ -53,6 +56,10 @@ func (fh *stdFileHandler) Close() error {
 
 // Flush flushes the file.
 func (fh *stdFileHandler) Flush() error {
+	if len(fh.buffer) == 0 {
+		return nil
+	}
+	fh.l.Debug(fmt.Sprintf("file handler(%s): persist data: %s", fh.f.Name(), string(bytes.Join(fh.buffer, []byte("")))))
 	if _, err := fh.f.Write(bytes.Join(fh.buffer, []byte(""))); err != nil {
 		return err
 	}
