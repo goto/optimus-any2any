@@ -17,4 +17,4 @@ Utilizing golang template capability, for any information in the record can be a
 
 ## Limitation
 - The interpolation is only available in the sink component
-- Some configuration that expected to be static might not be supported to use dynamic interpolation. e.g. `CREDENTIALS`, `DESTINATION_URI`, etc
+- Some configuration that expected to be static might not be supported to use dynamic interpolation. e.g. `CREDENTIALS`, `BATCH_SIZE`, etc
