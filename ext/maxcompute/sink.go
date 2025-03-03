@@ -8,8 +8,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/sink"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -20,7 +19,7 @@ const (
 )
 
 type MaxcomputeSink struct {
-	*sink.CommonSink
+	*common.Sink
 
 	tableSchema tableschema.TableSchema
 	uploadMode  string
@@ -40,9 +39,9 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, creds string, tableID string, loadMethod string, uploadMode string, opts ...option.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, creds string, tableID string, loadMethod string, uploadMode string, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
-	commonSink := sink.NewCommonSink(l, opts...)
+	commonSink := common.NewSink(l, opts...)
 
 	// create client for maxcompute
 	client, err := NewClient(creds)
@@ -105,7 +104,7 @@ func NewSink(l *slog.Logger, creds string, tableID string, loadMethod string, up
 	}
 
 	mc := &MaxcomputeSink{
-		CommonSink:         commonSink,
+		Sink:               commonSink,
 		tableSchema:        destination.Schema(),
 		client:             client,
 		loadMethod:         loadMethod,

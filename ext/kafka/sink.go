@@ -7,15 +7,14 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/sink"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // KafkaSink is a sink for Kafka
 type KafkaSink struct {
-	*sink.CommonSink
+	*common.Sink
 
 	ctx    context.Context
 	client *kgo.Client
@@ -23,9 +22,9 @@ type KafkaSink struct {
 
 func NewSink(ctx context.Context, l *slog.Logger,
 	bootstrapServers []string, topic string,
-	opts ...option.Option) (*KafkaSink, error) {
+	opts ...common.Option) (*KafkaSink, error) {
 	// create common
-	commonSink := sink.NewCommonSink(l, opts...)
+	commonSink := common.NewSink(l, opts...)
 
 	// create kafka client
 	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
@@ -34,9 +33,9 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	}
 
 	ks := &KafkaSink{
-		CommonSink: commonSink,
-		ctx:        ctx,
-		client:     client,
+		Sink:   commonSink,
+		ctx:    ctx,
+		client: client,
 	}
 
 	// add clean func

@@ -1,11 +1,10 @@
-package source
+package common
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
 
-	"github.com/goto/optimus-any2any/internal/component/option"
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -14,9 +13,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// CommonSource is a source that provides commonSource functionality.
+// Source is a source that provides commonSource functionality.
 // It is used as a base for other sources.
-type CommonSource struct {
+type Source struct {
 	Logger     *slog.Logger
 	m          metric.Meter
 	c          chan any
@@ -24,13 +23,13 @@ type CommonSource struct {
 	cleanFuncs []func()
 }
 
-var _ flow.Source = (*CommonSource)(nil)
-var _ option.SetupOptions = (*CommonSource)(nil)
+var _ flow.Source = (*Source)(nil)
+var _ SetupOptions = (*Source)(nil)
 
-// NewCommonSource creates a new commonSource source.
+// NewSource creates a new commonSource source.
 // It will set up common functionality such as logging and clean functions.
-func NewCommonSource(l *slog.Logger, opts ...option.Option) *CommonSource {
-	commonSource := &CommonSource{
+func NewSource(l *slog.Logger, opts ...Option) *Source {
+	commonSource := &Source{
 		Logger:     l,
 		m:          opentelemetry.GetMeterProvider().Meter("source"),
 		c:          make(chan any),
@@ -45,22 +44,22 @@ func NewCommonSource(l *slog.Logger, opts ...option.Option) *CommonSource {
 	return commonSource
 }
 
-func (commonSource *CommonSource) Out() <-chan any {
+func (commonSource *Source) Out() <-chan any {
 	return commonSource.c
 }
 
-func (commonSource *CommonSource) Close() {
+func (commonSource *Source) Close() {
 	commonSource.Logger.Debug("source: close")
 	for _, clean := range commonSource.cleanFuncs {
 		clean()
 	}
 }
 
-func (commonSource *CommonSource) SetBufferSize(bufferSize int) {
+func (commonSource *Source) SetBufferSize(bufferSize int) {
 	commonSource.c = make(chan any, bufferSize)
 }
 
-func (commonSource *CommonSource) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
+func (commonSource *Source) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
 	commonSource.Logger.Debug(fmt.Sprintf("source: set otel sdk: %s", otelCollectorGRPCEndpoint))
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
@@ -73,7 +72,7 @@ func (commonSource *CommonSource) SetOtelSDK(ctx context.Context, otelCollectorG
 	})
 }
 
-func (commonSource *CommonSource) SetLogger(logLevel string) {
+func (commonSource *Source) SetLogger(logLevel string) {
 	logger, err := logger.NewLogger(logLevel)
 	if err != nil {
 		commonSource.Logger.Error(fmt.Sprintf("source: set logger error: %s", err.Error()))
@@ -85,7 +84,7 @@ func (commonSource *CommonSource) SetLogger(logLevel string) {
 // Send sends data to the channel.
 // This is additional functionality that is not part of the flow.Source interface.
 // It provides a way to send data to the channel without exposing the channel itself.
-func (commonSource *CommonSource) Send(v any) {
+func (commonSource *Source) Send(v any) {
 	// TODO: move metric related code to a separate function
 	// capture count of sent data (this is just a sample on how to use metric)
 	sendCount, err := commonSource.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
@@ -107,14 +106,14 @@ func (commonSource *CommonSource) Send(v any) {
 // AddCleanFunc adds a clean function to the source.
 // Clean functions are called when the source is closed
 // whether it is closed gracefully or due to an error.
-func (commonSource *CommonSource) AddCleanFunc(f func()) {
+func (commonSource *Source) AddCleanFunc(f func()) {
 	commonSource.cleanFuncs = append(commonSource.cleanFuncs, f)
 }
 
 // RegisterProcess registers a process function that is run in a goroutine.
 // The process function should read data from the source and send it to the channel.
 // Please note that you should use the Send method to send data to the channel.
-func (commonSource *CommonSource) RegisterProcess(f func()) {
+func (commonSource *Source) RegisterProcess(f func()) {
 	go func() {
 		defer func() {
 			commonSource.Logger.Debug("source: close success")
@@ -126,11 +125,11 @@ func (commonSource *CommonSource) RegisterProcess(f func()) {
 
 // SetError sets the error of the source.
 // This is additional functionality that is not part of the flow.Source interface.
-func (commonSource *CommonSource) SetError(err error) {
+func (commonSource *Source) SetError(err error) {
 	commonSource.err = errors.WithStack(err)
 }
 
 // Err returns the error of the source.
-func (commonSource *CommonSource) Err() error {
+func (commonSource *Source) Err() error {
 	return commonSource.err
 }

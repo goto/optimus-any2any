@@ -8,24 +8,23 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/source"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // FileSource is a source that reads data from a file.
 type FileSource struct {
-	*source.CommonSource
+	*common.Source
 	files []*os.File
 }
 
 var _ flow.Source = (*FileSource)(nil)
 
-// NewSource creates a new file source.
-func NewSource(l *slog.Logger, uri string, opts ...option.Option) (*FileSource, error) {
+// NewSource creates a new file common.
+func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, error) {
 	// create commonSource
-	commonSource := source.NewCommonSource(l, opts...)
+	commonSource := common.NewSource(l, opts...)
 	// open file
 	sourceURI, err := url.Parse(uri)
 	if err != nil {
@@ -55,8 +54,8 @@ func NewSource(l *slog.Logger, uri string, opts ...option.Option) (*FileSource, 
 	}
 	// create source
 	fs := &FileSource{
-		CommonSource: commonSource,
-		files:        files,
+		Source: commonSource,
+		files:  files,
 	}
 
 	// add clean func

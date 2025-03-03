@@ -9,15 +9,14 @@ import (
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/source"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // MaxcomputeSource is the source component for MaxCompute.
 type MaxcomputeSource struct {
-	*source.CommonSource
+	*common.Source
 
 	client *odps.Odps
 	tunnel *tunnel.Tunnel
@@ -27,9 +26,9 @@ type MaxcomputeSource struct {
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProject string, opts ...option.Option) (*MaxcomputeSource, error) {
+func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProject string, opts ...common.Option) (*MaxcomputeSource, error) {
 	// create commonSource source
-	commonSource := source.NewCommonSource(l, opts...)
+	commonSource := common.NewSource(l, opts...)
 
 	// create client for maxcompute
 	client, err := NewClient(creds)
@@ -53,10 +52,10 @@ func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProj
 	}
 
 	mc := &MaxcomputeSource{
-		CommonSource: commonSource,
-		client:       client,
-		tunnel:       t,
-		query:        string(raw),
+		Source: commonSource,
+		client: client,
+		tunnel: t,
+		query:  string(raw),
 	}
 
 	// add clean function

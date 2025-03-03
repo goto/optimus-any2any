@@ -14,15 +14,14 @@ import (
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/source"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // OSSSource is the source component for OSS.
 type OSSSource struct {
-	*source.CommonSource
+	*common.Source
 
 	ctx          context.Context
 	client       *oss.Client
@@ -38,9 +37,9 @@ var _ flow.Source = (*OSSSource)(nil)
 // NewSource creates a new OSSSource.
 func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	sourceURI, fileFormat string, csvDelimiter rune,
-	columnMappingFilePath string, opts ...option.Option) (*OSSSource, error) {
+	columnMappingFilePath string, opts ...common.Option) (*OSSSource, error) {
 	// create commonSource source
-	commonSource := source.NewCommonSource(l, opts...)
+	commonSource := common.NewSource(l, opts...)
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -60,7 +59,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	}
 
 	ossSource := &OSSSource{
-		CommonSource: commonSource,
+		Source:       commonSource,
 		ctx:          ctx,
 		client:       client,
 		bucket:       parsedURL.Host,

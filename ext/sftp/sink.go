@@ -9,8 +9,7 @@ import (
 	"net/url"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/sink"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
@@ -18,7 +17,7 @@ import (
 
 // SFTPSink is a sink that writes data to a SFTP server.
 type SFTPSink struct {
-	*sink.CommonSink
+	*common.Sink
 	ctx context.Context
 
 	client                 *sftp.Client
@@ -32,9 +31,9 @@ var _ flow.Sink = (*SFTPSink)(nil)
 func NewSink(ctx context.Context, l *slog.Logger,
 	privateKey, hostFingerprint string,
 	destinationURI string,
-	opts ...option.Option) (*SFTPSink, error) {
+	opts ...common.Option) (*SFTPSink, error) {
 	// create common
-	commonSink := sink.NewCommonSink(l, opts...)
+	commonSink := common.NewSink(l, opts...)
 
 	// set up SFTP client
 	urlParsed, err := url.Parse(destinationURI)
@@ -58,7 +57,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	}
 
 	s := &SFTPSink{
-		CommonSink:             commonSink,
+		Sink:                   commonSink,
 		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: t,

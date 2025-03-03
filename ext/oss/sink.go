@@ -12,14 +12,13 @@ import (
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/sink"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 type OSSSink struct {
-	*sink.CommonSink
+	*common.Sink
 	ctx context.Context
 
 	client                 *oss.Client
@@ -36,10 +35,10 @@ var _ flow.Sink = (*OSSSink)(nil)
 func NewSink(ctx context.Context, l *slog.Logger,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool,
-	opts ...option.Option) (*OSSSink, error) {
+	opts ...common.Option) (*OSSSink, error) {
 
 	// create common sink
-	commonSink := sink.NewCommonSink(l, opts...)
+	commonSink := common.NewSink(l, opts...)
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -54,7 +53,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	}
 
 	ossSink := &OSSSink{
-		CommonSink:             commonSink,
+		Sink:                   commonSink,
 		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: tmpl,

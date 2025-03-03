@@ -8,7 +8,7 @@ import (
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
-	"github.com/goto/optimus-any2any/internal/component/option"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/internal/otel"
@@ -27,7 +27,7 @@ type OSS2MC struct {
 }
 
 // NewOSS2MC creates a new direct component to execute from OSS to MaxCompute.
-func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig, opts ...option.Option) (flow.NoFlow, error) {
+func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig, opts ...common.Option) (flow.NoFlow, error) {
 
 	// create client for maxcompute
 	client, err := maxcompute.NewClient(cfg.Credentials)
@@ -126,7 +126,7 @@ func buildQuery(cfg *config.OSS2MCConfig) (string, error) {
 	case "json":
 		storageHandler = "row format serde 'org.apache.hive.hcatalog.data.JsonSerDe' stored AS textfile"
 	case "csv":
-		storageHandler = "stored by 'com.aliyun.odps.CsvStorageHandler' with serdeproperties ('odps.text.option.header.lines.count'='1')"
+		storageHandler = "stored by 'com.aliyun.odps.CsvStorageHandler' with serdeproperties ('odps.text.common.header.lines.count'='1')"
 	}
 
 	return fmt.Sprintf(template, loadOp, tableDestination, partition, ossURI, storageHandler), nil

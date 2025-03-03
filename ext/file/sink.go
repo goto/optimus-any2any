@@ -8,20 +8,19 @@ import (
 	"net/url"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/sink"
+	"github.com/goto/optimus-any2any/internal/component/common"
 )
 
 // FileSink is a sink that writes data to a file.
 type FileSink struct {
-	*sink.CommonSink
+	*common.Sink
 	destinationURITemplate *template.Template
 	fileHandlers           map[string]extcommon.FileHandler
 }
 
-func NewSink(l *slog.Logger, destinationURI string, opts ...option.Option) (*FileSink, error) {
+func NewSink(l *slog.Logger, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// create commonSink
-	commonSink := sink.NewCommonSink(l, opts...)
+	commonSink := common.NewSink(l, opts...)
 	// parse destinationURI as template
 	tmpl, err := extcommon.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
@@ -29,7 +28,7 @@ func NewSink(l *slog.Logger, destinationURI string, opts ...option.Option) (*Fil
 	}
 	// create sink
 	fs := &FileSink{
-		CommonSink:             commonSink,
+		Sink:                   commonSink,
 		destinationURITemplate: tmpl,
 		fileHandlers:           make(map[string]extcommon.FileHandler),
 	}

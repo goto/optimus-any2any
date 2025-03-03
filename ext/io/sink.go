@@ -6,24 +6,23 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/sink"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
 type IOSink struct {
-	*sink.CommonSink
+	*common.Sink
 	w io.Writer
 }
 
 var _ flow.Sink = (*IOSink)(nil)
 
-func NewSink(l *slog.Logger, opts ...option.Option) *IOSink {
+func NewSink(l *slog.Logger, opts ...common.Option) *IOSink {
 	// create common
-	commonSink := sink.NewCommonSink(l, opts...)
+	commonSink := common.NewSink(l, opts...)
 	s := &IOSink{
-		CommonSink: commonSink,
-		w:          os.Stdout,
+		Sink: commonSink,
+		w:    os.Stdout,
 	}
 
 	// add clean func

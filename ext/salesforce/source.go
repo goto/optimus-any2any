@@ -6,8 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/source"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/simpleforce/simpleforce"
@@ -15,7 +14,7 @@ import (
 
 // SalesforceSource is a source that reads data from Salesforce.
 type SalesforceSource struct {
-	*source.CommonSource
+	*common.Source
 	client    *simpleforce.Client
 	soqlQuery string
 	columnMap map[string]string
@@ -29,9 +28,9 @@ var _ flow.Source = (*SalesforceSource)(nil)
 // columnMapFilePath is the path to the column map file
 func NewSource(l *slog.Logger,
 	sfURL, sfUser, sfPassword, sfToken string,
-	soqlFilePath, columnMappingFilePath string, opts ...option.Option) (*SalesforceSource, error) {
+	soqlFilePath, columnMappingFilePath string, opts ...common.Option) (*SalesforceSource, error) {
 	// create commonSource
-	commonSource := source.NewCommonSource(l, opts...)
+	commonSource := common.NewSource(l, opts...)
 	// create salesforce client
 	client, err := createClient(sfURL, sfUser, sfPassword, sfToken)
 	if err != nil {
@@ -49,10 +48,10 @@ func NewSource(l *slog.Logger,
 	}
 	// create source
 	sf := &SalesforceSource{
-		CommonSource: commonSource,
-		client:       client,
-		soqlQuery:    string(soqlQueryRaw),
-		columnMap:    columnMap,
+		Source:    commonSource,
+		client:    client,
+		soqlQuery: string(soqlQueryRaw),
+		columnMap: columnMap,
 	}
 
 	// add clean func

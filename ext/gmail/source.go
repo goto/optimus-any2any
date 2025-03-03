@@ -11,8 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/goto/optimus-any2any/internal/component/option"
-	"github.com/goto/optimus-any2any/internal/component/source"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"google.golang.org/api/gmail/v1"
@@ -20,7 +19,7 @@ import (
 
 // GmailSource is a source that reads data from Gmail.
 type GmailSource struct {
-	*source.CommonSource
+	*common.Source
 	service *gmail.Service
 
 	filterRules         string
@@ -38,10 +37,10 @@ func NewSource(ctx context.Context, l *slog.Logger,
 	tokenJSON string,
 	filterRules, extractorSource, extractorPattern, extractorFileFormat string,
 	filenameColumn, columnMappingFilePath string,
-	opts ...option.Option) (*GmailSource, error) {
+	opts ...common.Option) (*GmailSource, error) {
 
 	// create commonSource
-	commonSource := source.NewCommonSource(l, opts...)
+	commonSource := common.NewSource(l, opts...)
 	// create gmail service
 	srv, err := NewServiceFromToken(ctx, []byte(tokenJSON))
 	if err != nil {
@@ -55,7 +54,7 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// create source
 	gs := &GmailSource{
-		CommonSource:        commonSource,
+		Source:              commonSource,
 		service:             srv,
 		filterRules:         filterRules,
 		extractorSource:     extractorSource,

@@ -15,7 +15,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
-	"github.com/goto/optimus-any2any/internal/component/option"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -168,10 +168,10 @@ func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink 
 }
 
 // getOpts returns options based on the given config.
-func getOpts(ctx context.Context, cfg *config.Config) []option.Option {
-	return []option.Option{
-		option.SetupLogger(cfg.LogLevel),
-		option.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
-		option.SetupBufferSize(cfg.BufferSize),
+func getOpts(ctx context.Context, cfg *config.Config) []common.Option {
+	return []common.Option{
+		common.SetupLogger(cfg.LogLevel),
+		common.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
+		common.SetupBufferSize(cfg.BufferSize),
 	}
 }
