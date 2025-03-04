@@ -152,20 +152,6 @@ func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
 	return table, nil
 }
 
-// GetPartitionNames returns the partition names of a table.
-func GetPartitionNames(client *odps.Odps, tableID string) ([]string, error) {
-	table, err := getTable(client, tableID)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	var partitionNames []string
-	for _, partition := range table.Schema().PartitionColumns {
-		partitionNames = append(partitionNames, partition.Name)
-	}
-
-	return partitionNames, nil
-}
-
 func fromRecord(record data.Record, schema tableschema.TableSchema) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	if record.Len() != len(schema.Columns) {
@@ -326,6 +312,7 @@ func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error)
 	for _, column := range schema.Columns {
 		d, err := createData(raw[column.Name], column.Type)
 		if err != nil {
+			err = errors.Wrapf(err, "failed to create data for column %s on record: %+v", column.Name, raw)
 			return nil, errors.WithStack(err)
 		}
 		result = append(result, d)

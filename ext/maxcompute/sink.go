@@ -34,12 +34,13 @@ type MaxcomputeSink struct {
 	loadMethod         string
 	tableIDTransition  string
 	tableIDDestination string
+	skipSchemaMismatch bool
 }
 
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string, loadMethod string, uploadMode string, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string, loadMethod string, uploadMode string, skipSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
@@ -110,6 +111,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string
 		loadMethod:         loadMethod,
 		tableIDTransition:  tableID,
 		tableIDDestination: tableIDDestination,
+		skipSchemaMismatch: skipSchemaMismatch,
 		uploadMode:         uploadMode,
 		// for stream mode
 		sessionStream: sessionStream,
@@ -157,6 +159,10 @@ func (mc *MaxcomputeSink) process() {
 		record, err := createRecord(b, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
+			if mc.skipSchemaMismatch {
+				mc.Logger.Warn(fmt.Sprintf("skip record due to schema mismatch: %s", err.Error()))
+				continue
+			}
 			mc.SetError(errors.WithStack(err))
 			continue
 		}

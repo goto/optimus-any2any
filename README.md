@@ -105,6 +105,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
+| | MC__SKIP_SCHEMA_MISMATCH | Skip schema mismatch. (default: false) |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder/or/file.extension |
