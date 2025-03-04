@@ -2,11 +2,13 @@ package kafka
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -20,11 +22,11 @@ type KafkaSink struct {
 	client *kgo.Client
 }
 
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	bootstrapServers []string, topic string,
 	opts ...common.Option) (*KafkaSink, error) {
 	// create common
-	commonSink := common.NewSink(l, opts...)
+	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
 	// create kafka client
 	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
@@ -62,14 +64,21 @@ func (ks *KafkaSink) process() {
 		if ks.Err() != nil { // skip if error
 			continue
 		}
-		// convert to byte
-		raw, ok := v.([]byte)
-		if !ok {
-			err := fmt.Errorf("invalid data type: %T", v)
-			ks.Logger.Error(fmt.Sprintf("sink(kafka): error: %s", err.Error()))
-			ks.SetError(err)
+
+		var record map[string]interface{}
+		if err := json.Unmarshal(v.([]byte), &record); err != nil {
+			ks.Logger.Error("sink(kafka): invalid data format")
+			ks.SetError(errors.WithStack(err))
 			continue
 		}
+		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, ks.MetadataPrefix)
+		raw, err := json.Marshal(recordWithoutMetadata)
+		if err != nil {
+			ks.Logger.Error("sink(kafka): failed to marshal record")
+			ks.SetError(errors.WithStack(err))
+			continue
+		}
+
 		// send a record
 		ks.Logger.Debug(fmt.Sprintf("sink(kafka): send record: %s", string(raw)))
 		wg.Add(1)

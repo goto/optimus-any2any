@@ -16,7 +16,9 @@ import (
 // Sink is a sink that provides commonSink functionality.
 // It is used as a base for other sinks.
 type Sink struct {
-	Logger     *slog.Logger
+	Logger         *slog.Logger
+	MetadataPrefix string
+
 	m          metric.Meter
 	done       chan uint8
 	c          chan any
@@ -29,9 +31,11 @@ var _ SetupOptions = (*Sink)(nil)
 
 // NewSink creates a new commonSink sink.
 // It will set up common functionality such as logging and clean functions.
-func NewSink(l *slog.Logger, opts ...Option) *Sink {
+func NewSink(l *slog.Logger, metadataPrefix string, opts ...Option) *Sink {
 	commonSink := &Sink{
-		Logger:     l,
+		Logger:         l,
+		MetadataPrefix: metadataPrefix,
+
 		m:          opentelemetry.GetMeterProvider().Meter("source"),
 		done:       make(chan uint8),
 		c:          make(chan any),

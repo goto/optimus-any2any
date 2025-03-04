@@ -9,6 +9,7 @@ import (
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/pkg/errors"
 )
 
 // FileSink is a sink that writes data to a file.
@@ -18,9 +19,9 @@ type FileSink struct {
 	fileHandlers           map[string]extcommon.FileHandler
 }
 
-func NewSink(l *slog.Logger, destinationURI string, opts ...common.Option) (*FileSink, error) {
+func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// create commonSink
-	commonSink := common.NewSink(l, opts...)
+	commonSink := common.NewSink(l, metadataPrefix, opts...)
 	// parse destinationURI as template
 	tmpl, err := extcommon.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
@@ -59,13 +60,13 @@ func (fs *FileSink) process() {
 		var record map[string]interface{}
 		if err := json.Unmarshal(raw, &record); err != nil {
 			fs.Logger.Error("sink(file): invalid data format")
-			fs.SetError(fmt.Errorf("invalid data format"))
+			fs.SetError(errors.WithStack(err))
 			continue
 		}
 		destinationURI, err := extcommon.Compile(fs.destinationURITemplate, record)
 		if err != nil {
 			fs.Logger.Error("sink(file): failed to compile destination URI")
-			fs.SetError(fmt.Errorf("failed to compile destination URI"))
+			fs.SetError(errors.WithStack(err))
 			continue
 		}
 		fh, ok := fs.fileHandlers[destinationURI]
@@ -74,7 +75,7 @@ func (fs *FileSink) process() {
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
 				fs.Logger.Error(fmt.Sprintf("sink(file): failed to parse destination URI: %s", destinationURI))
-				fs.SetError(fmt.Errorf("failed to parse destination URI"))
+				fs.SetError(errors.WithStack(err))
 				continue
 			}
 			if targetURI.Scheme != "file" {
@@ -85,16 +86,25 @@ func (fs *FileSink) process() {
 			fh, err = NewStdFileHandler(fs.Logger, targetURI.Path)
 			if err != nil {
 				fs.Logger.Error("sink(file): failed to create file handler")
-				fs.SetError(fmt.Errorf("failed to create file handler"))
+				fs.SetError(errors.WithStack(err))
 				continue
 			}
 			fs.fileHandlers[destinationURI] = fh
 		}
+
+		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, fs.MetadataPrefix)
+		raw, err = json.Marshal(recordWithoutMetadata)
+		if err != nil {
+			fs.Logger.Error("sink(file): failed to marshal record")
+			fs.SetError(errors.WithStack(err))
+			continue
+		}
+
 		fs.Logger.Debug(fmt.Sprintf("sink(file): write %s", string(raw)))
 		_, err = fh.Write(append(raw, '\n'))
 		if err != nil {
 			fs.Logger.Error("sink(file): failed to write to file")
-			fs.SetError(fmt.Errorf("failed to write to file"))
+			fs.SetError(errors.WithStack(err))
 			continue
 		}
 	}

@@ -32,13 +32,13 @@ type OSSSink struct {
 var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create common sink
-	commonSink := common.NewSink(l, opts...)
+	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
 	// create OSS client
 	client, err := NewOSSClient(creds)

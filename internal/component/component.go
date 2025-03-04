@@ -97,21 +97,21 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSink(l, sinkCfg.Credentials, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, opts...)
+		return maxcompute.NewSink(l, cfg.MetadataPrefix, sinkCfg.Credentials, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, opts...)
 	case FILE:
 		sinkCfg, err := config.SinkFile(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSink(l, sinkCfg.DestinationURI, opts...)
+		return file.NewSink(l, cfg.MetadataPrefix, sinkCfg.DestinationURI, opts...)
 	case IO:
-		return io.NewSink(l), nil
+		return io.NewSink(l, cfg.MetadataPrefix), nil
 	case OSS:
 		sinkCfg, err := config.SinkOSS(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSink(ctx, l, sinkCfg.Credentials,
+		return oss.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.BatchSize, sinkCfg.EnableOverwrite, opts...)
 	case SFTP:
@@ -119,7 +119,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return sftp.NewSink(ctx, l,
+		return sftp.NewSink(ctx, l, cfg.MetadataPrefix,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 			sinkCfg.DestinationURI, opts...)
 	case KAFKA:
@@ -127,7 +127,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return kafka.NewSink(ctx, l, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
+		return kafka.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }

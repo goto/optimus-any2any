@@ -39,9 +39,9 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, creds string, tableID string, loadMethod string, uploadMode string, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string, loadMethod string, uploadMode string, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
-	commonSink := common.NewSink(l, opts...)
+	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
 	// create client for maxcompute
 	client, err := NewClient(creds)

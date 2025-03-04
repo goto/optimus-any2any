@@ -6,6 +6,7 @@ type Config struct {
 	OtelCollectorGRPCEndpoint string `env:"OTEL_COLLECTOR_GRPC_ENDPOINT"`
 	OtelAttributes            string `env:"OTEL_ATTRIBUTES"`
 	BufferSize                int    `env:"BUFFER_SIZE"`
+	MetadataPrefix            string `env:"METADATA_PREFIX" envDefault:"__METADATA__"`
 }
 
 // NewConfig parses the environment variables and returns the common configuration.

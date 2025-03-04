@@ -21,6 +21,18 @@ var builtinValueFuns = map[string]func() string{
 	},
 }
 
+// RecordWithoutMetadata returns the record without given metadata prefix.
+func RecordWithoutMetadata(record map[string]interface{}, metadataPrefix string) map[string]interface{} {
+	recordWithoutMetadata := make(map[string]interface{})
+	for k, v := range record {
+		if strings.HasPrefix(k, metadataPrefix) {
+			continue
+		}
+		recordWithoutMetadata[k] = v
+	}
+	return recordWithoutMetadata
+}
+
 // RenderFilename renders the filename pattern with the values.
 func RenderFilename(filenamePattern string, values map[string]string) string {
 	// Replace the filename pattern with the values

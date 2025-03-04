@@ -28,12 +28,12 @@ type SFTPSink struct {
 var _ flow.Sink = (*SFTPSink)(nil)
 
 // NewSink creates a new SFTPSink.
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	privateKey, hostFingerprint string,
 	destinationURI string,
 	opts ...common.Option) (*SFTPSink, error) {
 	// create common
-	commonSink := common.NewSink(l, opts...)
+	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
 	// set up SFTP client
 	urlParsed, err := url.Parse(destinationURI)
