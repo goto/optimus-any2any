@@ -1,6 +1,9 @@
 package smtp
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/pkg/errors"
 	"gopkg.in/gomail.v2"
 )
@@ -12,7 +15,18 @@ type SMTPClient struct {
 
 // NewSMTPClient creates a new SMTPClient
 func NewSMTPClient(address, username, password string) (*SMTPClient, error) {
-	dialer := gomail.NewDialer(address, 587, username, password)
+	splittedAddr := strings.Split(address, ":")
+	host := splittedAddr[0]
+	port := 587
+	if len(splittedAddr) > 1 {
+		p, err := strconv.Atoi(splittedAddr[1])
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		port = p
+	}
+
+	dialer := gomail.NewDialer(host, port, username, password)
 	c, err := dialer.Dial()
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -26,11 +40,12 @@ func (c *SMTPClient) Close() error {
 }
 
 // SendMail sends an email
-func (c *SMTPClient) SendMail(from string, to []string, msg []byte, attachment string) error {
+func (c *SMTPClient) SendMail(from string, to []string, subject string, msg string, attachment string, attachmentPath string) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", from)
 	m.SetHeader("To", to...)
-	m.SetBody("text/html", string(msg))
-	m.Attach(attachment)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", msg)
+	m.Attach(attachmentPath, gomail.Rename(attachment))
 	return c.sender.Send(from, to, m)
 }
