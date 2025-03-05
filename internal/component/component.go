@@ -15,6 +15,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
+	"github.com/goto/optimus-any2any/ext/smtp"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -34,6 +35,7 @@ const (
 	SF    Type = "SF"
 	OSS   Type = "OSS"
 	SFTP  Type = "SFTP"
+	SMTP  Type = "SMTP"
 	GMAIL Type = "GMAIL"
 )
 
@@ -122,6 +124,15 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		return sftp.NewSink(ctx, l, cfg.MetadataPrefix,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 			sinkCfg.DestinationURI, opts...)
+	case SMTP:
+		sinkCfg, err := config.SinkSMTP(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return smtp.NewSink(ctx, l, cfg.MetadataPrefix,
+			sinkCfg.Address, sinkCfg.Username, sinkCfg.Password,
+			sinkCfg.From, sinkCfg.To, sinkCfg.Cc, sinkCfg.Bcc, sinkCfg.Subject,
+			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {
