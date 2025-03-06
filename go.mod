@@ -4,7 +4,7 @@ go 1.22.3
 
 require (
 	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.1.3
-	github.com/aliyun/aliyun-odps-go-sdk v0.4.2
+	github.com/aliyun/aliyun-odps-go-sdk v0.4.6
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/gojq v0.12.17
