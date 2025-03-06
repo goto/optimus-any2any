@@ -447,10 +447,11 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		}
 		record := data.NewStructWithTyp(structType)
 		for _, field := range structType.Fields {
-			if _, ok := curr[field.Name]; !ok {
-				return nil, errors.WithStack(fmt.Errorf("field %s is missing", field.Name))
+			var currValue interface{}
+			if currValue, ok = curr[field.Name]; !ok {
+				currValue = nil
 			}
-			d, err := createData(curr[field.Name], field.Type)
+			d, err := createData(currValue, field.Type)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
