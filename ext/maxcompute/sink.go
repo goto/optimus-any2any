@@ -56,7 +56,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string
 	if loadMethod == LOAD_METHOD_REPLACE {
 		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
 		commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, creating temporary table: %s", tableID))
-		if err := createTable(client, tableID, tableIDDestination); err != nil {
+		if err := createTempTable(client, tableID, tableIDDestination, 1); err != nil {
 			return nil, errors.WithStack(err)
 		}
 		commonSink.Logger.Info(fmt.Sprintf("sink(mc): temporary table created: %s", tableID))

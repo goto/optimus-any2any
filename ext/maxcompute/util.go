@@ -88,7 +88,7 @@ func createTableFromSchema(client *odps.Odps, tableID string, s tableschema.Tabl
 	return client.Tables().Create(s, true, map[string]string{}, map[string]string{})
 }
 
-func createTable(client *odps.Odps, tableID string, tableIDReference string) error {
+func createTempTable(client *odps.Odps, tableID string, tableIDReference string, lifecycleInDays int) error {
 	// save current project and schema
 	currProject := client.DefaultProjectName()
 	currSchema := client.CurrentSchemaName()
@@ -119,6 +119,7 @@ func createTable(client *odps.Odps, tableID string, tableIDReference string) err
 		Columns(tableReference.Schema().Columns...).
 		Build()
 	tempSchema.TableName = name
+	tempSchema.Lifecycle = lifecycleInDays
 
 	// create table
 	return client.Tables().Create(tempSchema, true, map[string]string{}, map[string]string{})
