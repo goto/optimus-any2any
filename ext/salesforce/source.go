@@ -64,9 +64,10 @@ func (sf *SalesforceSource) process() {
 		Done:           false,
 		NextRecordsURL: sf.soqlQuery, // next records url can be soql query or url
 	}
+	sf.Logger.Info(fmt.Sprintf("source(sf): fetching records from:\n%s", sf.soqlQuery))
 	// fetch records until done
 	for !result.Done {
-		sf.Logger.Info(fmt.Sprintf("source(sf): fetching records from:\n%s", result.NextRecordsURL))
+		sf.Logger.Debug(fmt.Sprintf("source(sf): fetching more records from: %s", result.NextRecordsURL))
 		currentResult, err := sf.client.Query(result.NextRecordsURL)
 		if err != nil {
 			sf.Logger.Error(fmt.Sprintf("source(sf): failed to query more salesforce: %s", err.Error()))

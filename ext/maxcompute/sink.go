@@ -3,6 +3,7 @@ package maxcompute
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
@@ -53,7 +54,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
 	if loadMethod == LOAD_METHOD_REPLACE {
-		tableID = fmt.Sprintf("%s_temp_%d", tableID, time.Now().Unix())
+		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
 		commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, creating temporary table: %s", tableID))
 		if err := createTable(client, tableID, tableIDDestination); err != nil {
 			return nil, errors.WithStack(err)
