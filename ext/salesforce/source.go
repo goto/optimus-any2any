@@ -17,7 +17,6 @@ type SalesforceSource struct {
 	*common.Source
 	client    *simpleforce.Client
 	soqlQuery string
-	columnMap map[string]string
 }
 
 var _ flow.Source = (*SalesforceSource)(nil)
@@ -28,7 +27,7 @@ var _ flow.Source = (*SalesforceSource)(nil)
 // columnMapFilePath is the path to the column map file
 func NewSource(l *slog.Logger,
 	sfURL, sfUser, sfPassword, sfToken string,
-	soqlFilePath, columnMappingFilePath string, opts ...common.Option) (*SalesforceSource, error) {
+	soqlFilePath string, opts ...common.Option) (*SalesforceSource, error) {
 	// create commonSource
 	commonSource := common.NewSource(l, opts...)
 	// create salesforce client
@@ -41,17 +40,12 @@ func NewSource(l *slog.Logger,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// read column map
-	columnMap, err := getColumnMap(columnMappingFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 	// create source
 	sf := &SalesforceSource{
 		Source:    commonSource,
 		client:    client,
 		soqlQuery: string(soqlQueryRaw),
-		columnMap: columnMap,
+		// columnMap: columnMap,
 	}
 
 	// add clean func
@@ -81,8 +75,7 @@ func (sf *SalesforceSource) process() {
 		sf.Logger.Info(fmt.Sprintf("source(sf): fetched %d records", len(currentResult.Records)))
 		for _, v := range currentResult.Records {
 			record := map[string]interface{}(v)
-			mappedRecord := sf.mapping(record)
-			raw, err := json.Marshal(mappedRecord)
+			raw, err := json.Marshal(record)
 			if err != nil {
 				sf.Logger.Error(fmt.Sprintf("source(sf): failed to marshal record: %s", err.Error()))
 				sf.SetError(errors.WithStack(err))
@@ -92,32 +85,4 @@ func (sf *SalesforceSource) process() {
 		}
 		result = currentResult
 	}
-}
-
-// mapping maps the column name from Salesforce to the column name in the column map.
-func (sf *SalesforceSource) mapping(value map[string]interface{}) map[string]interface{} {
-	sf.Logger.Debug(fmt.Sprintf("source(sf): record before map: %v", value))
-	mappedValue := make(map[string]interface{})
-	for key, val := range value {
-		if mappedKey, ok := sf.columnMap[key]; ok {
-			mappedValue[mappedKey] = val
-		} else {
-			mappedValue[key] = val
-		}
-	}
-	sf.Logger.Debug(fmt.Sprintf("source(sf): record after map: %v", mappedValue))
-	return mappedValue
-}
-
-// getColumnMap reads the column map from the file.
-func getColumnMap(columnMapFilePath string) (map[string]string, error) {
-	columnMapRaw, err := os.ReadFile(columnMapFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	columnMap := make(map[string]string)
-	if err = json.Unmarshal(columnMapRaw, &columnMap); err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return columnMap, nil
 }

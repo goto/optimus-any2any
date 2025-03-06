@@ -79,8 +79,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | SF__USER | Salesforce username. |
 | | SF__PASS | Salesforce password. |
 | | SF__TOKEN | Salesforce security token. |
-| | SF__SOQL_FILE_PATH | Path to the SOQL query file. (default: /data/in/main.soql)|
-| | SF__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for salesforce record result. (default: /data/in/mapping.columns) |
+| | SF__SOQL_FILE_PATH | Path to the SOQL query file. |
 | GMAIL | GMAIL__TOKEN | Token JSON for gmail credentials |
 | | GMAIL__FILTER | Gmail filter based on gmail filter rules |
 | | GMAIL__EXTRACTOR_SOURCE | Which source to read (attachment, body) (default: attachment) |
@@ -108,6 +107,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__SKIP_SCHEMA_MISMATCH | Skip schema mismatch. (default: false) |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
+| | OSS__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder/or/file.extension |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |

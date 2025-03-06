@@ -7,8 +7,7 @@ type SourceSalesforceConfig struct {
 	Pass  string `env:"SF__PASS"`
 	Token string `env:"SF__TOKEN"`
 
-	SOQLFilePath          string `env:"SF__SOQL_FILE_PATH" envDefault:"/data/in/main.soql"`
-	ColumnMappingFilePath string `env:"SF__COLUMN_MAPPING_FILE_PATH" envDefault:"/data/in/mapping.columns"`
+	SOQLFilePath string `env:"SF__SOQL_FILE_PATH"`
 }
 
 // SourceSalesforce parses the environment variables and returns the source salesforce configuration.
