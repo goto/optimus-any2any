@@ -66,6 +66,7 @@ func (sf *SalesforceSource) process() {
 	}
 	// fetch records until done
 	for !result.Done {
+		sf.Logger.Info(fmt.Sprintf("source(sf): fetching records from:\n%s", result.NextRecordsURL))
 		currentResult, err := sf.client.Query(result.NextRecordsURL)
 		if err != nil {
 			sf.Logger.Error(fmt.Sprintf("source(sf): failed to query more salesforce: %s", err.Error()))

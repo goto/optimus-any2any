@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/ext/direct"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
@@ -161,7 +162,18 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 		}
 		return "", errors.WithStack(err)
 	}
-	return string(query), nil
+	// TODO: refactor the package extcommon, since it's also being used
+	// in internal folder
+	tmpl, err := extcommon.NewTemplate("connector_jq", string(query))
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	compiledQuery, err := extcommon.Compile(tmpl, nil)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	l.Info(fmt.Sprintf("processor: jq query: %s", compiledQuery))
+	return compiledQuery, nil
 }
 
 func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink Type, cfg *config.Config, envs ...string) (flow.NoFlow, error) {
