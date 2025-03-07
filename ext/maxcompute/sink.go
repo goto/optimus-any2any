@@ -230,7 +230,7 @@ func (mc *MaxcomputeSink) process() {
 
 	if mc.loadMethod == LOAD_METHOD_REPLACE {
 		mc.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
-		if err := insertOverwrite(mc.client, mc.tableIDDestination, mc.tableIDTransition); err != nil {
+		if err := insertOverwrite(mc.Logger, mc.client, mc.tableIDDestination, mc.tableIDTransition); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): insert overwrite error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 		}

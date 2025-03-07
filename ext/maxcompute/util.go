@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	errs "errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -18,7 +19,7 @@ const (
 	ISONonStandardDateTimeFormat = "2006-01-02T15:04:05.000-0700"
 )
 
-func insertOverwrite(client *odps.Odps, destinationTableID, sourceTableID string) error {
+func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sourceTableID string) error {
 	table, err := getTable(client, destinationTableID)
 	if err != nil {
 		return errors.WithStack(err)
@@ -28,7 +29,9 @@ func insertOverwrite(client *odps.Odps, destinationTableID, sourceTableID string
 		orderedColumns = append(orderedColumns, column.Name)
 	}
 
-	instance, err := client.ExecSQl(fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", destinationTableID, strings.Join(orderedColumns, ","), sourceTableID))
+	queryToExecute := fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", destinationTableID, strings.Join(orderedColumns, ","), sourceTableID)
+	l.Info(fmt.Sprintf("sink(mc): executing query: %s", queryToExecute))
+	instance, err := client.ExecSQl(queryToExecute)
 	if err != nil {
 		return errors.WithStack(err)
 	}
