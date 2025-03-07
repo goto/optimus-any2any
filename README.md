@@ -123,6 +123,9 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__SUBJECT | SMTP email subject. |
 | | SMTP__BODY_FILE_PATH | SMTP email body from given path. |
 | | SMTP__ATTACHMENT_FILENAME | SMTP email attachment filename. |
+| POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
+| | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
+| | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
