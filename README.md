@@ -105,6 +105,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
 | | MC__SKIP_SCHEMA_MISMATCH | Skip schema mismatch. (default: false) |
+| | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |

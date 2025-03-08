@@ -125,7 +125,7 @@ func (mc *MaxcomputeSource) process() {
 
 			// process record
 			mc.Logger.Debug(fmt.Sprintf("source(mc): record: %s", record))
-			v, err := fromRecord(record, session.Schema())
+			v, err := fromRecord(mc.Logger, record, session.Schema())
 			if err != nil {
 				mc.Logger.Error("source(mc): failed to process record")
 				mc.SetError(errors.WithStack(err))

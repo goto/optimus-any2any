@@ -41,7 +41,7 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string, loadMethod string, uploadMode string, skipSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, skipSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
@@ -50,19 +50,22 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	if executionProject != "" {
+		client.SetDefaultProjectName(executionProject)
+	}
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
 	if loadMethod == LOAD_METHOD_REPLACE {
 		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
-		commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, creating temporary table: %s", tableID))
-		if err := createTempTable(client, tableID, tableIDDestination, 1); err != nil {
+		l.Info(fmt.Sprintf("sink(mc): load method is replace, creating temporary table: %s", tableID))
+		if err := createTempTable(l, client, tableID, tableIDDestination, 1); err != nil {
 			return nil, errors.WithStack(err)
 		}
-		commonSink.Logger.Info(fmt.Sprintf("sink(mc): temporary table created: %s", tableID))
+		l.Info(fmt.Sprintf("sink(mc): temporary table created: %s", tableID))
 	}
 
-	destination, err := getTable(client, tableID)
+	destination, err := getTable(l, client, tableID)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -124,12 +127,12 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, tableID string
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink(mc): drop temporary table")
+		l.Debug("sink(mc): drop temporary table")
 		// delete temporary table if load method is replace
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
-			commonSink.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, deleting temporary table: %s", mc.tableIDTransition))
-			if err := dropTable(client, mc.tableIDTransition); err != nil {
-				commonSink.Logger.Error(fmt.Sprintf("sink(mc): delete temporary table error: %s", err.Error()))
+			l.Info(fmt.Sprintf("sink(mc): load method is replace, deleting temporary table: %s", mc.tableIDTransition))
+			if err := dropTable(l, client, mc.tableIDTransition); err != nil {
+				l.Error(fmt.Sprintf("sink(mc): delete temporary table error: %s", err.Error()))
 				mc.SetError(errors.WithStack(err))
 			}
 		}
@@ -157,7 +160,7 @@ func (mc *MaxcomputeSink) process() {
 			continue
 		}
 		mc.Logger.Debug(fmt.Sprintf("sink(mc): message: %s", string(b)))
-		record, err := createRecord(b, mc.tableSchema)
+		record, err := createRecord(mc.Logger, b, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
 			if mc.skipSchemaMismatch {

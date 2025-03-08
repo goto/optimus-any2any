@@ -20,7 +20,7 @@ const (
 )
 
 func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sourceTableID string) error {
-	table, err := getTable(client, destinationTableID)
+	table, err := getTable(l, client, destinationTableID)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -41,13 +41,11 @@ func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sour
 	return nil
 }
 
-func dropTable(client *odps.Odps, tableID string) error {
-	// save current project and schema
-	currProject := client.DefaultProjectName()
+func dropTable(l *slog.Logger, client *odps.Odps, tableID string) error {
+	// save current schema
 	currSchema := client.CurrentSchemaName()
 	defer func() {
-		// restore current project and schema
-		client.SetDefaultProjectName(currProject)
+		// restore current schema
 		client.SetCurrentSchemaName(currSchema)
 	}()
 
@@ -56,22 +54,20 @@ func dropTable(client *odps.Odps, tableID string) error {
 		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
 		return errors.WithStack(err)
 	}
-	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+	_, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
 
-	// set project and schema to the table
-	client.SetDefaultProjectName(project)
+	// set schema to the table
 	client.SetCurrentSchemaName(schema)
 
+	l.Debug(fmt.Sprintf("sink(mc): dropping table: %s", tableID))
 	return client.Tables().Delete(name, true)
 }
 
-func createTableFromSchema(client *odps.Odps, tableID string, s tableschema.TableSchema) error {
-	// save current project and schema
-	currProject := client.DefaultProjectName()
+func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDReference string, lifecycleInDays int) error {
+	// save current schema
 	currSchema := client.CurrentSchemaName()
 	defer func() {
-		// restore current project and schema
-		client.SetDefaultProjectName(currProject)
+		// restore current schema
 		client.SetCurrentSchemaName(currSchema)
 	}()
 
@@ -80,40 +76,13 @@ func createTableFromSchema(client *odps.Odps, tableID string, s tableschema.Tabl
 		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
 		return errors.WithStack(err)
 	}
-	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+	_, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
 
-	// set project and schema to the table
-	client.SetDefaultProjectName(project)
-	client.SetCurrentSchemaName(schema)
-	s.TableName = name
-
-	// create table
-	return client.Tables().Create(s, true, map[string]string{}, map[string]string{})
-}
-
-func createTempTable(client *odps.Odps, tableID string, tableIDReference string, lifecycleInDays int) error {
-	// save current project and schema
-	currProject := client.DefaultProjectName()
-	currSchema := client.CurrentSchemaName()
-	defer func() {
-		// restore current project and schema
-		client.SetDefaultProjectName(currProject)
-		client.SetCurrentSchemaName(currSchema)
-	}()
-
-	splittedTableID := strings.Split(tableID, ".")
-	if len(splittedTableID) != 3 {
-		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
-		return errors.WithStack(err)
-	}
-	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
-
-	// set project and schema to the table
-	client.SetDefaultProjectName(project)
+	// set schema to the table
 	client.SetCurrentSchemaName(schema)
 
 	// get table reference
-	tableReference, err := getTable(client, tableIDReference)
+	tableReference, err := getTable(l, client, tableIDReference)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -125,10 +94,11 @@ func createTempTable(client *odps.Odps, tableID string, tableIDReference string,
 	tempSchema.Lifecycle = lifecycleInDays
 
 	// create table
+	l.Debug(fmt.Sprintf("sink(mc): creating temporary table: %s", tableID))
 	return client.Tables().Create(tempSchema, true, map[string]string{}, map[string]string{})
 }
 
-func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
+func getTable(l *slog.Logger, client *odps.Odps, tableID string) (*odps.Table, error) {
 	// save current project and schema
 	currProject := client.DefaultProjectName()
 	currSchema := client.CurrentSchemaName()
@@ -149,6 +119,7 @@ func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
 	client.SetCurrentSchemaName(schema)
 
 	// get table
+	l.Debug(fmt.Sprintf("sink(mc): getting table: %s", tableID))
 	table := client.Tables().Get(name)
 	if err := table.Load(); err != nil {
 		return nil, errors.WithStack(err)
@@ -156,13 +127,13 @@ func getTable(client *odps.Odps, tableID string) (*odps.Table, error) {
 	return table, nil
 }
 
-func fromRecord(record data.Record, schema tableschema.TableSchema) (map[string]interface{}, error) {
+func fromRecord(l *slog.Logger, record data.Record, schema tableschema.TableSchema) (map[string]interface{}, error) {
 	m := make(map[string]interface{})
 	if record.Len() != len(schema.Columns) {
 		return nil, errors.WithStack(fmt.Errorf("record length does not match schema column length"))
 	}
 	for i, d := range record {
-		val, err := fromData(d)
+		val, err := fromData(l, d)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -171,7 +142,7 @@ func fromRecord(record data.Record, schema tableschema.TableSchema) (map[string]
 	return m, nil
 }
 
-func fromData(d data.Data) (interface{}, error) {
+func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 	if d == nil {
 		return nil, nil
 	}
@@ -279,7 +250,7 @@ func fromData(d data.Data) (interface{}, error) {
 		}
 		arr := []interface{}{}
 		for _, currData := range val.ToSlice() {
-			curr, err := fromData(currData)
+			curr, err := fromData(l, currData)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -293,7 +264,7 @@ func fromData(d data.Data) (interface{}, error) {
 		}
 		m := map[string]interface{}{}
 		for _, field := range val.Fields() {
-			curr, err := fromData(field.Value)
+			curr, err := fromData(l, field.Value)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -305,7 +276,7 @@ func fromData(d data.Data) (interface{}, error) {
 	}
 }
 
-func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error) {
+func createRecord(l *slog.Logger, b []byte, schema tableschema.TableSchema) (data.Record, error) {
 	raw := map[string]interface{}{}
 	err := json.Unmarshal(b, &raw)
 	if err != nil {
@@ -314,7 +285,7 @@ func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error)
 
 	result := []data.Data{}
 	for _, column := range schema.Columns {
-		d, err := createData(raw[column.Name], column.Type)
+		d, err := createData(l, raw[column.Name], column.Type)
 		if err != nil {
 			err = errors.Wrapf(err, "failed to create data for column %s on record: %+v", column.Name, raw)
 			return nil, errors.WithStack(err)
@@ -325,7 +296,7 @@ func createRecord(b []byte, schema tableschema.TableSchema) (data.Record, error)
 	return result, nil
 }
 
-func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
+func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.Data, error) {
 	if value == nil {
 		return data.Null, nil
 	}
@@ -402,7 +373,7 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 
 		switch dt.ID() {
 		case datatype.DATE, datatype.DATETIME, datatype.TIMESTAMP, datatype.TIMESTAMP_NTZ:
-			t, err := parseTime(curr)
+			t, err := parseTime(l, curr)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -433,7 +404,7 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 		}
 		array := data.NewArrayWithType(arrayType)
 		for _, v := range curr {
-			d, err := createData(v, arrayType.ElementType)
+			d, err := createData(l, v, arrayType.ElementType)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -455,7 +426,7 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 			if currValue, ok = curr[field.Name]; !ok {
 				currValue = nil
 			}
-			d, err := createData(currValue, field.Type)
+			d, err := createData(l, currValue, field.Type)
 			if err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -468,9 +439,10 @@ func createData(value interface{}, dt datatype.DataType) (data.Data, error) {
 	return nil, errors.WithStack(fmt.Errorf("unsupported column type: %s", dt.ID()))
 }
 
-func parseTime(curr string) (time.Time, error) {
+func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 	var e error
 	// try to parse with ISO non-standard format
+	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with ISO non-standard format: %s", curr))
 	t, err := time.Parse(ISONonStandardDateTimeFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -478,6 +450,7 @@ func parseTime(curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with RFC3339
+	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with RFC3339 format: %s", curr))
 	t, err = time.Parse(time.RFC3339, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -485,6 +458,7 @@ func parseTime(curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with TimeStampFormat
+	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with TimeStampFormat: %s", curr))
 	t, err = time.Parse(data.TimeStampFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -492,6 +466,7 @@ func parseTime(curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with DateTimeFormat
+	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with DateTimeFormat: %s", curr))
 	t, err = time.Parse(data.DateTimeFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -499,6 +474,7 @@ func parseTime(curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with DateFormat
+	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with DateFormat: %s", curr))
 	t, err = time.Parse(data.DateFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
