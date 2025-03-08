@@ -54,13 +54,13 @@ func dropTable(l *slog.Logger, client *odps.Odps, tableID string) error {
 		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
 		return errors.WithStack(err)
 	}
-	_, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
 
 	// set schema to the table
 	client.SetCurrentSchemaName(schema)
 
 	l.Debug(fmt.Sprintf("sink(mc): dropping table: %s", tableID))
-	return client.Tables().Delete(name, true)
+	return odps.NewTables(client, project, schema).Delete(name, true)
 }
 
 func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDReference string, lifecycleInDays int) error {
@@ -76,7 +76,7 @@ func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDR
 		err := errors.Errorf("invalid tableID (tableID should be in format project.schema.table): %s", tableID)
 		return errors.WithStack(err)
 	}
-	_, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
+	project, schema, name := splittedTableID[0], splittedTableID[1], splittedTableID[2]
 
 	// set schema to the table
 	client.SetCurrentSchemaName(schema)
@@ -95,7 +95,7 @@ func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDR
 
 	// create table
 	l.Debug(fmt.Sprintf("sink(mc): creating temporary table: %s", tableID))
-	return client.Tables().Create(tempSchema, true, map[string]string{}, map[string]string{})
+	return odps.NewTables(client, project, schema).Create(tempSchema, true, map[string]string{}, map[string]string{})
 }
 
 func getTable(l *slog.Logger, client *odps.Odps, tableID string) (*odps.Table, error) {
