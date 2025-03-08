@@ -2,8 +2,11 @@
 package extcommon
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -98,4 +101,84 @@ func GroupRecordsByKey(groupedKey string, records [][]byte) (map[string][][]byte
 		groupRecords[groupKey] = append(groupRecords[groupKey], raw)
 	}
 	return groupRecords, nil
+}
+
+// ToCSV converts the records to CSV.
+func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}) error {
+	if len(records) == 0 {
+		return nil
+	}
+	// get the header
+	headerMap := make(map[string]bool)
+	for _, record := range records {
+		for k := range record {
+			headerMap[k] = true
+		}
+	}
+	header := make([]string, 0, len(headerMap))
+	for k := range headerMap {
+		header = append(header, k)
+	}
+
+	l.Debug(fmt.Sprintf("common: csv header: %v", header))
+	csvWriter := csv.NewWriter(w)
+	defer csvWriter.Flush()
+	if err := csvWriter.Write(header); err != nil {
+		return errors.WithStack(err)
+	}
+
+	// convert the records to string
+	for _, record := range records {
+		mapString, err := convertRecordToMapString(record)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		recordString := []string{}
+		for _, k := range header {
+			if v, ok := mapString[k]; ok {
+				recordString = append(recordString, v)
+			} else {
+				recordString = append(recordString, "")
+			}
+		}
+		l.Debug(fmt.Sprintf("common: csv record: %v", recordString))
+		if err := csvWriter.Write(recordString); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
+}
+
+func convertRecordToMapString(record map[string]interface{}) (map[string]string, error) {
+	recordString := make(map[string]string)
+	for k, v := range record {
+		val, err := convertValueToString(v)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		recordString[k] = val
+	}
+	return recordString, nil
+}
+
+func convertValueToString(v interface{}) (string, error) {
+	switch val := v.(type) {
+	case bool:
+		return fmt.Sprintf("%t", val), nil
+	case int, int64:
+		return fmt.Sprintf("%d", val), nil
+	case float32, float64:
+		return fmt.Sprintf("%f", val), nil
+	case string:
+		return val, nil
+	case map[string]interface{}, []interface{}:
+		b := []byte{}
+		if err := json.Unmarshal(b, val); err != nil {
+			return "", errors.WithStack(err)
+		}
+		return string(b), nil
+	default:
+		return fmt.Sprintf("%v", val), nil
+	}
 }

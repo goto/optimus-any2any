@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
-	"os"
+	"sync"
 
-	"github.com/gocarina/gocsv"
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/jackc/pgx/v5"
@@ -23,7 +24,6 @@ type PGSink struct {
 
 	batchSize         int                      // internal use
 	recordsBuffer     []map[string]interface{} // internal use
-	destinationPath   string                   // internal use
 	fileRecordCounter int                      // internal use
 }
 
@@ -50,7 +50,6 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		destinationTableID: destinationTableID,
 		batchSize:          512,
 		recordsBuffer:      make([]map[string]interface{}, 0, 512),
-		destinationPath:    "/tmp/records.csv",
 		fileRecordCounter:  0,
 	}
 
@@ -121,31 +120,44 @@ func (p *PGSink) process() {
 
 // flush writes records buffer to file
 func (p *PGSink) flush() error {
-	// prepare tmp file
-	p.Logger.Debug(fmt.Sprintf("sink(pg): create tmp file %s", p.destinationPath))
-	f, err := os.OpenFile(p.destinationPath, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+	var wg sync.WaitGroup
+	pipeReader, pipeWriter := io.Pipe()
+	defer func() {
+		p.Logger.Debug("sink(pg): clear records buffer")
+		p.recordsBuffer = p.recordsBuffer[:0]
+	}()
+
+	// converting to csv
+	errChan := make(chan error)
+	wg.Add(1)
+	go func(errChan chan error) {
+		defer func() {
+			p.Logger.Debug("sink(pg): close pipe writer")
+			pipeWriter.Close()
+			wg.Done()
+		}()
+		if err := extcommon.ToCSV(p.Logger, pipeWriter, p.recordsBuffer); err != nil {
+			errChan <- errors.WithStack(err)
+			return
+		}
+	}(errChan)
+
+	// piping the records to pg
+	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
+	p.Logger.Info(fmt.Sprintf("sink(pg): start writing %d records to pg", len(p.recordsBuffer)))
+	p.Logger.Debug(fmt.Sprintf("sink(pg): query: %s", query))
+	t, err := p.conn.PgConn().CopyFrom(p.ctx, pipeReader, query)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer func() {
-		p.Logger.Debug(fmt.Sprintf("sink(pg): remove tmp file %s", p.destinationPath))
-		_ = os.Remove(p.destinationPath)
-	}()
-	defer f.Close()
+	p.Logger.Info(fmt.Sprintf("sink(pg): done writing %d records to pg", t.RowsAffected()))
+	wg.Wait()
 
-	p.Logger.Info(fmt.Sprintf("sink(pg): writing %d records to %s", len(p.recordsBuffer), p.destinationPath))
-	// converting to csv
-	if err := gocsv.MarshalFile(&p.recordsBuffer, f); err != nil {
+	// check if there is an error
+	select {
+	case err := <-errChan:
 		return errors.WithStack(err)
-	}
-	// clear records buffer
-	p.recordsBuffer = p.recordsBuffer[:0]
-
-	// copy records from file to pg
-	p.Logger.Info(fmt.Sprintf("sink(pg): writing records from %s to pg", p.destinationPath))
-	query := fmt.Sprintf(`COPY %s FROM '%s' DELIMITER ',' CSV HEADER;`, p.destinationPath, p.destinationPath)
-	if _, err := p.conn.Exec(p.ctx, query); err != nil {
-		return errors.WithStack(err)
+	default:
 	}
 
 	return nil

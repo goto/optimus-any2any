@@ -14,6 +14,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/kafka"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
+	"github.com/goto/optimus-any2any/ext/postgresql"
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
 	"github.com/goto/optimus-any2any/ext/smtp"
@@ -37,6 +38,7 @@ const (
 	OSS   Type = "OSS"
 	SFTP  Type = "SFTP"
 	SMTP  Type = "SMTP"
+	PSQL  Type = "PSQL"
 	GMAIL Type = "GMAIL"
 )
 
@@ -134,6 +136,12 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			sinkCfg.Address, sinkCfg.Username, sinkCfg.Password,
 			sinkCfg.From, sinkCfg.To, sinkCfg.Cc, sinkCfg.Bcc, sinkCfg.Subject,
 			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, opts...)
+	case PSQL:
+		sinkCfg, err := config.SinkPG(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return postgresql.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript, sinkCfg.DestinationTableID, opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {

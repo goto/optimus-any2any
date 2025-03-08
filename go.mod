@@ -6,7 +6,6 @@ require (
 	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.1.3
 	github.com/aliyun/aliyun-odps-go-sdk v0.4.6
 	github.com/caarlos0/env/v11 v11.2.2
-	github.com/gocarina/gocsv v0.0.0-20240520201108-78e41c74b4b1
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/gojq v0.12.17
 	github.com/jackc/pgx/v5 v5.7.2
