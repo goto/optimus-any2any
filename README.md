@@ -126,11 +126,11 @@ It applies when sink and source are in the same environment. For example, transf
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |
 | REDIS | RDS__CONNECTION_DSN | DSN redis for connection establishment redis[s]://[[username][:password]@]host[:port][,host2[:port2]...][/db-number] |
-| | RDS__CONNECTION_TLS_CERT | Redis TLS certificate. |
-| | RDS__CONNECTION_TLS_CACERT | Redis TLS CA certificate. |
-| | RDS__CONNECTION_TLS_KEY | Redis TLS key. |
-| | RDS__RECORD_KEY | Key for the record inserted, eg example:key:[[ .field_key ]]` |
-| | RDS__RECORD_VALUE | Value for the record inserted, eg example:value:[[ .field_value ]]` |
+| | RDS__CONNECTION_TLS_CERT | Redis TLS certificate. (optional) |
+| | RDS__CONNECTION_TLS_CACERT | Redis TLS CA certificate. (optional) |
+| | RDS__CONNECTION_TLS_KEY | Redis TLS key. (optional) |
+| | RDS__RECORD_KEY | Key for the record inserted, eg `example:key:[[ .field_key ]]` |
+| | RDS__RECORD_VALUE | Value for the record inserted, eg `[[ .field_value ]]` or `[[ . | tojson ]]` |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
