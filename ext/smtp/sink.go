@@ -59,7 +59,7 @@ type SMTPSink struct {
 // NewSink creates a new SMTPSink
 func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	address, username, password string,
-	from, to, cc, bcc, subject, bodyFilePath, attachment string,
+	from, to, subject, bodyFilePath, attachment string,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create common sink
@@ -69,6 +69,24 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	client, err := NewSMTPClient(address, username, password)
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+
+	// parse "to" to "to", "cc", "bcc"
+	// to:email@domain.com,email2@domain.com;cc:sample@domain.com,sample2@domain.com;bcc:another@domain.com,another2@domain.com
+	toParts := strings.Split(to, ";")
+	partsMap := map[string][]string{}
+	for _, part := range toParts {
+		parts := strings.Split(part, ":")
+		if len(parts) != 2 {
+			return nil, errors.New(fmt.Sprintf("sink(smtp): invalid to format: %s", part))
+		}
+		partsMap[parts[0]] = strings.Split(parts[1], ",")
+	}
+	to = strings.Join(partsMap["to"], ",")
+	cc := strings.Join(partsMap["cc"], ",")
+	bcc := strings.Join(partsMap["bcc"], ",")
+	if to == "" {
+		return nil, errors.New("sink(smtp): to is required")
 	}
 
 	// parse email metadata as template

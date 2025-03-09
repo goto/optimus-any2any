@@ -134,7 +134,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		}
 		return smtp.NewSink(ctx, l, cfg.MetadataPrefix,
 			sinkCfg.Address, sinkCfg.Username, sinkCfg.Password,
-			sinkCfg.From, sinkCfg.To, sinkCfg.Cc, sinkCfg.Bcc, sinkCfg.Subject,
+			sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
 			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)

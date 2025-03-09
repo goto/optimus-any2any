@@ -118,9 +118,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__USERNAME | SMTP username. |
 | | SMTP__PASSWORD | SMTP password. |
 | | SMTP__FROM | SMTP from email address. |
-| | SMTP__TO | SMTP to email address, comma separated. |
-| | SMTP__CC | SMTP cc email address, comma separated. |
-| | SMTP__BCC | SMTP bcc email address, comma separated. |
+| | SMTP__TO | SMTP to, cc, and bcc email address, format: to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...] |
 | | SMTP__SUBJECT | SMTP email subject. |
 | | SMTP__BODY_FILE_PATH | SMTP email body from given path. |
 | | SMTP__ATTACHMENT_FILENAME | SMTP email attachment filename. |

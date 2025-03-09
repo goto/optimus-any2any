@@ -7,8 +7,6 @@ type SinkSMTPConfig struct {
 	Password           string `env:"SMTP__PASSWORD"`
 	From               string `env:"SMTP__FROM"`
 	To                 string `env:"SMTP__TO"`
-	Cc                 string `env:"SMTP__CC"`
-	Bcc                string `env:"SMTP__BCC"`
 	Subject            string `env:"SMTP__SUBJECT"`
 	BodyFilePath       string `env:"SMTP__BODY_FILE_PATH"`
 	AttachmentFilename string `env:"SMTP__ATTACHMENT_FILENAME"`
