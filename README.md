@@ -99,7 +99,7 @@ It applies when sink and source are in the same environment. For example, transf
 
 | Component | Configuration | Description |
 |---|---|---|
-| FILE | FILE__DESTINATION_URI | Path to the output file. Format file:///directory/to/somthing.extension |
+| FILE | FILE__DESTINATION_URI | Path to the output file. Format `file:///directory/to/somthing.extension` |
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
@@ -109,28 +109,28 @@ It applies when sink and source are in the same environment. For example, transf
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
-| | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format oss://bucket/path/to/folder/or/file.extension |
+| | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format `oss://bucket/path/to/file.extension` |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
-| | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) sftp://user[:password]@host[:port]/path/to/folder/or/file.extension |
-| SMTP | SMTP__ADDRESS | SMTP address, format host[:port], if port is not specified, default port 587 will be used. |
+| | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
+| SMTP | SMTP__ADDRESS | SMTP address, format `host[:port]`, if port is not specified, default port `587` will be used. |
 | | SMTP__USERNAME | SMTP username. |
 | | SMTP__PASSWORD | SMTP password. |
 | | SMTP__FROM | SMTP from email address. |
-| | SMTP__TO | SMTP to, cc, and bcc email address, format: to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...] |
+| | SMTP__TO | SMTP to, cc, and bcc email address, format: `to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...]` |
 | | SMTP__SUBJECT | SMTP email subject. |
 | | SMTP__BODY_FILE_PATH | SMTP email body from given path. |
 | | SMTP__ATTACHMENT_FILENAME | SMTP email attachment filename. |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |
-| REDIS | RDS__CONNECTION_DSN | DSN redis for connection establishment redis[s]://[[username][:password]@]host[:port][,host2[:port2]...][/db-number] |
+| REDIS | RDS__CONNECTION_DSN | DSN redis for connection establishment `redis[s]://[[username][:password]@]host[:port][,host2[:port2]...][/db-number]` |
 | | RDS__CONNECTION_TLS_CERT | Redis TLS certificate. (optional) |
 | | RDS__CONNECTION_TLS_CACERT | Redis TLS CA certificate. (optional) |
 | | RDS__CONNECTION_TLS_KEY | Redis TLS key. (optional) |
 | | RDS__RECORD_KEY | Key for the record inserted, eg `example:key:[[ .field_key ]]` |
-| | RDS__RECORD_VALUE | Value for the record inserted, eg `[[ .field_value ]]` or `[[ . | tojson ]]` |
+| | RDS__RECORD_VALUE | Value for the record inserted, eg `[[ .field_value ]]` or `[[ . \| tojson ]]` |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
