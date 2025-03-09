@@ -54,6 +54,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// execute preSQLScript
+	l.Info(fmt.Sprintf("sink(pg): execute preSQLScript: %s", preSQLScript))
 	if _, err := conn.Exec(ctx, preSQLScript); err != nil {
 		return nil, errors.WithStack(err)
 	}

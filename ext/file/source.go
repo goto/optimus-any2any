@@ -2,7 +2,7 @@ package file
 
 import (
 	"bufio"
-	"io"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -74,19 +74,13 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 func (fs *FileSource) process() {
 	// read files
 	for _, f := range fs.files {
-		r := bufio.NewReader(f)
-		for {
+		sc := bufio.NewScanner(f)
+		for sc.Scan() {
 			// read line
-			line, _, err := r.ReadLine()
-			if err != nil {
-				if err == io.EOF {
-					fs.Logger.Debug("source(file): end of file")
-					break
-				}
-				fs.Logger.Error(err.Error())
-				fs.SetError(errors.WithStack(err))
-				continue
-			}
+			raw := sc.Bytes()
+			line := make([]byte, len(raw)) // Important: make a copy of the line before sending
+			copy(line, raw)
+			fs.Logger.Debug(fmt.Sprintf("source(file): read line: %s", string(line)))
 			// send to channel
 			fs.Send(line)
 		}

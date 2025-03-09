@@ -12,17 +12,17 @@ func FanOut(l *slog.Logger) flow.ConnectMultiSink {
 	return func(outlet flow.Outlet, inlets ...flow.Inlet) {
 		go func() {
 			defer func() {
-				l.Debug("connector: close")
+				l.Debug("connector(fanout): close")
 				for _, inlet := range inlets {
 					close(inlet.In())
 				}
 			}()
 			for v := range outlet.Out() {
-				l.Debug(fmt.Sprintf("connector: send: %s", string(v.([]byte))))
+				l.Debug(fmt.Sprintf("connector(fanout): send: %s", string(v.([]byte))))
 				for _, inlet := range inlets {
 					inlet.In() <- v
 				}
-				l.Debug(fmt.Sprintf("connector: done: %s", string(v.([]byte))))
+				l.Debug(fmt.Sprintf("connector(fanout): done: %s", string(v.([]byte))))
 			}
 		}()
 	}

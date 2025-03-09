@@ -12,13 +12,13 @@ func PassThrough(l *slog.Logger) flow.Connect {
 	return func(outlet flow.Outlet, inlet flow.Inlet) {
 		go func() {
 			defer func() {
-				l.Debug("connector: close")
+				l.Debug("connector(passthrough): close")
 				close(inlet.In())
 			}()
 			for v := range outlet.Out() {
-				l.Debug(fmt.Sprintf("connector: send: %s", string(v.([]byte))))
+				l.Debug(fmt.Sprintf("connector(passthrough): send: %s", string(v.([]byte))))
 				inlet.In() <- v
-				l.Debug(fmt.Sprintf("connector: done: %s", string(v.([]byte))))
+				l.Debug(fmt.Sprintf("connector(passthrough): done: %s", string(v.([]byte))))
 			}
 		}()
 	}
