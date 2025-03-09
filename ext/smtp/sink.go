@@ -5,11 +5,11 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/ext/file"

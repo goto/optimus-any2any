@@ -15,6 +15,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/postgresql"
+	"github.com/goto/optimus-any2any/ext/redis"
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
 	"github.com/goto/optimus-any2any/ext/smtp"
@@ -40,6 +41,7 @@ const (
 	SMTP  Type = "SMTP"
 	PSQL  Type = "PSQL"
 	GMAIL Type = "GMAIL"
+	REDIS Type = "REDIS"
 )
 
 // GetSource returns a source based on the given type.
@@ -142,6 +144,14 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 			return nil, errors.WithStack(err)
 		}
 		return postgresql.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript, sinkCfg.DestinationTableID, opts...)
+	case REDIS:
+		sinkCfg, err := config.SinkRedis(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return redis.NewSink(ctx, l, cfg.MetadataPrefix,
+			sinkCfg.ConnectionDSN, sinkCfg.ConnectionTLSCert, sinkCfg.ConnectionTLSCACert, sinkCfg.ConnectionTLSKey,
+			sinkCfg.RecordKey, sinkCfg.RecordValue, opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {

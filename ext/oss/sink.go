@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/url"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
