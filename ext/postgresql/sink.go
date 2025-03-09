@@ -85,8 +85,8 @@ func (p *PGSink) process() {
 
 		var record map[string]interface{}
 		if err := json.Unmarshal(b, &record); err != nil {
-			p.Logger.Error("sink(pg): failed to unmarshal message")
-			p.SetError(errors.WithStack(err))
+			p.Logger.Error(fmt.Sprintf("sink(pg): failed to unmarshal message: %s", string(b)))
+			p.SetError(errors.WithStack(errors.WithMessage(err, fmt.Sprintf("sink(pg): failed to unmarshal message: %s", string(b)))))
 			continue
 		}
 

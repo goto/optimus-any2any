@@ -60,7 +60,33 @@ func dropTable(l *slog.Logger, client *odps.Odps, tableID string) error {
 	client.SetCurrentSchemaName(schema)
 
 	l.Debug(fmt.Sprintf("sink(mc): dropping table: %s", tableID))
-	return odps.NewTables(client, project, schema).Delete(name, true)
+	return odpsDropTable(l, client, project, schema, name)
+}
+
+// substitution from (ts *Tables) Delete() function
+func odpsDropTable(l *slog.Logger, client *odps.Odps, project, schema, name string) error {
+	var sqlBuilder strings.Builder
+	sqlBuilder.WriteString("drop table")
+	sqlBuilder.WriteString(" if exists")
+	sqlBuilder.WriteRune(' ')
+	sqlBuilder.WriteString(project)
+	sqlBuilder.WriteRune('.')
+	sqlBuilder.WriteString("`" + schema + "`")
+	sqlBuilder.WriteRune('.')
+	sqlBuilder.WriteString("`" + name + "`")
+	sqlBuilder.WriteString(";")
+
+	sqlTask := odps.NewSqlTask("SQLDropTableTask", sqlBuilder.String(), map[string]string{
+		"odps.namespace.schema": "true",
+	})
+
+	l.Debug(fmt.Sprintf("sink(mc): dropping table: %s.%s.%s", project, schema, name))
+	instances := odps.NewInstances(client, client.DefaultProjectName())
+	i, err := instances.CreateTask(client.DefaultProjectName(), &sqlTask)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return errors.WithStack(i.WaitForSuccess())
 }
 
 func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDReference string, lifecycleInDays int) error {
@@ -95,7 +121,29 @@ func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDR
 
 	// create table
 	l.Debug(fmt.Sprintf("sink(mc): creating temporary table: %s", tableID))
-	return odps.NewTables(client, project, schema).Create(tempSchema, true, map[string]string{}, map[string]string{})
+
+	return odpsCreateTable(l, client, project, schema, tempSchema)
+}
+
+// substitution from (ts *Tables) Create() function
+func odpsCreateTable(l *slog.Logger, client *odps.Odps, project, schema string, tableSchema tableschema.TableSchema) error {
+	sql, err := tableSchema.ToSQLString(project, schema, true)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	task := odps.NewSqlTask("SQLCreateTableTask", sql, map[string]string{
+		"odps.namespace.schema": "true",
+	})
+
+	l.Debug(fmt.Sprintf("sink(mc): creating table: %s.%s.%s", project, schema, tableSchema.TableName))
+	instances := odps.NewInstances(client, client.DefaultProjectName())
+	ins, err := instances.CreateTask(client.DefaultProjectName(), &task)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	return errors.WithStack(ins.WaitForSuccess())
 }
 
 func getTable(l *slog.Logger, client *odps.Odps, tableID string) (*odps.Table, error) {
