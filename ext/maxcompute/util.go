@@ -324,16 +324,25 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 	}
 }
 
+func lowerCaseMapKeys(m map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	for k, v := range m {
+		result[strings.ToLower(k)] = v
+	}
+	return result
+}
+
 func createRecord(l *slog.Logger, b []byte, schema tableschema.TableSchema) (data.Record, error) {
 	raw := map[string]interface{}{}
 	err := json.Unmarshal(b, &raw)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	raw = lowerCaseMapKeys(raw)
 
 	result := []data.Data{}
 	for _, column := range schema.Columns {
-		d, err := createData(l, raw[column.Name], column.Type)
+		d, err := createData(l, raw[strings.ToLower(column.Name)], column.Type)
 		if err != nil {
 			err = errors.Wrapf(err, "failed to create data for column %s on record: %+v", column.Name, raw)
 			return nil, errors.WithStack(err)
@@ -468,16 +477,20 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a struct, found %+v, type %T", value, value))
 		}
+		curr = lowerCaseMapKeys(curr)
+
 		record := data.NewStructWithTyp(structType)
 		for _, field := range structType.Fields {
-			var currValue interface{}
-			if currValue, ok = curr[field.Name]; !ok {
-				currValue = nil
+			var d interface{} = nil
+
+			if currValue, ok := curr[strings.ToLower(field.Name)]; ok {
+				v, err := createData(l, currValue, field.Type)
+				if err != nil {
+					return nil, errors.WithStack(err)
+				}
+				d = v
 			}
-			d, err := createData(l, currValue, field.Type)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
+
 			if err := record.SetField(field.Name, d); err != nil {
 				return nil, errors.WithStack(err)
 			}
