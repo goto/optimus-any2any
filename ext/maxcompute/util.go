@@ -341,13 +341,19 @@ func createRecord(l *slog.Logger, b []byte, schema tableschema.TableSchema) (dat
 	raw = lowerCaseMapKeys(raw)
 
 	result := []data.Data{}
+	var errResult error = nil
 	for _, column := range schema.Columns {
 		d, err := createData(l, raw[strings.ToLower(column.Name)], column.Type)
 		if err != nil {
-			err = errors.Wrapf(err, "failed to create data for column %s on record: %+v", column.Name, raw)
-			return nil, errors.WithStack(err)
+			err = errors.Wrapf(err, "failed to create data for column %s", column.Name)
+			errResult = errs.Join(errResult, err)
 		}
 		result = append(result, d)
+	}
+
+	if errResult != nil {
+		errResult = errors.WithMessagef(errResult, "failed to create record %+v", raw)
+		return nil, errors.WithStack(errResult)
 	}
 
 	return result, nil
