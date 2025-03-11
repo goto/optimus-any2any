@@ -170,7 +170,7 @@ func (mc *MaxcomputeSink) process() {
 			mc.SetError(errors.WithStack(err))
 			continue
 		}
-		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %s", record.String()))
+		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %v", record))
 
 		countRecord++
 		if mc.uploadMode == "STREAM" {
