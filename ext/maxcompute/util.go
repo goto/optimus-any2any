@@ -483,7 +483,7 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 		for _, field := range structType.Fields {
 			var d interface{} = nil
 
-			if currValue, ok := curr[strings.ToLower(field.Name)]; ok {
+			if currValue, ok := curr[strings.ToLower(field.Name)]; ok && currValue != nil {
 				v, err := createData(l, currValue, field.Type)
 				if err != nil {
 					return nil, errors.WithStack(err)
