@@ -104,7 +104,7 @@ func (o *OSSSink) process() {
 		}
 		recordCounter := o.fileRecordCounters[destinationURI]
 		// use uri with batch size for its suffix if batch size is set
-		if o.batchSize > 0 {
+		if o.batchSize > 0 && recordCounter%o.batchSize == 0 {
 			destinationURI = fmt.Sprintf("%s.%d.%s",
 				destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
 				int(recordCounter/o.batchSize)*o.batchSize,
@@ -136,6 +136,7 @@ func (o *OSSSink) process() {
 				o.SetError(errors.WithStack(err))
 				continue
 			}
+			o.Logger.Info(fmt.Sprintf("sink(oss): created file: %s", destinationURI))
 			o.fileHandlers[destinationURI] = fh
 		}
 		_, err = fh.Write(append(b, '\n'))
