@@ -67,10 +67,10 @@ func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sour
 	}
 	orderedColumns := []string{}
 	for _, column := range table.Schema().Columns {
-		orderedColumns = append(orderedColumns, sanitizeColumnName(column.Name))
+		orderedColumns = append(orderedColumns, sanitizeName(column.Name))
 	}
 
-	queryToExecute := fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", destinationTableID, strings.Join(orderedColumns, ","), sourceTableID)
+	queryToExecute := fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", sanitizeTableID(destinationTableID), strings.Join(orderedColumns, ","), sanitizeTableID(sourceTableID))
 	l.Info(fmt.Sprintf("sink(mc): executing query: %s", queryToExecute))
 	instance, err := client.ExecSQl(queryToExecute)
 	if err != nil {
@@ -82,11 +82,19 @@ func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sour
 	return nil
 }
 
-func sanitizeColumnName(columnName string) string {
+func sanitizeName(columnName string) string {
 	if reservedKeywords[columnName] {
 		return fmt.Sprintf("`%s`", columnName)
 	}
 	return columnName
+}
+
+func sanitizeTableID(tableID string) string {
+	splittedTableID := strings.Split(tableID, ".")
+	for i, part := range splittedTableID {
+		splittedTableID[i] = sanitizeName(part)
+	}
+	return strings.Join(splittedTableID, ".")
 }
 
 func dropTable(l *slog.Logger, client *odps.Odps, tableID string) error {
