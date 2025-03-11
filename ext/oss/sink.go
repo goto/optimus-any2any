@@ -162,8 +162,9 @@ func (o *OSSSink) process() {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush file: %s", uri))
 			o.SetError(errors.WithStack(err))
 		}
-		o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to file: %s", o.fileRecordCounters[uri], uri))
+		o.Logger.Info(fmt.Sprintf("sink(oss): flush leftover records to file: %s", uri))
 	}
+	o.Logger.Info(fmt.Sprintf("sink(oss): successfully written %d records", recordCounter))
 }
 
 func (o *OSSSink) remove(bucket, path string) error {
