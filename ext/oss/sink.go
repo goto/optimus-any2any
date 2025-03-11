@@ -78,6 +78,11 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 }
 
 func (o *OSSSink) process() {
+	logCheckPoint := 1000
+	recordCounter := 0
+	if o.batchSize > 0 {
+		logCheckPoint = o.batchSize
+	}
 	for msg := range o.Read() {
 		if o.Err() != nil {
 			continue
@@ -102,13 +107,12 @@ func (o *OSSSink) process() {
 			o.SetError(errors.WithStack(err))
 			continue
 		}
-		recordCounter := o.fileRecordCounters[destinationURI]
 		// use uri with batch size for its suffix if batch size is set
-		if o.batchSize > 0 && recordCounter%o.batchSize == 0 {
+		if o.batchSize > 0 {
 			destinationURI = fmt.Sprintf("%s.%d.%s",
 				destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
 				int(recordCounter/o.batchSize)*o.batchSize,
-				filepath.Ext(destinationURI))
+				filepath.Ext(destinationURI)[1:])
 		}
 		fh, ok := o.fileHandlers[destinationURI]
 		if !ok {
@@ -136,7 +140,7 @@ func (o *OSSSink) process() {
 				o.SetError(errors.WithStack(err))
 				continue
 			}
-			o.Logger.Info(fmt.Sprintf("sink(oss): created file: %s", destinationURI))
+			o.Logger.Debug(fmt.Sprintf("sink(oss): created file: %s", destinationURI))
 			o.fileHandlers[destinationURI] = fh
 		}
 		_, err = fh.Write(append(b, '\n'))
@@ -145,8 +149,12 @@ func (o *OSSSink) process() {
 			o.SetError(errors.WithStack(err))
 			continue
 		}
+		recordCounter++
 		o.fileRecordCounters[destinationURI]++
 		o.Logger.Debug(fmt.Sprintf("sink(oss): written to file: %s", destinationURI))
+		if recordCounter%logCheckPoint == 0 {
+			o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to file: %s", o.fileRecordCounters[destinationURI], destinationURI))
+		}
 	}
 
 	for uri, fh := range o.fileHandlers {
@@ -154,6 +162,7 @@ func (o *OSSSink) process() {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush file: %s", uri))
 			o.SetError(errors.WithStack(err))
 		}
+		o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to file: %s", o.fileRecordCounters[uri], uri))
 	}
 }
 
