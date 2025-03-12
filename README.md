@@ -82,11 +82,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | SF__SOQL_FILE_PATH | Path to the SOQL query file. |
 | GMAIL | GMAIL__TOKEN | Token JSON for gmail credentials |
 | | GMAIL__FILTER | Gmail filter based on gmail filter rules |
-| | GMAIL__EXTRACTOR_SOURCE | Which source to read (attachment, body) (default: attachment) |
-| | GMAIL__EXTRACTOR_PATTERN | Pattern of the file to be downloaded (default: *) |
 | | GMAIL__EXTRACTOR_FILE_FORMAT | Which format of file to be extracted (csv, json) (default: csv) |
-| | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__FILENAME__") |
-| | GMAIL__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for gmail record result. "" for ignore (default: "") |
+| | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__METADATA__filename") |
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__QUERY_FILE_PATH | Path to the query file. (default: /data/in/query.sql) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |

@@ -2,6 +2,7 @@
 package extcommon
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -101,6 +102,50 @@ func GroupRecordsByKey(groupedKey string, records [][]byte) (map[string][][]byte
 		groupRecords[groupKey] = append(groupRecords[groupKey], raw)
 	}
 	return groupRecords, nil
+}
+
+func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{}, error) {
+	records := make([]map[string]interface{}, 0)
+	sc := bufio.NewScanner(reader)
+	for sc.Scan() {
+		raw := sc.Bytes()
+		line := make([]byte, len(raw))
+		copy(line, raw)
+
+		var record map[string]interface{}
+		if err := json.Unmarshal(line, &record); err != nil {
+			return nil, errors.WithStack(err)
+		}
+		records = append(records, record)
+	}
+	return records, nil
+}
+
+func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{}, error) {
+	records := make([]map[string]interface{}, 0)
+	r := csv.NewReader(reader)
+	r.FieldsPerRecord = -1
+	rows, err := r.ReadAll()
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// csv to json records
+	for i, row := range rows {
+		if i == 0 {
+			continue
+		}
+		record := make(map[string]interface{})
+		if len(row) != len(rows[0]) {
+			l.Warn(fmt.Sprintf("record %d has different column count", i))
+			l.Debug(fmt.Sprintf("record %d: %v", i, row))
+			continue
+		}
+		for j, value := range row {
+			record[rows[0][j]] = value
+		}
+		records = append(records, record)
+	}
+	return records, nil
 }
 
 // ToCSV converts the records to CSV.

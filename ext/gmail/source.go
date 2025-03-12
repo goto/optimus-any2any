@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -23,20 +21,17 @@ type GmailSource struct {
 	service *gmail.Service
 
 	filterRules         string
-	extractorSource     string
-	extractorPattern    string
 	extractorFileFormat string
 
 	filenameColumn string
-	columnMap      map[string]string
 }
 
 var _ flow.Source = (*GmailSource)(nil)
 
 func NewSource(ctx context.Context, l *slog.Logger,
 	tokenJSON string,
-	filterRules, extractorSource, extractorPattern, extractorFileFormat string,
-	filenameColumn, columnMappingFilePath string,
+	filterRules, extractorFileFormat string,
+	filenameColumn string,
 	opts ...common.Option) (*GmailSource, error) {
 
 	// create commonSource
@@ -46,22 +41,14 @@ func NewSource(ctx context.Context, l *slog.Logger,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// read column map
-	columnMap, err := getColumnMap(columnMappingFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 
 	// create source
 	gs := &GmailSource{
 		Source:              commonSource,
 		service:             srv,
 		filterRules:         filterRules,
-		extractorSource:     extractorSource,
-		extractorPattern:    extractorPattern,
 		extractorFileFormat: extractorFileFormat,
 		filenameColumn:      filenameColumn,
-		columnMap:           columnMap,
 	}
 
 	// add clean func
@@ -100,56 +87,42 @@ func (gs *GmailSource) process() {
 
 		// extract data
 		records := make([]map[string]interface{}, 0)
-		switch gs.extractorSource {
-		case "attachment":
-			for _, p := range msg.Payload.Parts {
-				if p.Filename == "" {
-					gs.Logger.Info("source(gmail): no attachment found")
-					continue
-				}
-				// get attachment
-				gs.Logger.Info(fmt.Sprintf("source(gmail): found attachment %s", p.Filename))
-				attachment, err := gs.service.Users.Messages.Attachments.Get(user, msg.Id, p.Body.AttachmentId).Do()
-				if err != nil {
-					gs.Logger.Error(fmt.Sprintf("source(gmail): failed to get attachment %s", err.Error()))
-					gs.SetError(errors.WithStack(err))
-					return
-				}
-				// decode attachment
-				data, err := base64.URLEncoding.DecodeString(attachment.Data)
-				if err != nil {
-					gs.Logger.Error(fmt.Sprintf("source(gmail): failed to decode attachment %s", err.Error()))
-					gs.SetError(errors.WithStack(err))
-					return
-				}
-				// convert to json
-				currentRecords, err := gs.convertToRecords(data)
-				if err != nil {
-					gs.Logger.Error(fmt.Sprintf("source(gmail): failed to convert attachment to records %s", err.Error()))
-					gs.SetError(errors.WithStack(err))
-					return
-				}
-				// set filename column
-				if gs.filenameColumn != "" {
-					gs.setFilenameColumn(currentRecords, p.Filename)
-				}
-				records = append(records, currentRecords...)
+
+		for _, p := range msg.Payload.Parts {
+			if p.Filename == "" {
+				gs.Logger.Debug("source(gmail): no attachment found")
+				continue
 			}
-		case "body":
-			// TODO: implement body extractor
-			gs.Logger.Error("source(gmail): body extractor is not implemented")
-			gs.SetError(errors.New("body extractor is not implemented"))
-			return
-		default:
-			gs.Logger.Error(fmt.Sprintf("source(gmail): unknown extractor source %s", gs.extractorSource))
-			gs.SetError(errors.New("unknown extractor source"))
-			return
+			// get attachment
+			gs.Logger.Info(fmt.Sprintf("source(gmail): found attachment %s", p.Filename))
+			attachment, err := gs.service.Users.Messages.Attachments.Get(user, msg.Id, p.Body.AttachmentId).Do()
+			if err != nil {
+				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to get attachment %s", err.Error()))
+				gs.SetError(errors.WithStack(err))
+				return
+			}
+			// decode attachment
+			data, err := base64.URLEncoding.DecodeString(attachment.Data)
+			if err != nil {
+				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to decode attachment %s", err.Error()))
+				gs.SetError(errors.WithStack(err))
+				return
+			}
+			// convert to json
+			currentRecords, err := gs.convertToRecords(data)
+			if err != nil {
+				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to convert attachment to records %s", err.Error()))
+				gs.SetError(errors.WithStack(err))
+				return
+			}
+			// set filename column
+			gs.setFilenameColumn(currentRecords, p.Filename)
+			records = append(records, currentRecords...)
 		}
 
 		// map columns and send records
 		for _, record := range records {
-			mappedRecord := gs.mapping(record)
-			raw, err := json.Marshal(mappedRecord)
+			raw, err := json.Marshal(record)
 			if err != nil {
 				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to marshal record: %s", err.Error()))
 				gs.SetError(errors.WithStack(err))
@@ -164,37 +137,12 @@ func (gs *GmailSource) convertToRecords(data []byte) ([]map[string]interface{}, 
 	records := make([]map[string]interface{}, 0)
 	switch gs.extractorFileFormat {
 	case "json":
-		for _, recordRaw := range bytes.Split(data, []byte("\n")) {
-			record := make(map[string]interface{})
-			if err := json.Unmarshal(recordRaw, &record); err != nil {
-				return nil, errors.WithStack(err)
-			}
-			records = append(records, record)
-		}
+		return extcommon.FromJSONToRecords(gs.Logger, bytes.NewReader(data))
 	case "csv":
-		r := csv.NewReader(strings.NewReader(string(data)))
-		r.FieldsPerRecord = -1
-		rows, err := r.ReadAll()
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		// csv to json records
-		for i, row := range rows {
-			if i == 0 {
-				continue
-			}
-			record := make(map[string]interface{})
-			if len(row) != len(rows[0]) {
-				gs.Logger.Warn(fmt.Sprintf("source(gmail): record %d has different column count", i))
-				continue
-			}
-			for j, value := range row {
-				record[rows[0][j]] = value
-			}
-			records = append(records, record)
-		}
+		return extcommon.FromCSVToRecords(gs.Logger, bytes.NewReader(data))
+	default:
+		return records, errors.New(fmt.Sprintf("source(gmail): unknown extractor file format: %s", gs.extractorFileFormat))
 	}
-	return records, nil
 }
 
 func (gs *GmailSource) setFilenameColumn(records []map[string]interface{}, filename string) {
@@ -202,38 +150,4 @@ func (gs *GmailSource) setFilenameColumn(records []map[string]interface{}, filen
 	for i := range records {
 		records[i][gs.filenameColumn] = filename
 	}
-}
-
-// mapping maps the column name from Gmail response to the column name in the column map.
-func (gs *GmailSource) mapping(value map[string]interface{}) map[string]interface{} {
-	if gs.columnMap == nil {
-		return value
-	}
-	gs.Logger.Debug(fmt.Sprintf("source(gmail): record before map: %v", value))
-	mappedValue := make(map[string]interface{})
-	for key, val := range value {
-		if mappedKey, ok := gs.columnMap[key]; ok {
-			mappedValue[mappedKey] = val
-		} else {
-			mappedValue[key] = val
-		}
-	}
-	gs.Logger.Debug(fmt.Sprintf("source(gmail): record after map: %v", mappedValue))
-	return mappedValue
-}
-
-// getColumnMap reads the column map from the file.
-func getColumnMap(columnMapFilePath string) (map[string]string, error) {
-	if columnMapFilePath == "" {
-		return nil, nil
-	}
-	columnMapRaw, err := os.ReadFile(columnMapFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	columnMap := make(map[string]string)
-	if err = json.Unmarshal(columnMapRaw, &columnMap); err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return columnMap, nil
 }
