@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"path/filepath"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -20,8 +22,7 @@ type GmailSource struct {
 	*common.Source
 	service *gmail.Service
 
-	filterRules         string
-	extractorFileFormat string
+	filterRules string
 
 	filenameColumn string
 }
@@ -30,8 +31,7 @@ var _ flow.Source = (*GmailSource)(nil)
 
 func NewSource(ctx context.Context, l *slog.Logger,
 	tokenJSON string,
-	filterRules, extractorFileFormat string,
-	filenameColumn string,
+	filterRules, filenameColumn string,
 	opts ...common.Option) (*GmailSource, error) {
 
 	// create commonSource
@@ -44,11 +44,10 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// create source
 	gs := &GmailSource{
-		Source:              commonSource,
-		service:             srv,
-		filterRules:         filterRules,
-		extractorFileFormat: extractorFileFormat,
-		filenameColumn:      filenameColumn,
+		Source:         commonSource,
+		service:        srv,
+		filterRules:    filterRules,
+		filenameColumn: filenameColumn,
 	}
 
 	// add clean func
@@ -108,8 +107,9 @@ func (gs *GmailSource) process() {
 				gs.SetError(errors.WithStack(err))
 				return
 			}
+
 			// convert to json
-			currentRecords, err := gs.convertToRecords(data)
+			currentRecords, err := gs.convertToRecords(filepath.Ext(p.Filename)[1:], bytes.NewReader(data))
 			if err != nil {
 				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to convert attachment to records %s", err.Error()))
 				gs.SetError(errors.WithStack(err))
@@ -133,15 +133,15 @@ func (gs *GmailSource) process() {
 	}
 }
 
-func (gs *GmailSource) convertToRecords(data []byte) ([]map[string]interface{}, error) {
+func (gs *GmailSource) convertToRecords(fileExt string, r io.Reader) ([]map[string]interface{}, error) {
 	records := make([]map[string]interface{}, 0)
-	switch gs.extractorFileFormat {
+	switch fileExt {
 	case "json":
-		return extcommon.FromJSONToRecords(gs.Logger, bytes.NewReader(data))
+		return extcommon.FromJSONToRecords(gs.Logger, r)
 	case "csv":
-		return extcommon.FromCSVToRecords(gs.Logger, bytes.NewReader(data))
+		return extcommon.FromCSVToRecords(gs.Logger, r)
 	default:
-		return records, errors.New(fmt.Sprintf("source(gmail): unknown extractor file format: %s", gs.extractorFileFormat))
+		return records, errors.New(fmt.Sprintf("source(gmail): unknown extractor file format: %s", fileExt))
 	}
 }
 

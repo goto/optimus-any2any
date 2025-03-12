@@ -77,9 +77,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return gmail.NewSource(ctx, l, sourceCfg.Token, sourceCfg.Filter,
-			sourceCfg.ExtractorFileFormat,
-			sourceCfg.FilenameColumn, opts...)
+		return gmail.NewSource(ctx, l, sourceCfg.Token, sourceCfg.Filter, sourceCfg.FilenameColumn, opts...)
 	case OSS:
 		sourceCfg, err := config.SourceOSS(envs...)
 		if err != nil {
