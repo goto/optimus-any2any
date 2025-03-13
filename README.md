@@ -128,6 +128,13 @@ It applies when sink and source are in the same environment. For example, transf
 | | REDIS__RECORD_KEY | Key for the record inserted, eg `example:key:[[ .field_key ]]` |
 | | REDIS__RECORD_VALUE | Value for the record inserted, eg `[[ .field_value ]]` or `[[ . \| tojson ]]` |
 | | REDIS__BATCH_SIZE | Batch size for the record inserted in one request. (default: 512) |
+| HTTP | HTTP__METHOD | HTTP method availability: POST, PUT, PATCH |
+| | HTTP__ENDPOINT | HTTP endpoint to send the data. |
+| | HTTP__HEADER | HTTP headers for the request, key:value with comma separated |
+| | HTTP__HEADERS_FILE_PATH | HTTP headers loaded from file. |
+| | HTTP__BODY | HTTP body for the request. |
+| | HTTP__BODY_FILE_PATH | HTTP body loaded from file. |
+| | HTTP__BATCH_SIZE | Batch size for the HTTP request. |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
