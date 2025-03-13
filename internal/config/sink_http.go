@@ -8,7 +8,7 @@ type SinkHTTPConfig struct {
 	HeadersFile  string            `env:"HTTP__HEADERS_FILE_PATH,file"`
 	Body         string            `env:"HTTP__BODY"`
 	BodyFilePath string            `env:"HTTP__BODY_FILE_PATH,file"`
-	BatchSize    int               `env:"HTTP__BATCH_SIZE" envDefault:"0"`
+	BatchSize    int               `env:"HTTP__BATCH_SIZE" envDefault:"1"`
 }
 
 // SinkHTTP parses the environment variables and returns the sink http configuration.
