@@ -1,6 +1,7 @@
 package maxcompute
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
+	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -159,8 +161,18 @@ func (mc *MaxcomputeSink) process() {
 			mc.SetError(errors.WithStack(err))
 			continue
 		}
+
+		record := map[string]interface{}{}
+		err := json.Unmarshal(b, &record)
+		if err != nil {
+			mc.Logger.Error(fmt.Sprintf("sink(mc): message unmarshal error: %s", err.Error()))
+			mc.SetError(errors.WithStack(err))
+			continue
+		}
+		record = extcommon.RecordWithoutMetadata(record, mc.MetadataPrefix)
+
 		mc.Logger.Debug(fmt.Sprintf("sink(mc): message: %s", string(b)))
-		record, err := createRecord(mc.Logger, b, mc.tableSchema)
+		mcRecord, err := createRecord(mc.Logger, record, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
 			if mc.skipSchemaMismatch {
@@ -170,11 +182,11 @@ func (mc *MaxcomputeSink) process() {
 			mc.SetError(errors.WithStack(err))
 			continue
 		}
-		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %v", record))
+		mc.Logger.Debug(fmt.Sprintf("sink(mc): record: %v", mcRecord))
 
 		countRecord++
 		if mc.uploadMode == "STREAM" {
-			if err := mc.packWriter.Append(record); err != nil {
+			if err := mc.packWriter.Append(mcRecord); err != nil {
 				mc.Logger.Error(fmt.Sprintf("sink(mc): record write error: %s", err.Error()))
 				mc.SetError(errors.WithStack(err))
 				continue
@@ -190,7 +202,7 @@ func (mc *MaxcomputeSink) process() {
 				mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
 			}
 		} else if mc.uploadMode == "REGULAR" {
-			if err := mc.recordWriter.Write(record); err != nil {
+			if err := mc.recordWriter.Write(mcRecord); err != nil {
 				mc.Logger.Error(fmt.Sprintf("sink(mc): record write error: %s", err.Error()))
 				mc.SetError(errors.WithStack(err))
 				continue

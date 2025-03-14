@@ -1,7 +1,6 @@
 package maxcompute
 
 import (
-	"encoding/json"
 	errs "errors"
 	"fmt"
 	"log/slog"
@@ -15,8 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	ISONonStandardDateTimeFormat = "2006-01-02T15:04:05.000-0700"
+var (
+	ISONonStandardDateTimeFormats = []string{"2006-01-02T15:04:05.000-0700", "2006-01-02 15:04:05 MST"}
 )
 
 var (
@@ -388,14 +387,8 @@ func lowerCaseMapKeys(m map[string]interface{}) map[string]interface{} {
 	return result
 }
 
-func createRecord(l *slog.Logger, b []byte, schema tableschema.TableSchema) (data.Record, error) {
-	raw := map[string]interface{}{}
-	err := json.Unmarshal(b, &raw)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	raw = lowerCaseMapKeys(raw)
-
+func createRecord(l *slog.Logger, record map[string]interface{}, schema tableschema.TableSchema) (data.Record, error) {
+	raw := lowerCaseMapKeys(record)
 	result := []data.Data{}
 	var errResult error = nil
 	for _, column := range schema.Columns {
@@ -564,17 +557,9 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 
 func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 	var e error
-	// try to parse with ISO non-standard format
-	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with ISO non-standard format: %s", curr))
-	t, err := time.Parse(ISONonStandardDateTimeFormat, curr)
-	if err != nil {
-		e = errs.Join(e, err)
-	} else {
-		return t, nil
-	}
 	// try to parse with RFC3339
 	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with RFC3339 format: %s", curr))
-	t, err = time.Parse(time.RFC3339, curr)
+	t, err := time.Parse(time.RFC3339, curr)
 	if err != nil {
 		e = errs.Join(e, err)
 	} else {
@@ -601,7 +586,19 @@ func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 	t, err = time.Parse(data.DateFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
-		return time.Time{}, errors.WithStack(e)
+	} else {
+		return t, nil
 	}
-	return t, nil
+	// try to parse with ISO non-standard format
+	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with ISO non-standard format: %s", curr))
+	for _, format := range ISONonStandardDateTimeFormats {
+		t, err := time.Parse(format, curr)
+		if err != nil {
+			e = errs.Join(e, err)
+		} else {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, errors.WithStack(e)
 }
