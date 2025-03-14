@@ -128,6 +128,15 @@ func (s *HTTPSink) process() {
 			continue
 		}
 
+		// remove metadata prefix
+		record = extcommon.RecordWithoutMetadata(record, s.MetadataPrefix)
+		raw, err := json.Marshal(record)
+		if err != nil {
+			s.Logger.Error("sink(http): marshal record error")
+			s.SetError(errors.WithStack(err))
+			continue
+		}
+
 		hash := hashMetadata(m)
 		_, ok = s.httpHandlers[hash]
 		if !ok {
@@ -137,6 +146,8 @@ func (s *HTTPSink) process() {
 			}
 		}
 
+		// flush if batch size is reached
+		// batch size is 1 means no batching
 		if len(s.httpHandlers[hash].records) >= s.batchSize {
 			if err := s.flush(m, s.httpHandlers[hash].records); err != nil {
 				s.Logger.Error(fmt.Sprintf("sink(http): failed to send data to %s: %s", m.endpoint, err.Error()))
@@ -152,8 +163,9 @@ func (s *HTTPSink) process() {
 			}
 		}
 
+		// append record to the handler
 		hh := s.httpHandlers[hash]
-		hh.records = append(hh.records, string(b))
+		hh.records = append(hh.records, string(raw))
 		s.httpHandlers[hash] = hh
 		recordCounter++
 
@@ -190,6 +202,7 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 	} else {
 		raw = records
 	}
+	// prefix metadata will not be used in the body content template
 	body, err := extcommon.Compile(s.bodyContentTemplate, raw)
 	if err != nil {
 		return errors.WithStack(err)
