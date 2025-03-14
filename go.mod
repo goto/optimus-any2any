@@ -1,6 +1,7 @@
 module github.com/goto/optimus-any2any
 
-go 1.22.3
+go 1.23.0
+
 toolchain go1.23.7
 
 require (
