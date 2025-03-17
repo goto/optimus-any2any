@@ -136,7 +136,7 @@ func (o *OSSSink) process() {
 			}
 			fh, err = NewOSSFileHandler(o.ctx, o.Logger, o.client, targetURI.Host, strings.TrimLeft(targetURI.Path, "/"))
 			if err != nil {
-				o.Logger.Error("sink(oss): failed to create file handler")
+				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create file handler: %s", err.Error()))
 				o.SetError(errors.WithStack(err))
 				continue
 			}

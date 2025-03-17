@@ -85,7 +85,7 @@ func (fs *FileSink) process() {
 			}
 			fh, err = NewStdFileHandler(fs.Logger, targetURI.Path)
 			if err != nil {
-				fs.Logger.Error("sink(file): failed to create file handler")
+				fs.Logger.Error(fmt.Sprintf("sink(file): failed to create file handler: %s", err.Error()))
 				fs.SetError(errors.WithStack(err))
 				continue
 			}

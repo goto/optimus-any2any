@@ -121,7 +121,7 @@ func (s *SFTPSink) process() {
 			}
 			fh, err = NewSFTPFileHandler(s.ctx, s.Logger, s.client, targetURI.Path)
 			if err != nil {
-				s.Logger.Error("sink(sftp): failed to create file handler")
+				s.Logger.Error(fmt.Sprintf("sink(sftp): failed to create file handler: %s", err.Error()))
 				s.SetError(errors.WithStack(err))
 				continue
 			}
