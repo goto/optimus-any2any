@@ -37,13 +37,12 @@ type MaxcomputeSink struct {
 	loadMethod         string
 	tableIDTransition  string
 	tableIDDestination string
-	skipSchemaMismatch bool
 }
 
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, skipSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
@@ -87,6 +86,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 	if uploadMode == "STREAM" {
 		session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
+			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
 		)
 		if err != nil {
 			return nil, errors.WithStack(err)
@@ -96,6 +96,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 	} else if uploadMode == "REGULAR" {
 		session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(),
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
+			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
 		)
 		if err != nil {
 			return nil, errors.WithStack(err)
@@ -117,7 +118,6 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		loadMethod:         loadMethod,
 		tableIDTransition:  tableID,
 		tableIDDestination: tableIDDestination,
-		skipSchemaMismatch: skipSchemaMismatch,
 		uploadMode:         uploadMode,
 		// for stream mode
 		sessionStream: sessionStream,
@@ -175,10 +175,6 @@ func (mc *MaxcomputeSink) process() {
 		mcRecord, err := createRecord(mc.Logger, record, mc.tableSchema)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
-			if mc.skipSchemaMismatch {
-				mc.Logger.Warn(fmt.Sprintf("skip record due to schema mismatch: %s", err.Error()))
-				continue
-			}
 			mc.SetError(errors.WithStack(err))
 			continue
 		}
@@ -191,7 +187,7 @@ func (mc *MaxcomputeSink) process() {
 				mc.SetError(errors.WithStack(err))
 				continue
 			}
-			if countRecord%100 == 0 || mc.packWriter.DataSize() > 65536 { // flush every 100 records or 64KB
+			if mc.packWriter.DataSize() > 524288 { // flush every ~512KB
 				mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
 				traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
 				if err != nil {
