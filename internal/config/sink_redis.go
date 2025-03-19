@@ -8,6 +8,7 @@ type RedisSinkConfig struct {
 	ConnectionTLSKey    string `env:"REDIS__CONNECTION_TLS_KEY"`
 	RecordKey           string `env:"REDIS__RECORD_KEY"`
 	RecordValue         string `env:"REDIS__RECORD_VALUE"`
+	BatchSize           int    `env:"REDIS__BATCH_SIZE" envDefault:"512"`
 }
 
 // SinkRedis parses the environment variables and returns the RedisSinkConfig.

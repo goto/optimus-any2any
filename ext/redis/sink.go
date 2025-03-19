@@ -33,7 +33,7 @@ var _ flow.Sink = (*RedisSink)(nil)
 // NewSink creates a new RedisSink
 func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	connectionDSN string, connectionTLSCert, connectionTLSCACert, connectionTLSKey string,
-	recordKey, recordValue string, opts ...common.Option) (*RedisSink, error) {
+	recordKey, recordValue string, batchSize int, opts ...common.Option) (*RedisSink, error) {
 
 	// create common sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
@@ -90,7 +90,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		client:              client,
 		recordKeyTemplate:   recordKeyTemplate,
 		recordValueTemplate: recordValueTemplate,
-		records:             make([]interface{}, 0, 512*2),
+		records:             make([]interface{}, 0, batchSize*2), // 1 records contain key-value pairs
 	}
 
 	// add clean func

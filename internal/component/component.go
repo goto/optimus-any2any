@@ -141,7 +141,8 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return postgresql.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript, sinkCfg.DestinationTableID, opts...)
+		return postgresql.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript,
+			sinkCfg.DestinationTableID, sinkCfg.BatchSize, opts...)
 	case REDIS:
 		sinkCfg, err := config.SinkRedis(envs...)
 		if err != nil {
@@ -149,7 +150,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		}
 		return redis.NewSink(ctx, l, cfg.MetadataPrefix,
 			sinkCfg.ConnectionDSN, sinkCfg.ConnectionTLSCert, sinkCfg.ConnectionTLSCACert, sinkCfg.ConnectionTLSKey,
-			sinkCfg.RecordKey, sinkCfg.RecordValue, opts...)
+			sinkCfg.RecordKey, sinkCfg.RecordValue, sinkCfg.BatchSize, opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {

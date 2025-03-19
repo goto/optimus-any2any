@@ -23,7 +23,7 @@ type PGSink struct {
 	destinationTableID string
 
 	batchSize         int                      // internal use
-	recordsBuffer     []map[string]interface{} // internal use
+	records           []map[string]interface{} // internal use
 	fileRecordCounter int                      // internal use
 }
 
@@ -32,7 +32,7 @@ var _ flow.Sink = (*PGSink)(nil)
 // NewSink creates a new PGSink
 func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	connectionDSN, preSQLScript, destinationTableID string,
-	opts ...common.Option) (*PGSink, error) {
+	batchSize int, opts ...common.Option) (*PGSink, error) {
 
 	// create common sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
@@ -49,7 +49,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		conn:               conn,
 		destinationTableID: destinationTableID,
 		batchSize:          512,
-		recordsBuffer:      make([]map[string]interface{}, 0, 512),
+		records:            make([]map[string]interface{}, 0, batchSize),
 		fileRecordCounter:  0,
 	}
 
@@ -91,10 +91,10 @@ func (p *PGSink) process() {
 			continue
 		}
 
-		p.recordsBuffer = append(p.recordsBuffer, record)
+		p.records = append(p.records, record)
 		p.fileRecordCounter++
 
-		if len(p.recordsBuffer) < p.batchSize {
+		if len(p.records) < p.batchSize {
 			continue
 		}
 
@@ -111,7 +111,7 @@ func (p *PGSink) process() {
 	}
 
 	// flush remaining records
-	if len(p.recordsBuffer) > 0 {
+	if len(p.records) > 0 {
 		if err := p.flush(); err != nil {
 			p.Logger.Error("sink(pg): failed to flush remaining records")
 			p.SetError(errors.WithStack(err))
@@ -125,7 +125,7 @@ func (p *PGSink) flush() error {
 	pipeReader, pipeWriter := io.Pipe()
 	defer func() {
 		p.Logger.Debug("sink(pg): clear records buffer")
-		p.recordsBuffer = p.recordsBuffer[:0]
+		p.records = p.records[:0]
 	}()
 
 	// converting to csv
@@ -137,7 +137,7 @@ func (p *PGSink) flush() error {
 			pipeWriter.Close()
 			wg.Done()
 		}()
-		if err := extcommon.ToCSV(p.Logger, pipeWriter, p.recordsBuffer); err != nil {
+		if err := extcommon.ToCSV(p.Logger, pipeWriter, p.records); err != nil {
 			errChan <- errors.WithStack(err)
 			return
 		}
@@ -145,7 +145,7 @@ func (p *PGSink) flush() error {
 
 	// piping the records to pg
 	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
-	p.Logger.Info(fmt.Sprintf("sink(pg): start writing %d records to pg", len(p.recordsBuffer)))
+	p.Logger.Info(fmt.Sprintf("sink(pg): start writing %d records to pg", len(p.records)))
 	p.Logger.Debug(fmt.Sprintf("sink(pg): query: %s", query))
 	t, err := p.conn.PgConn().CopyFrom(p.ctx, pipeReader, query)
 	if err != nil {
