@@ -2,7 +2,6 @@ package oss
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -10,10 +9,10 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
-	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -26,18 +25,15 @@ type OSSSource struct {
 	ctx          context.Context
 	client       *oss.Client
 	bucket       string
-	pathPrefix   string
-	fileFormat   string
+	path         string
 	csvDelimiter rune
-	columnMap    map[string]string
 }
 
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
 func NewSource(ctx context.Context, l *slog.Logger, creds string,
-	sourceURI, fileFormat string, csvDelimiter rune,
-	columnMappingFilePath string, opts ...common.Option) (*OSSSource, error) {
+	sourceURI string, csvDelimiter rune, opts ...common.Option) (*OSSSource, error) {
 	// create commonSource source
 	commonSource := common.NewSource(l, opts...)
 
@@ -52,21 +48,14 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// read column map
-	columnMap, err := extcommon.GetColumnMap(columnMappingFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
 
 	ossSource := &OSSSource{
 		Source:       commonSource,
 		ctx:          ctx,
 		client:       client,
 		bucket:       parsedURL.Host,
-		pathPrefix:   strings.TrimPrefix(parsedURL.Path, "/"),
-		fileFormat:   fileFormat,
+		path:         strings.TrimPrefix(parsedURL.Path, "/"),
 		csvDelimiter: csvDelimiter,
-		columnMap:    columnMap,
 	}
 
 	// add clean function
@@ -84,7 +73,7 @@ func (o *OSSSource) process() {
 	// list objects
 	objectResult, err := o.client.ListObjects(o.ctx, &oss.ListObjectsRequest{
 		Bucket: oss.Ptr(o.bucket),
-		Prefix: oss.Ptr(o.pathPrefix),
+		Prefix: oss.Ptr(o.path),
 	})
 	if err != nil {
 		o.Logger.Error(fmt.Sprintf("source(oss): failed to list objects in bucket: %s", o.bucket))
@@ -92,24 +81,24 @@ func (o *OSSSource) process() {
 		return
 	}
 	if len(objectResult.Contents) == 0 {
-		o.Logger.Info("sink(oss): no objects found")
+		o.Logger.Info("source(oss): no objects found")
 		return
 	}
 
 	// process objects
 	for _, objectProp := range objectResult.Contents {
-		// download object
-		object, err := o.client.GetObject(o.ctx, &oss.GetObjectRequest{
-			Bucket: oss.Ptr(o.bucket),
-			Key:    objectProp.Key,
-		})
+		o.Logger.Info(fmt.Sprintf("source(oss): processing object: %s", oss.ToString(objectProp.Key)))
+		// read object
+		ossFile, err := o.client.OpenFile(o.ctx, o.bucket, oss.ToString(objectProp.Key))
 		if err != nil {
-			o.Logger.Warn(fmt.Sprintf("source(oss): failed to download, skip the object: %s. error: %s", oss.ToString(objectProp.Key), err.Error()))
+			o.Logger.Warn(fmt.Sprintf("source(oss): failed to open object: %s", oss.ToString(objectProp.Key)))
+			o.SetError(errors.WithStack(err))
 			return
 		}
+		defer ossFile.Close()
 
 		// unpack records
-		records, err := o.unpackRecords(object)
+		records, err := o.unpackRecords(filepath.Ext(oss.ToString(objectProp.Key)), ossFile)
 		if err != nil {
 			o.Logger.Error(fmt.Sprintf("source(oss): failed to unpack records from object: %s", oss.ToString(objectProp.Key)))
 			o.SetError(errors.WithStack(err))
@@ -118,8 +107,7 @@ func (o *OSSSource) process() {
 
 		// send records
 		for _, record := range records {
-			mappedRecord := extcommon.KeyMapping(o.columnMap, record)
-			raw, err := json.Marshal(mappedRecord)
+			raw, err := json.Marshal(record)
 			if err != nil {
 				o.Logger.Error(fmt.Sprintf("source(oss): failed to marshal record: %s", err.Error()))
 				o.SetError(errors.WithStack(err))
@@ -130,19 +118,19 @@ func (o *OSSSource) process() {
 	}
 }
 
-func (o *OSSSource) unpackRecords(object *oss.GetObjectResult) ([]map[string]interface{}, error) {
+func (o *OSSSource) unpackRecords(ext string, reader io.Reader) ([]map[string]interface{}, error) {
 	// unmarshal object based on file format
 	var (
 		records []map[string]interface{}
 		err     error
 	)
-	switch strings.ToLower(o.fileFormat) {
-	case "csv":
-		records, err = o.unmarshalCSV(object)
-	case "json":
-		records, err = o.unmarshalJSON(object)
+	switch ext {
+	case ".csv":
+		records, err = o.unmarshalCSV(reader)
+	case ".json":
+		records, err = o.unmarshalJSON(reader)
 	default:
-		err = errors.Errorf("unsupported file format: %s", o.fileFormat)
+		err = errors.Errorf("unsupported file format: %s", ext)
 	}
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -150,15 +138,9 @@ func (o *OSSSource) unpackRecords(object *oss.GetObjectResult) ([]map[string]int
 	return records, nil
 }
 
-func (o *OSSSource) unmarshalCSV(object *oss.GetObjectResult) ([]map[string]interface{}, error) {
-	// read object content
-	raw, err := io.ReadAll(object.Body)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
+func (o *OSSSource) unmarshalCSV(r io.Reader) ([]map[string]interface{}, error) {
 	// unmarshal CSV
-	reader := csv.NewReader(bytes.NewReader(raw))
+	reader := csv.NewReader(r)
 
 	// set delimiter
 	if o.csvDelimiter != 0 {
@@ -166,51 +148,38 @@ func (o *OSSSource) unmarshalCSV(object *oss.GetObjectResult) ([]map[string]inte
 	}
 
 	// read all records
-	rows, err := reader.ReadAll()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	// convert rows to records
-	records := make([]map[string]interface{}, 0, len(rows)-1)
-	headers := rows[0]
-	for _, row := range rows[1:] {
-		record := make(map[string]interface{}, len(headers))
-		for i, header := range headers {
-			record[header] = row[i]
+	records := make([]map[string]interface{}, 0)
+	headers := []string{}
+	isHeader := true
+	for record, err := reader.Read(); err == nil; record, err = reader.Read() {
+		if isHeader {
+			isHeader = false
+			headers = record
+			continue
 		}
-		records = append(records, record)
+		recordResult := map[string]interface{}{}
+		for i, header := range headers {
+			recordResult[header] = record[i]
+		}
+		records = append(records, recordResult)
 	}
-
 	return records, nil
 }
 
-func (o *OSSSource) unmarshalJSON(object *oss.GetObjectResult) ([]map[string]interface{}, error) {
-	// read object content
-	raw, err := io.ReadAll(object.Body)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
+func (o *OSSSource) unmarshalJSON(r io.Reader) ([]map[string]interface{}, error) {
 	// read records
 	records := make([]map[string]interface{}, 0)
-	reader := bufio.NewReader(bytes.NewReader(raw))
-	for {
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
 		// read line
-		raw, err := reader.ReadBytes('\n')
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, errors.WithStack(err)
-		}
-
-		// remove trailing newline
-		raw = bytes.TrimSuffix(raw, []byte("\n"))
+		raw := sc.Bytes()
+		line := make([]byte, len(raw)) // Important: make a copy of the line before sending
+		copy(line, raw)
+		o.Logger.Debug(fmt.Sprintf("source(oss): read line: %s", string(line)))
 
 		// unmarshal JSON
 		var record map[string]interface{}
-		if err := json.Unmarshal(raw, &record); err != nil {
+		if err := json.Unmarshal(line, &record); err != nil {
 			return nil, errors.WithStack(err)
 		}
 

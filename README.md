@@ -88,8 +88,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | | MC__ADDITIONAL_HINTS | Additional hints for the execution query. |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder. |
-| | OSS__FILE_FORMAT | File format availability: CSV, JSON. (default: JSON) |
+| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
 | | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 ## Supported Sinks

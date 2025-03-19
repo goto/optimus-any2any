@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/caarlos0/env/v11"
@@ -14,6 +16,7 @@ func parse[T any](envs ...string) (*T, error) {
 
 	c, err := env.ParseAsWithOptions[T](env.Options{
 		Environment: mergeMaps(env0, env1),
+		FuncMap:     map[reflect.Type]env.ParserFunc{reflect.TypeOf(rune(0)): runeParser},
 	})
 	if err != nil {
 		return nil, err
@@ -44,4 +47,21 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 		}
 	}
 	return r
+}
+
+// runeParser is a custom parser for rune that handles escape sequences
+func runeParser(v string) (interface{}, error) {
+	if v == "\\t" {
+		return '\t', nil
+	}
+	// handle other escape sequences if needed
+	if v == "\\n" {
+		return '\n', nil
+	}
+
+	if len(v) == 1 {
+		return rune(v[0]), nil
+	}
+
+	return nil, fmt.Errorf("unable to parse %s as rune", v)
 }
