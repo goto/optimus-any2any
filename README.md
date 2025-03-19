@@ -90,7 +90,6 @@ It applies when sink and source are in the same environment. For example, transf
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
-| | OSS__COLUMN_MAPPING_FILE_PATH | Path to the mapping column for the record result. "" for ignore (default: "") |
 ## Supported Sinks
 
 | Component | Configuration | Description |
