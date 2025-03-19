@@ -54,6 +54,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 	if executionProject != "" {
 		client.SetDefaultProjectName(executionProject)
 	}
+	l.Info(fmt.Sprintf("sink(mc): client created, execution project: %s", client.DefaultProject().Name()))
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace

@@ -6,6 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
+
+	"maps"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
@@ -18,15 +21,16 @@ import (
 type MaxcomputeSource struct {
 	*common.Source
 
-	client *odps.Odps
-	tunnel *tunnel.Tunnel
-	query  string
+	client          *odps.Odps
+	tunnel          *tunnel.Tunnel
+	additionalHints map[string]string
+	query           string
 }
 
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProject string, opts ...common.Option) (*MaxcomputeSource, error) {
+func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProject string, additionalHints map[string]string, opts ...common.Option) (*MaxcomputeSource, error) {
 	// create commonSource source
 	commonSource := common.NewSource(l, opts...)
 
@@ -51,11 +55,19 @@ func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProj
 		return nil, errors.WithStack(err)
 	}
 
+	// add additional hints
+	hints := make(map[string]string)
+	maps.Copy(hints, additionalHints)
+	if strings.Contains(string(raw), ";") {
+		hints["odps.sql.submit.mode"] = "script"
+	}
+
 	mc := &MaxcomputeSource{
-		Source: commonSource,
-		client: client,
-		tunnel: t,
-		query:  string(raw),
+		Source:          commonSource,
+		client:          client,
+		tunnel:          t,
+		additionalHints: hints,
+		query:           string(raw),
 	}
 
 	// add clean function
@@ -72,7 +84,7 @@ func NewSource(l *slog.Logger, creds string, queryFilePath string, executionProj
 func (mc *MaxcomputeSource) process() {
 	// run query
 	mc.Logger.Info(fmt.Sprintf("source(mc): running query: %s", mc.query))
-	instance, err := mc.client.ExecSQl(mc.query)
+	instance, err := mc.client.ExecSQl(mc.query, mc.additionalHints)
 	if err != nil {
 		mc.Logger.Error(fmt.Sprintf("source(mc): failed to run query: %s", mc.query))
 		mc.SetError(errors.WithStack(err))
