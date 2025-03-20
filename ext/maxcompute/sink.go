@@ -55,6 +55,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		client.SetDefaultProjectName(executionProject)
 	}
 	l.Info(fmt.Sprintf("sink(mc): client created, execution project: %s", client.DefaultProject().Name()))
+	restClient := client.DefaultProject().RestClient()
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
@@ -85,7 +86,8 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		recordWriter   *tunnel.RecordProtocWriter
 	)
 	if uploadMode == "STREAM" {
-		session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+		session, err := tunnel.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+			restClient,
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
 		)
@@ -95,7 +97,8 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		sessionStream = session
 		packWriter = session.OpenRecordPackWriter()
 	} else if uploadMode == "REGULAR" {
-		session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(),
+		session, err := tunnel.CreateUploadSession(destination.ProjectName(), destination.Name(),
+			t.GetQuotaName(), restClient,
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
 		)
