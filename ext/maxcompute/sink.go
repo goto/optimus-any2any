@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
+	"github.com/aliyun/aliyun-odps-go-sdk/odps/restclient"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
@@ -72,10 +73,18 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		return nil, errors.WithStack(err)
 	}
 
-	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
+	// t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
+	// if err != nil {
+	// 	return nil, errors.WithStack(err)
+	// }
+	project := client.DefaultProject()
+	endpoint, err := project.GetTunnelEndpoint()
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	restClient := restclient.NewOdpsRestClient(client.Account(), endpoint)
+	restClient.HttpTimeout = client.RestClient().HttpTimeout
+	restClient.TcpConnectionTimeout = client.RestClient().TcpConnectionTimeout
 
 	// create session based on upload mode
 	var (
@@ -85,7 +94,9 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		recordWriter   *tunnel.RecordProtocWriter
 	)
 	if uploadMode == "STREAM" {
-		session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+		// t.CreateStreamUploadSession()
+		session, err := tunnel.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
+			restClient,
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
 		)
@@ -95,7 +106,8 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 		sessionStream = session
 		packWriter = session.OpenRecordPackWriter()
 	} else if uploadMode == "REGULAR" {
-		session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(),
+		session, err := tunnel.CreateUploadSession(destination.ProjectName(), destination.Name(),
+			"", restClient,
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
 		)
