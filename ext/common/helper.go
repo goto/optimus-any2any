@@ -148,27 +148,6 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 	return records, nil
 }
 
-func Copy(w io.Writer, r io.Reader) (int64, error) {
-	rp, wp := io.Pipe()
-
-	go func() {
-		defer wp.Close()
-		sc := bufio.NewScanner(r)
-
-		for sc.Scan() {
-			raw := sc.Bytes()
-			line := make([]byte, len(raw))
-			copy(line, raw)
-
-			if _, err := w.Write(append(line, '\n')); err != nil {
-				return
-			}
-		}
-	}()
-
-	return io.Copy(w, rp)
-}
-
 func FromJSONToCSV(l *slog.Logger, reader io.Reader) io.Reader {
 	records := make([]map[string]interface{}, 0)
 	sc := bufio.NewScanner(reader)
