@@ -233,6 +233,8 @@ func (o *OSSSink) process() {
 			tmpReader = f
 		case ".csv":
 			tmpReader = extcommon.FromJSONToCSV(o.Logger, f)
+		case ".tsv":
+			tmpReader = extcommon.FromJSONToCSV(o.Logger, f, rune('\t'))
 		default:
 			o.Logger.Warn(fmt.Sprintf("sink(oss): unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 			tmpReader = f
