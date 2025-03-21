@@ -169,7 +169,7 @@ func (o *OSSSink) process() {
 				o.SetError(errors.WithStack(err))
 				continue
 			}
-			oh, err := NewOSSFileHandler(o.ctx, o.Logger, o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+			oh, err := oss.NewAppendFile(o.ctx, o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 			if err != nil {
 				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create oss file handler: %s", err.Error()))
 				o.SetError(errors.WithStack(err))
@@ -237,25 +237,12 @@ func (o *OSSSink) process() {
 			o.Logger.Warn(fmt.Sprintf("sink(oss): unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 			tmpReader = f
 		}
-		// debugTmp, err := os.OpenFile("/tmp/debug.csv", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		// if err != nil {
-		// 	o.Logger.Error(fmt.Sprintf("sink(oss): failed to open tmp file: %s", tmpURI))
-		// 	o.SetError(errors.WithStack(err))
-		// 	return
-		// }
-		// defer debugTmp.Close()
-		// if _, err := io.Copy(debugTmp, tmpReader); err != nil {
-		// 	o.Logger.Error(fmt.Sprintf("sink(oss): failed to copy tmp file: %s", tmpURI))
-		// 	o.SetError(errors.WithStack(err))
-		// 	return
-		// }
 		o.Logger.Info(fmt.Sprintf("sink(oss): upload tmp file %s to oss %s", tmpURI, destinationURI))
 		if _, err := io.Copy(oh, tmpReader); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload tmp file to oss: %s", destinationURI))
 			o.SetError(errors.WithStack(err))
 			return
 		}
-
 	}
 	o.Logger.Info(fmt.Sprintf("sink(oss): successfully written %d records", recordCounter))
 }
