@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"text/template"
 
 	"maps"
@@ -168,8 +169,13 @@ func (mc *MaxcomputeSource) getRecordReader(query string) io.ReadCloser {
 			return
 		}
 		// run query
+		additionalHints := map[string]string{}
+		maps.Copy(additionalHints, mc.additionalHints)
+		if strings.Contains(query, ";") {
+			additionalHints["odps.sql.submit.mode"] = "script"
+		}
 		mc.Logger.Info(fmt.Sprintf("source(mc): running query:\n%s", query))
-		instance, err := mc.client.ExecSQl(query, mc.additionalHints)
+		instance, err := mc.client.ExecSQl(query, additionalHints)
 		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("source(mc): failed to run query: %s", query))
 			mc.SetError(errors.WithStack(err))
