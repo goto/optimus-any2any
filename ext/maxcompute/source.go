@@ -203,50 +203,54 @@ func (mc *MaxcomputeSource) getRecordReader(query string) io.ReadCloser {
 		recordCount := session.RecordCount()
 		mc.Logger.Info(fmt.Sprintf("source(mc): record count: %d", recordCount))
 
-		// read records
-		i := 0
-		step := 1000 // batch size for reading records
-		for i < recordCount {
-			reader, err := session.OpenRecordReader(i, step, 0, nil)
+		mc.sendRecordToWriter(session, recordCount, w)
+	}()
+	return r
+}
+
+func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDownloadSession, recordCount int, w *io.PipeWriter) {
+	// read records
+	i := 0
+	step := 1000 // batch size for reading records
+	for i < recordCount {
+		reader, err := session.OpenRecordReader(i, step, 0, nil)
+		if err != nil {
+			mc.Logger.Error("source(mc): failed to open record reader")
+			mc.SetError(errors.WithStack(err))
+			return
+		}
+		defer reader.Close()
+
+		count := 0
+		for {
+			record, err := reader.Read()
 			if err != nil {
-				mc.Logger.Error("source(mc): failed to open record reader")
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				mc.Logger.Error("source(mc): failed to read record")
 				mc.SetError(errors.WithStack(err))
 				return
 			}
-			defer reader.Close()
 
-			count := 0
-			for {
-				record, err := reader.Read()
-				if err != nil {
-					if errors.Is(err, io.EOF) {
-						break
-					}
-					mc.Logger.Error("source(mc): failed to read record")
-					mc.SetError(errors.WithStack(err))
-					return
-				}
-
-				// process record
-				mc.Logger.Debug(fmt.Sprintf("source(mc): record: %s", record))
-				v, err := fromRecord(mc.Logger, record, session.Schema())
-				if err != nil {
-					mc.Logger.Error("source(mc): failed to process record")
-					mc.SetError(errors.WithStack(err))
-					return
-				}
-				raw, err := json.Marshal(v)
-				if err != nil {
-					mc.SetError(errors.WithStack(err))
-					return
-				}
-				w.Write(raw)
-				w.Write([]byte("\n"))
-				count++
+			// process record
+			mc.Logger.Debug(fmt.Sprintf("source(mc): record: %s", record))
+			v, err := fromRecord(mc.Logger, record, session.Schema())
+			if err != nil {
+				mc.Logger.Error("source(mc): failed to process record")
+				mc.SetError(errors.WithStack(err))
+				return
 			}
-			i += count
-			mc.Logger.Info(fmt.Sprintf("source(mc): send %d records", count))
+			raw, err := json.Marshal(v)
+			if err != nil {
+				mc.SetError(errors.WithStack(err))
+				return
+			}
+			w.Write(raw)
+			w.Write([]byte("\n"))
+			count++
 		}
-	}()
-	return r
+		i += count
+		mc.Logger.Info(fmt.Sprintf("source(mc): send %d records", count))
+	}
 }
