@@ -187,12 +187,6 @@ func (s *SMTPSink) process() {
 
 	// send email
 	for _, eh := range s.emailHandlers {
-		s.Logger.Info(fmt.Sprintf("sink(smtp): flush records to %s", eh.emailMetadata.attachmentPath))
-		if err := eh.fileHandler.Flush(); err != nil {
-			s.Logger.Error(fmt.Sprintf("sink(smtp): flush error: %s", err.Error()))
-			s.SetError(errors.WithStack(err))
-			continue
-		}
 		s.Logger.Info(fmt.Sprintf("sink(smtp): send email to %s", eh.emailMetadata.to))
 		if err := s.client.SendMail(eh.emailMetadata.from, eh.emailMetadata.to,
 			eh.emailMetadata.subject, eh.emailMetadata.body,

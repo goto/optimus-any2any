@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"os"
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
@@ -119,7 +120,7 @@ func (s *SFTPSink) process() {
 				s.SetError(errors.New("sink(sftp): invalid scheme"))
 				continue
 			}
-			fh, err = NewSFTPFileHandler(s.ctx, s.Logger, s.client, targetURI.Path)
+			fh, err = s.client.OpenFile(targetURI.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 			if err != nil {
 				s.Logger.Error(fmt.Sprintf("sink(sftp): failed to create file handler: %s", err.Error()))
 				s.SetError(errors.WithStack(err))
@@ -131,13 +132,6 @@ func (s *SFTPSink) process() {
 			s.Logger.Error("sink(sftp): failed to write data")
 			s.SetError(errors.WithStack(err))
 			continue
-		}
-	}
-
-	for uri, fh := range s.fileHandlers {
-		if err := fh.Flush(); err != nil {
-			s.Logger.Error(fmt.Sprintf("sink(sftp): failed to flush file handler: %s", uri))
-			s.SetError(errors.WithStack(err))
 		}
 	}
 }

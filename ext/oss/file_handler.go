@@ -43,7 +43,7 @@ func NewOSSFileHandler(ctx context.Context, l *slog.Logger, client oss.AppendFil
 func (fh *ossFileHandler) Write(p []byte) (n int, err error) {
 	if len(fh.buffer) >= cap(fh.buffer) {
 		fh.l.Debug("oss file handler: buffer is full, flushing")
-		if err := fh.Flush(); err != nil {
+		if err := fh.flush(); err != nil {
 			return 0, nil
 		}
 	}
@@ -54,14 +54,14 @@ func (fh *ossFileHandler) Write(p []byte) (n int, err error) {
 // Close closes the file.
 func (fh *ossFileHandler) Close() error {
 	// better to flush before close
-	if err := fh.Flush(); err != nil {
+	if err := fh.flush(); err != nil {
 		return err
 	}
 	return fh.w.Close()
 }
 
 // Flush flushes the file.
-func (fh *ossFileHandler) Flush() error {
+func (fh *ossFileHandler) flush() error {
 	if len(fh.buffer) == 0 {
 		return nil
 	}

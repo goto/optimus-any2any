@@ -108,10 +108,4 @@ func (fs *FileSink) process() {
 			continue
 		}
 	}
-	for uri, fh := range fs.fileHandlers {
-		if err := fh.Flush(); err != nil {
-			fs.Logger.Error(fmt.Sprintf("sink(file): failed to flush file: %s", uri))
-			fs.SetError(fmt.Errorf("failed to flush file: %s", uri))
-		}
-	}
 }

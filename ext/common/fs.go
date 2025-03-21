@@ -5,7 +5,4 @@ package extcommon
 import "io"
 
 // FileHandler is an interface for file handling.
-type FileHandler interface {
-	io.WriteCloser
-	Flush() error
-}
+type FileHandler io.WriteCloser

@@ -128,7 +128,7 @@ func (o *OSSSink) process() {
 				continue
 			}
 			if o.enableOverwrite {
-				if err := o.remove(targetURI.Host, targetURI.Path); err != nil {
+				if err := o.remove(targetURI.Host, strings.TrimLeft(targetURI.Path, "/")); err != nil {
 					o.Logger.Error(fmt.Sprintf("sink(oss): failed to remove object: %s", destinationURI))
 					o.SetError(errors.WithStack(err))
 					continue
@@ -155,14 +155,6 @@ func (o *OSSSink) process() {
 		if recordCounter%logCheckPoint == 0 {
 			o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to file: %s", o.fileRecordCounters[destinationURI], destinationURI))
 		}
-	}
-
-	for uri, fh := range o.fileHandlers {
-		if err := fh.Flush(); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush file: %s", uri))
-			o.SetError(errors.WithStack(err))
-		}
-		o.Logger.Info(fmt.Sprintf("sink(oss): flush leftover records to file: %s", uri))
 	}
 	o.Logger.Info(fmt.Sprintf("sink(oss): successfully written %d records", recordCounter))
 }
