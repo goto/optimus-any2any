@@ -84,9 +84,11 @@ It applies when sink and source are in the same environment. For example, transf
 | | GMAIL__FILTER | Gmail filter based on gmail filter rules |
 | | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__METADATA__filename") |
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
-| | MC__QUERY_FILE_PATH | Path to the query file. (default: /data/in/query.sql) |
+| | MC__PRE_QUERY_FILE_PATH | Path to the pre sql query file. (empty for ignore) |
+| | MC__QUERY_FILE_PATH | Path to the query file. |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | | MC__ADDITIONAL_HINTS | Additional hints for the execution query. |
+| | MC__LOG_VIEW_RETENTION_IN_DAYS | Log view retention in days. (default: 2) |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
