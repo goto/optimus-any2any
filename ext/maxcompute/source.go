@@ -114,13 +114,14 @@ func (mc *MaxcomputeSource) process() {
 			return
 		}
 		// add prefix for every key
+		preRecordWithPrefix := make(map[string]interface{})
 		for k := range preRecord {
-			preRecord[fmt.Sprintf("%s%s", mc.metadataPrefix, k)] = preRecord[k]
-			delete(preRecord, k)
+			preRecordWithPrefix[fmt.Sprintf("%s%s", mc.metadataPrefix, k)] = preRecord[k]
 		}
+		mc.Logger.Debug(fmt.Sprintf("source(mc): pre-record: %v", preRecordWithPrefix))
 
 		// compile query
-		query, err := extcommon.Compile(mc.queryTemplate, preRecord)
+		query, err := extcommon.Compile(mc.queryTemplate, preRecordWithPrefix)
 		if err != nil {
 			mc.Logger.Error("source(mc): failed to compile query")
 			mc.SetError(errors.WithStack(err))
