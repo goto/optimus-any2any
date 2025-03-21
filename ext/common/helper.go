@@ -148,6 +148,54 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 	return records, nil
 }
 
+func Copy(w io.Writer, r io.Reader) (int64, error) {
+	rp, wp := io.Pipe()
+
+	go func() {
+		defer wp.Close()
+		sc := bufio.NewScanner(r)
+
+		for sc.Scan() {
+			raw := sc.Bytes()
+			line := make([]byte, len(raw))
+			copy(line, raw)
+
+			if _, err := w.Write(append(line, '\n')); err != nil {
+				return
+			}
+		}
+	}()
+
+	return io.Copy(w, rp)
+}
+
+func FromJSONToCSV(l *slog.Logger, reader io.Reader) io.Reader {
+	records := make([]map[string]interface{}, 0)
+	sc := bufio.NewScanner(reader)
+	for sc.Scan() {
+		raw := sc.Bytes()
+		line := make([]byte, len(raw))
+		copy(line, raw)
+
+		var record map[string]interface{}
+		if err := json.Unmarshal(line, &record); err != nil {
+			l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
+			continue
+		}
+
+		records = append(records, record)
+	}
+
+	r, w := io.Pipe()
+	go func() {
+		defer w.Close()
+		if err := ToCSV(l, w, records); err != nil {
+			l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
+		}
+	}()
+	return r
+}
+
 // ToCSV converts the records to CSV.
 func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}) error {
 	if len(records) == 0 {
