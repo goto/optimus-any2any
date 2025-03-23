@@ -169,13 +169,6 @@ func (o *OSSSink) process() {
 				o.SetError(errors.WithStack(err))
 				continue
 			}
-			oh, err := oss.NewAppendFile(o.ctx, o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-			if err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create oss file handler: %s", err.Error()))
-				o.SetError(errors.WithStack(err))
-				continue
-			}
-
 			// remove object if overwrite is enabled
 			if _, ok := o.ossHandlers[destinationURI]; !ok && o.enableOverwrite {
 				o.Logger.Info(fmt.Sprintf("sink(oss): remove object: %s", destinationURI))
@@ -184,6 +177,12 @@ func (o *OSSSink) process() {
 					o.SetError(errors.WithStack(err))
 					continue
 				}
+			}
+			oh, err := oss.NewAppendFile(o.ctx, o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+			if err != nil {
+				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create oss file handler: %s", err.Error()))
+				o.SetError(errors.WithStack(err))
+				continue
 			}
 
 			// dual handlers for both tmp file and oss
