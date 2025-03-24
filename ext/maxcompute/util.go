@@ -1,9 +1,11 @@
 package maxcompute
 
 import (
+	"encoding/json"
 	errs "errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -251,9 +253,9 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 	}
 	switch d.Type().ID() {
 	case datatype.TINYINT:
-		val, ok := d.(data.TinyInt)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected tinyint, got %T", d))
+		val := data.TinyInt(0)
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return int8(val), nil
 	case datatype.SMALLINT:
@@ -263,94 +265,96 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 		}
 		return int16(val), nil
 	case datatype.INT:
-		val, ok := d.(data.Int)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected int, got %T", d))
+		val := data.Int(0)
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return int32(val), nil
 	case datatype.BIGINT:
-		val, ok := d.(data.BigInt)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected bigint, got %T", d))
+		val := data.BigInt(0)
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return int64(val), nil
 	case datatype.FLOAT:
-		val, ok := d.(data.Float)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected float, got %T", d))
+		val := data.Float(0)
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return float32(val), nil
 	case datatype.DOUBLE:
-		val, ok := d.(data.Double)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected double, got %T", d))
+		val := data.Double(0)
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return float64(val), nil
 	case datatype.DECIMAL:
-		val, ok := d.(data.Decimal)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected decimal, got %T", d))
+		val := data.Decimal{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.String(), nil
 	case datatype.CHAR:
-		val, ok := d.(data.Char)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected char, got %T", d))
+		val := data.Char{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.String(), nil
 	case datatype.VARCHAR:
-		val, ok := d.(data.VarChar)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected varchar, got %T", d))
+		val := data.VarChar{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.String(), nil
 	case datatype.STRING:
-		val, ok := d.(data.String)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected string, got %T", d))
+		val := data.String("")
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.String(), nil
 	case datatype.BINARY:
-		val, ok := d.(data.Binary)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected binary, got %T", d))
+		val := data.Binary{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return []byte(val), nil
 	case datatype.BOOLEAN:
-		val, ok := d.(data.Bool)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected boolean, got %T", d))
+		val := data.Bool(false)
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return bool(val), nil
 	case datatype.DATE:
-		val, ok := d.(data.Date)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected date, got %T", d))
+		val := data.Date{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.Time().Format(data.DateFormat), nil
 	case datatype.DATETIME:
-		val, ok := d.(data.DateTime)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected datetime, got %T", d))
+		val := data.DateTime{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.Time().Format(data.DateTimeFormat), nil
 	case datatype.TIMESTAMP:
-		val, ok := d.(data.Timestamp)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected timestamp, got %T", d))
+		val := data.Timestamp{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.Time().Format(data.TimeStampFormat), nil
 	case datatype.TIMESTAMP_NTZ:
-		val, ok := d.(data.TimestampNtz)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected timestamp_ntz, got %T", d))
+		val := data.TimestampNtz{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return val.Time().Format(data.TimeStampFormat), nil
 	case datatype.ARRAY:
-		val, ok := d.(data.Array)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected array, got %T", d))
+		val := data.Array{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
+
+		// convert array to slice
 		arr := []interface{}{}
 		for _, currData := range val.ToSlice() {
 			curr, err := fromData(l, currData)
@@ -361,10 +365,12 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 		}
 		return arr, nil
 	case datatype.STRUCT:
-		val, ok := d.(data.Struct)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("expected struct, got %T", d))
+		val := data.Struct{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
 		}
+
+		// convert struct to map
 		m := map[string]interface{}{}
 		for _, field := range val.Fields() {
 			curr, err := fromData(l, field.Value)
@@ -372,6 +378,25 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 				return nil, errors.WithStack(err)
 			}
 			m[field.Name] = curr
+		}
+		return m, nil
+	case datatype.JSON:
+		val := data.Json{}
+		if err := val.Scan(d); err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		// unquote JSON
+		unquotedJSON, err := strconv.Unquote(val.GetData())
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		raw := []byte(unquotedJSON)
+
+		// convert JSON to map
+		m := map[string]interface{}{}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		return m, nil
 	default:
