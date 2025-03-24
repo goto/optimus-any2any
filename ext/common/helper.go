@@ -253,6 +253,8 @@ func convertValueToString(v interface{}) (string, error) {
 			return "", errors.WithStack(err)
 		}
 		return string(b), nil
+	case nil:
+		return "", nil
 	default:
 		return fmt.Sprintf("%v", val), nil
 	}
