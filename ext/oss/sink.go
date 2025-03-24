@@ -189,7 +189,17 @@ func (o *OSSSink) process() {
 			o.fileHandlers[tmpURI] = fh
 			o.ossHandlers[destinationURI] = oh
 		}
-		_, err = fh.Write(append(b, '\n'))
+
+		// record without metadata
+		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, o.MetadataPrefix)
+		raw, err := json.Marshal(recordWithoutMetadata)
+		if err != nil {
+			o.Logger.Error("sink(oss): failed to marshal record")
+			o.SetError(errors.WithStack(err))
+			continue
+		}
+
+		_, err = fh.Write(append(raw, '\n'))
 		if err != nil {
 			o.Logger.Error("sink(oss): failed to write to file")
 			o.SetError(errors.WithStack(err))
