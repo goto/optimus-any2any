@@ -144,9 +144,9 @@ func (mc *MaxcomputeSource) process() {
 				return
 			}
 			// merge with pre-record
-			for k := range preRecord {
+			for k := range preRecordWithPrefix {
 				if _, ok := record[k]; !ok {
-					record[k] = preRecord[k]
+					record[k] = preRecordWithPrefix[k]
 				}
 			}
 
