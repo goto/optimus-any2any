@@ -1,6 +1,8 @@
 package smtp
 
 import (
+	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -14,7 +16,18 @@ type SMTPClient struct {
 }
 
 // NewSMTPClient creates a new SMTPClient
-func NewSMTPClient(address, username, password string) (*SMTPClient, error) {
+func NewSMTPClient(connectionDSN string) (*SMTPClient, error) {
+	dsn, err := url.Parse(connectionDSN)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if dsn.Scheme != "smtp" {
+		return nil, fmt.Errorf("invalid scheme: %s", dsn.Scheme)
+	}
+	username := dsn.User.Username()
+	password, _ := dsn.User.Password()
+	address := dsn.Host
+
 	splittedAddr := strings.Split(address, ":")
 	host := splittedAddr[0]
 	port := 587

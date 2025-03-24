@@ -58,15 +58,14 @@ type SMTPSink struct {
 
 // NewSink creates a new SMTPSink
 func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
-	address, username, password string,
-	from, to, subject, bodyFilePath, attachment string,
+	connectionDSN string, from, to, subject, bodyFilePath, attachment string,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create common sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
 
 	// create SMTP client
-	client, err := NewSMTPClient(address, username, password)
+	client, err := NewSMTPClient(connectionDSN)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

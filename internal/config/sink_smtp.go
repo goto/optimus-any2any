@@ -2,9 +2,7 @@ package config
 
 // SinkSMTPConfig is a configuration for the sink smtp component.
 type SinkSMTPConfig struct {
-	Address            string `env:"SMTP__ADDRESS"`
-	Username           string `env:"SMTP__USERNAME"`
-	Password           string `env:"SMTP__PASSWORD"`
+	ConnectionDSN      string `env:"SMTP__CONNECTION_DSN"`
 	From               string `env:"SMTP__FROM"`
 	To                 string `env:"SMTP__TO"`
 	Subject            string `env:"SMTP__SUBJECT"`
