@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -186,10 +187,33 @@ func (s *SMTPSink) process() {
 
 	// send email
 	for _, eh := range s.emailHandlers {
+		f, err := os.OpenFile(eh.emailMetadata.attachmentPath, os.O_RDONLY, 0644)
+		if err != nil {
+			s.Logger.Error(fmt.Sprintf("sink(smtp): open attachment file error: %s", err.Error()))
+			s.SetError(errors.WithStack(err))
+			continue
+		}
+		defer f.Close()
+
+		// convert attachment file to desired format if necessary
+		var tmpReader io.Reader
+		switch filepath.Ext(eh.emailMetadata.attachment) {
+		case ".json":
+			tmpReader = f
+		case ".csv":
+			tmpReader = extcommon.FromJSONToCSV(s.Logger, f)
+		case ".tsv":
+			tmpReader = extcommon.FromJSONToCSV(s.Logger, f, rune('\t'))
+		default:
+			s.Logger.Warn(fmt.Sprintf("sink(smtp): unsupported file format: %s, use default (json)", filepath.Ext(eh.emailMetadata.attachment)))
+			tmpReader = f
+		}
+
 		s.Logger.Info(fmt.Sprintf("sink(smtp): send email to %s", eh.emailMetadata.to))
-		if err := s.client.SendMail(eh.emailMetadata.from, eh.emailMetadata.to,
+		if err := s.client.SendMail(eh.emailMetadata.from,
+			eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc,
 			eh.emailMetadata.subject, eh.emailMetadata.body,
-			eh.emailMetadata.attachment, eh.emailMetadata.attachmentPath); err != nil {
+			eh.emailMetadata.attachment, tmpReader); err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): send mail error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))
 			continue

@@ -111,7 +111,7 @@ It applies when sink and source are in the same environment. For example, transf
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
-| SMTP | SMTP__CONNECTION_DSN | SMTP connection dsn, format `smtp://user[:password]@host[:port]`, if port is not specified, default port `587` will be used. |
+| SMTP | SMTP__CONNECTION_DSN | SMTP connection dsn, format `smtp://user[:password]@host[:port]`, if port is not specified, default port `587` will be used. user and password should be url encoded. |
 | | SMTP__FROM | SMTP from email address. |
 | | SMTP__TO | SMTP to, cc, and bcc email address, format: `to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...]` |
 | | SMTP__SUBJECT | SMTP email subject. |
