@@ -251,6 +251,6 @@ func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDow
 			count++
 		}
 		i += count
-		mc.Logger.Info(fmt.Sprintf("source(mc): write %d records to writer", count))
+		mc.Logger.Info(fmt.Sprintf("source(mc): send %d records to writer", count))
 	}
 }

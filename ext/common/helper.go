@@ -148,7 +148,7 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 	return records, nil
 }
 
-func FromJSONToCSV(l *slog.Logger, reader io.Reader, delimiter ...rune) io.Reader {
+func FromJSONToCSV(l *slog.Logger, reader io.Reader, delimiter ...rune) io.ReadCloser {
 	records := make([]map[string]interface{}, 0)
 	sc := bufio.NewScanner(reader)
 	for sc.Scan() {

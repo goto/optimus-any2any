@@ -54,7 +54,7 @@ func (c *SMTPClient) Close() error {
 }
 
 // SendMail sends an email
-func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string, msg string, attachment string, attachmentReader io.Reader) error {
+func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string, msg string, readers map[string]io.ReadCloser) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", from)
 	m.SetHeader("To", to...)
@@ -67,10 +67,14 @@ func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string,
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", msg)
 
-	// attach file from reader
-	m.Attach(attachment, gomail.SetCopyFunc(func(w io.Writer) error {
-		_, err := io.Copy(w, attachmentReader)
-		return err
-	}))
+	// attach file from readers
+	for attachment, reader := range readers {
+		m.Attach(attachment, gomail.SetCopyFunc(func(w io.Writer) error {
+			defer reader.Close()
+			_, err := io.Copy(w, reader)
+			return err
+		}))
+	}
+
 	return c.sender.Send(from, to, m)
 }

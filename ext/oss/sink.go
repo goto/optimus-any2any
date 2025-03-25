@@ -236,7 +236,7 @@ func (o *OSSSink) process() {
 		defer f.Close()
 
 		// convert to appropriate format if necessary
-		var tmpReader io.Reader
+		var tmpReader io.ReadCloser
 		switch filepath.Ext(destinationURI) {
 		case ".json":
 			tmpReader = f
