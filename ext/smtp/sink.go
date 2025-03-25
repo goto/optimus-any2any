@@ -209,7 +209,7 @@ func (s *SMTPSink) process() {
 			tmpReader = f
 		}
 
-		s.Logger.Info(fmt.Sprintf("sink(smtp): send email to %s", eh.emailMetadata.to))
+		s.Logger.Info(fmt.Sprintf("sink(smtp): send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
 		if err := s.client.SendMail(eh.emailMetadata.from,
 			eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc,
 			eh.emailMetadata.subject, eh.emailMetadata.body,
