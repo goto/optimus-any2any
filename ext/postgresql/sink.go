@@ -99,7 +99,7 @@ func (p *PGSink) process() {
 		}
 
 		// flush records buffer to file
-		if err := p.flush(); err != nil {
+		if err := p.Retry(p.flush); err != nil {
 			p.Logger.Error("sink(pg): failed to flush records")
 			p.SetError(errors.WithStack(err))
 			return
@@ -112,7 +112,7 @@ func (p *PGSink) process() {
 
 	// flush remaining records
 	if len(p.records) > 0 {
-		if err := p.flush(); err != nil {
+		if err := p.Retry(p.flush); err != nil {
 			p.Logger.Error("sink(pg): failed to flush remaining records")
 			p.SetError(errors.WithStack(err))
 		}
