@@ -135,3 +135,15 @@ func (s *SFTPSink) process() {
 		}
 	}
 }
+
+func (s *SFTPSink) writeFn(fh extcommon.FileHandler, b []byte) func() error {
+	return func() error {
+		written, err := fh.Write(append(b, '\n'))
+		if err != nil {
+			return err
+		}
+
+		s.Logger.Debug(fmt.Sprintf("sink(sftp): wrote %d bytes to sftp", written))
+		return nil
+	}
+}
