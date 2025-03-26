@@ -179,7 +179,10 @@ func (s *HTTPSink) process() {
 			continue
 		}
 
-		if err := s.flush(hh.httpMetadata, hh.records); err != nil {
+		err := s.Retry(func() error {
+			return s.flush(hh.httpMetadata, hh.records)
+		})
+		if err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(http): failed to send data to %s: %s", hh.httpMetadata.endpoint, err.Error()))
 			s.SetError(errors.WithStack(err))
 			return
