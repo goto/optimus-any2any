@@ -190,7 +190,7 @@ func (mc *MaxcomputeSink) process() {
 			}
 			if mc.packWriter.DataSize() > 524288 { // flush every ~512KB
 				mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
-				if err := mc.flushWithRetry(); err != nil {
+				if err := mc.Retry(mc.flush); err != nil {
 					mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
 					mc.SetError(errors.WithStack(err))
 					continue
@@ -218,7 +218,7 @@ func (mc *MaxcomputeSink) process() {
 
 	if mc.uploadMode == "STREAM" {
 		// flush remaining records
-		if err := mc.flushWithRetry(); err != nil {
+		if err := mc.Retry(mc.flush); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 			return
@@ -249,13 +249,11 @@ func (mc *MaxcomputeSink) process() {
 	}
 }
 
-func (mc *MaxcomputeSink) flushWithRetry() error {
-	return mc.Retry(func() error {
-		traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
-		if err != nil {
-			return err
-		}
-		mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
-		return nil
-	})
+func (mc *MaxcomputeSink) flush() error {
+	traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
+	if err != nil {
+		return err
+	}
+	mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
+	return nil
 }
