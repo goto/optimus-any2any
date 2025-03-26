@@ -7,6 +7,7 @@ type Config struct {
 	OtelAttributes            string `env:"OTEL_ATTRIBUTES"`
 	BufferSize                int    `env:"BUFFER_SIZE"`
 	MetadataPrefix            string `env:"METADATA_PREFIX" envDefault:"__METADATA__"`
+	RetryMax                  int    `env:"RETRY_MAX" envDefault:"3"`
 }
 
 // NewConfig parses the environment variables and returns the common configuration.

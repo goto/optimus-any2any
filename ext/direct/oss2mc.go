@@ -160,3 +160,7 @@ func (o *OSS2MC) SetLogger(logLevel string) {
 	}
 	o.logger = logger
 }
+
+func (o *OSS2MC) SetRetryMax(int) {
+	// no implementation needed
+}

@@ -190,13 +190,11 @@ func (mc *MaxcomputeSink) process() {
 			}
 			if mc.packWriter.DataSize() > 524288 { // flush every ~512KB
 				mc.Logger.Info(fmt.Sprintf("sink(mc): write %d records", countRecord))
-				traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
-				if err != nil {
+				if err := mc.flushWithRetry(); err != nil {
 					mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
 					mc.SetError(errors.WithStack(err))
 					continue
 				}
-				mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
 			}
 		} else if mc.uploadMode == "REGULAR" {
 			if err := mc.recordWriter.Write(mcRecord); err != nil {
@@ -220,20 +218,21 @@ func (mc *MaxcomputeSink) process() {
 
 	if mc.uploadMode == "STREAM" {
 		// flush remaining records
-		traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
-		if err != nil {
+		if err := mc.flushWithRetry(); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): record flush error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 			return
 		}
-		mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
 	} else if mc.uploadMode == "REGULAR" {
 		if err := mc.recordWriter.Close(); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): record writer close error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 			return
 		}
-		if err := mc.sessionRegular.Commit([]int{0}); err != nil {
+		err := mc.Retry(func() error {
+			return mc.sessionRegular.Commit([]int{0})
+		})
+		if err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): session commit error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 			return
@@ -248,4 +247,15 @@ func (mc *MaxcomputeSink) process() {
 		}
 		mc.Logger.Info(fmt.Sprintf("sink(mc): load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
 	}
+}
+
+func (mc *MaxcomputeSink) flushWithRetry() error {
+	return mc.Retry(func() error {
+		traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
+		if err != nil {
+			return err
+		}
+		mc.Logger.Debug(fmt.Sprintf("sink(mc): flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
+		return nil
+	})
 }

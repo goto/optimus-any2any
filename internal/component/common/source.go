@@ -16,7 +16,9 @@ import (
 // Source is a source that provides commonSource functionality.
 // It is used as a base for other sources.
 type Source struct {
-	Logger     *slog.Logger
+	Logger   *slog.Logger
+	RetryMax int
+
 	m          metric.Meter
 	c          chan any
 	err        error
@@ -79,6 +81,10 @@ func (commonSource *Source) SetLogger(logLevel string) {
 		return
 	}
 	commonSource.Logger = logger
+}
+
+func (commonSource *Source) SetRetryMax(retryMax int) {
+	commonSource.RetryMax = retryMax
 }
 
 // Send sends data to the channel.
