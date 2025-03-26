@@ -89,8 +89,9 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__ADDITIONAL_HINTS | Additional hints for the execution query. |
 | | MC__LOG_VIEW_RETENTION_IN_DAYS | Log view retention in days. (default: 2) |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/file.json. |
+| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/or/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
+| | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 ## Supported Sinks
 
 | Component | Configuration | Description |

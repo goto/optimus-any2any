@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -172,6 +173,58 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, delimiter ...rune) io.ReadC
 			l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
 		}
 	}()
+	return r
+}
+
+func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
+	csvReader := csv.NewReader(reader)
+	if len(delimiter) > 0 {
+		csvReader.Comma = delimiter[0]
+	}
+
+	r, w := io.Pipe()
+	go func(w io.WriteCloser) {
+		defer w.Close()
+
+		headers := []string{}
+		isHeader := true
+		for record, err := csvReader.Read(); err == nil; record, err = csvReader.Read() {
+			if isHeader {
+				isHeader = false
+				if !skipHeader {
+					headers = record
+					continue
+				}
+				for i := range record {
+					headers = append(headers, fmt.Sprintf("%d", i))
+				}
+			}
+			recordResult := map[string]interface{}{}
+			for i, header := range headers {
+				var val interface{}
+				if raw, err := strconv.ParseBool(record[i]); err == nil {
+					val = raw
+				} else if raw, err := strconv.ParseFloat(record[i], 64); err == nil {
+					val = raw
+				} else if raw, err := strconv.ParseInt(record[i], 10, 64); err == nil {
+					val = raw
+				} else {
+					val = record[i]
+				}
+				recordResult[header] = val
+			}
+			raw, err := json.Marshal(recordResult)
+			if err != nil {
+				l.Error(fmt.Sprintf("failed to marshal json: %v", err))
+				continue
+			}
+			if _, err := w.Write(append(raw, '\n')); err != nil {
+				l.Error(fmt.Sprintf("failed to write to pipe: %v", err))
+				continue
+			}
+		}
+	}(w)
+
 	return r
 }
 
