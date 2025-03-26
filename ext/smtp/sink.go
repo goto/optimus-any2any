@@ -222,9 +222,9 @@ func (s *SMTPSink) process() {
 			case ".json":
 				tmpReader = f
 			case ".csv":
-				tmpReader = extcommon.FromJSONToCSV(s.Logger, f)
+				tmpReader = extcommon.FromJSONToCSV(s.Logger, f, false) // no skip header by default
 			case ".tsv":
-				tmpReader = extcommon.FromJSONToCSV(s.Logger, f, rune('\t'))
+				tmpReader = extcommon.FromJSONToCSV(s.Logger, f, false, rune('\t'))
 			default:
 				s.Logger.Warn(fmt.Sprintf("sink(smtp): unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
 				tmpReader = f

@@ -5,6 +5,7 @@ type SourceOSSConfig struct {
 	Credentials  string `env:"OSS__CREDENTIALS"`
 	SourceURI    string `env:"OSS__SOURCE_URI"`
 	CSVDelimiter rune   `env:"OSS__CSV_DELIMITER" envDefault:","`
+	SkipHeader   bool   `env:"OSS__SKIP_HEADER" envDefault:"false"`
 }
 
 // SourceOSS parses the environment variables and returns the source oss configuration.

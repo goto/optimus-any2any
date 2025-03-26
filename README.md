@@ -58,7 +58,7 @@ You can use the JQ processor to filter or transform data before transferring it 
 --env="JQ__QUERY=.[] | select(.age > 30)"
 ```
 
-**Use direct execution without data transfer:**
+**Use direct execution without data transfer (experimentational):**
 
 It applies when sink and source are in the same environment. For example, transferring data from OSS to MaxCompute table. Use the `--no-pipeline` flag to execute the source and sink directly without transferring data.
 
@@ -82,7 +82,6 @@ It applies when sink and source are in the same environment. For example, transf
 | | SF__SOQL_FILE_PATH | Path to the SOQL query file. |
 | GMAIL | GMAIL__TOKEN | Token JSON for gmail credentials |
 | | GMAIL__FILTER | Gmail filter based on gmail filter rules |
-| | GMAIL__FILENAME_COLUMN | Column name to retain filename of downloaded file. "" for ignore (default: "__METADATA__filename") |
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__PRE_QUERY_FILE_PATH | Path to the pre sql query file. (empty for ignore) |
 | | MC__QUERY_FILE_PATH | Path to the query file. |
@@ -90,8 +89,9 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__ADDITIONAL_HINTS | Additional hints for the execution query. |
 | | MC__LOG_VIEW_RETENTION_IN_DAYS | Log view retention in days. (default: 2) |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/file.json. |
+| | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/or/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
+| | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 ## Supported Sinks
 
 | Component | Configuration | Description |
@@ -108,6 +108,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format `oss://bucket/path/to/file.extension` |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
+| | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
