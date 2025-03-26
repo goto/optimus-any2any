@@ -120,7 +120,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		}
 		return oss.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
-			sinkCfg.BatchSize, sinkCfg.EnableOverwrite, opts...)
+			sinkCfg.BatchSize, sinkCfg.EnableOverwrite, sinkCfg.SkipHeader, opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)
 		if err != nil {

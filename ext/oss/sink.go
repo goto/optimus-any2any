@@ -31,6 +31,7 @@ type OSSSink struct {
 	fileRecordCounters     map[string]int
 	batchSize              int
 	enableOverwrite        bool
+	skipHeader             bool
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -38,7 +39,7 @@ var _ flow.Sink = (*OSSSink)(nil)
 // NewSink creates a new OSSSink
 func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	creds, destinationURI string,
-	batchSize int, enableOverwrite bool,
+	batchSize int, enableOverwrite bool, skipHeader bool,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create common sink
@@ -66,6 +67,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		fileRecordCounters:     make(map[string]int),
 		batchSize:              batchSize,
 		enableOverwrite:        enableOverwrite,
+		skipHeader:             skipHeader,
 	}
 
 	// add clean func
@@ -241,9 +243,9 @@ func (o *OSSSink) process() {
 		case ".json":
 			tmpReader = f
 		case ".csv":
-			tmpReader = extcommon.FromJSONToCSV(o.Logger, f)
+			tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader)
 		case ".tsv":
-			tmpReader = extcommon.FromJSONToCSV(o.Logger, f, rune('\t'))
+			tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader, rune('\t'))
 		default:
 			o.Logger.Warn(fmt.Sprintf("sink(oss): unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 			tmpReader = f

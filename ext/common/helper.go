@@ -149,7 +149,7 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 	return records, nil
 }
 
-func FromJSONToCSV(l *slog.Logger, reader io.Reader, delimiter ...rune) io.ReadCloser {
+func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	records := make([]map[string]interface{}, 0)
 	sc := bufio.NewScanner(reader)
 	for sc.Scan() {
@@ -169,7 +169,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, delimiter ...rune) io.ReadC
 	r, w := io.Pipe()
 	go func() {
 		defer w.Close()
-		if err := ToCSV(l, w, records, delimiter...); err != nil {
+		if err := ToCSV(l, w, records, skipHeader, delimiter...); err != nil {
 			l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
 		}
 	}()
@@ -229,7 +229,7 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 }
 
 // ToCSV converts the records to CSV.
-func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, delimiter ...rune) error {
+func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, skipHeader bool, delimiter ...rune) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -251,8 +251,11 @@ func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, delimi
 		csvWriter.Comma = delimiter[0]
 	}
 	defer csvWriter.Flush()
-	if err := csvWriter.Write(header); err != nil {
-		return errors.WithStack(err)
+
+	if !skipHeader {
+		if err := csvWriter.Write(header); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	// convert the records to string

@@ -137,7 +137,7 @@ func (p *PGSink) flush() error {
 			pipeWriter.Close()
 			wg.Done()
 		}()
-		if err := extcommon.ToCSV(p.Logger, pipeWriter, p.records); err != nil {
+		if err := extcommon.ToCSV(p.Logger, pipeWriter, p.records, false); err != nil {
 			errChan <- errors.WithStack(err)
 			return
 		}
