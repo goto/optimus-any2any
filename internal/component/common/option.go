@@ -11,7 +11,7 @@ type SetupOptions interface {
 	SetBufferSize(int)
 	SetOtelSDK(context.Context, string, map[string]string)
 	SetLogger(string)
-	SetRetryMax(int)
+	SetRetry(int, int64)
 }
 
 // Option is a function that sets up the options for the component.
@@ -51,11 +51,12 @@ func SetupLogger(logLevel string) Option {
 	}
 }
 
-// SetupRetryMax sets up the maximum number of retries for the component.
-func SetupRetryMax(retryMax int) Option {
+// SetupRetry sets up the retry configuration for the component.
+func SetupRetry(retryMax int, retryBackoffMs int64) Option {
 	return func(o SetupOptions) {
+		o.SetRetry(1, 1000)
 		if retryMax > 0 {
-			o.SetRetryMax(retryMax)
+			o.SetRetry(retryMax, retryBackoffMs)
 		}
 	}
 }

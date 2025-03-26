@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-func retry(l *slog.Logger, maxRetry int, f func() error) error {
+func retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) error {
 	var err error
 	sleepTime := int64(1)
 
-	for i := 0; i < maxRetry; i++ {
+	for i := 0; i < retryMax; i++ {
 		err = f()
 		if err == nil {
 			return nil
@@ -18,7 +18,7 @@ func retry(l *slog.Logger, maxRetry int, f func() error) error {
 
 		l.Warn(fmt.Sprintf("retry: %d, error: %v", i, err))
 		sleepTime *= 1 << i
-		time.Sleep(time.Duration(sleepTime) * time.Second)
+		time.Sleep(time.Duration(sleepTime*retryBackoffMs) * time.Second)
 	}
 
 	return err

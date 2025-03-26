@@ -24,7 +24,9 @@ type Sink struct {
 	c          chan any
 	err        error
 	cleanFuncs []func()
-	retryMax   int
+
+	retryMax       int
+	retryBackoffMs int64
 }
 
 var _ flow.Sink = (*Sink)(nil)
@@ -93,8 +95,9 @@ func (commonSink *Sink) SetLogger(logLevel string) {
 	commonSink.Logger = logger
 }
 
-func (commonSink *Sink) SetRetryMax(retryMax int) {
+func (commonSink *Sink) SetRetry(retryMax int, retryBackoffMs int64) {
 	commonSink.retryMax = retryMax
+	commonSink.retryBackoffMs = retryBackoffMs
 }
 
 // Read reads data from the channel.
@@ -138,5 +141,5 @@ func (commonSink *Sink) Err() error {
 
 // Retry retries the function f until it returns nil or the retry limit is reached.
 func (commonSink *Sink) Retry(f func() error) error {
-	return retry(commonSink.Logger, commonSink.retryMax, f)
+	return retry(commonSink.Logger, commonSink.retryMax, commonSink.retryBackoffMs, f)
 }

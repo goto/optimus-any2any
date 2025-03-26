@@ -212,6 +212,6 @@ func getOpts(ctx context.Context, cfg *config.Config) []common.Option {
 		common.SetupLogger(cfg.LogLevel),
 		common.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
 		common.SetupBufferSize(cfg.BufferSize),
-		common.SetupRetryMax(cfg.RetryMax),
+		common.SetupRetry(cfg.RetryMax, cfg.RetryBackoffMs),
 	}
 }
