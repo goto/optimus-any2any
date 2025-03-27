@@ -233,7 +233,6 @@ func (s *SMTPSink) process() {
 			attachmentReaders[attachment] = tmpReader
 		}
 
-		s.Logger.Info(fmt.Sprintf("sink(smtp): send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
 		if err := s.Retry(s.sendMailFn(eh, attachmentReaders)); err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): send mail error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))
