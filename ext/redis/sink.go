@@ -141,8 +141,7 @@ func (s *RedisSink) process() {
 		s.Logger.Debug(fmt.Sprintf("sink(redis): record value: %s", recordValue))
 		// flush records
 		if len(s.records) == cap(s.records) {
-			s.Logger.Info(fmt.Sprintf("sink(redis): flushing %d records", len(s.records)/2))
-			if err := s.client.MSet(s.ctx, s.records...).Err(); err != nil {
+			if err := s.Retry(s.flush); err != nil {
 				s.Logger.Error("sink(redis): failed to set records")
 				s.SetError(errors.WithStack(err))
 				continue
@@ -154,10 +153,18 @@ func (s *RedisSink) process() {
 
 	// flush remaining records
 	if len(s.records) > 0 {
-		s.Logger.Info(fmt.Sprintf("sink(redis): flushing %d records", len(s.records)/2))
-		if err := s.client.MSet(s.ctx, s.records...).Err(); err != nil {
+		if err := s.Retry(s.flush); err != nil {
 			s.Logger.Error("sink(redis): failed to set records")
 			s.SetError(errors.WithStack(err))
 		}
 	}
+}
+
+func (s *RedisSink) flush() error {
+	s.Logger.Info(fmt.Sprintf("sink(redis): flushing %d records", len(s.records)/2))
+	if err := s.client.MSet(s.ctx, s.records...).Err(); err != nil {
+		return err
+	}
+
+	return nil
 }

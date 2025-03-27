@@ -251,7 +251,10 @@ func (o *OSSSink) process() {
 			tmpReader = f
 		}
 		o.Logger.Info(fmt.Sprintf("sink(oss): upload tmp file %s to oss %s", tmpURI, destinationURI))
-		if _, err := io.Copy(oh, tmpReader); err != nil {
+		if err := o.Retry(func() error {
+			_, err := io.Copy(oh, tmpReader)
+			return err
+		}); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload tmp file to oss: %s", destinationURI))
 			o.SetError(errors.WithStack(err))
 			return
