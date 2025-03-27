@@ -14,6 +14,7 @@ import (
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -116,13 +117,13 @@ func (o *OSSSink) process() {
 		}
 		o.Logger.Debug(fmt.Sprintf("sink(oss): received message: %s", string(b)))
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
 			o.Logger.Error("sink(oss): invalid data format")
 			o.SetError(errors.WithStack(err))
 			continue
 		}
-		destinationURI, err := extcommon.Compile(o.destinationURITemplate, record)
+		destinationURI, err := extcommon.Compile(o.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			o.Logger.Error("sink(oss): failed to compile destination URI")
 			o.SetError(errors.WithStack(err))

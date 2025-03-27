@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -65,7 +66,7 @@ func (ks *KafkaSink) process() {
 			continue
 		}
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(v.([]byte), &record); err != nil {
 			ks.Logger.Error("sink(kafka): invalid data format")
 			ks.SetError(errors.WithStack(err))

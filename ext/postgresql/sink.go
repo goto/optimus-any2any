@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/jackc/pgx/v5"
@@ -22,9 +23,9 @@ type PGSink struct {
 	conn               *pgx.Conn
 	destinationTableID string
 
-	batchSize         int                      // internal use
-	records           []map[string]interface{} // internal use
-	fileRecordCounter int                      // internal use
+	batchSize         int            // internal use
+	records           []model.Record // internal use
+	fileRecordCounter int            // internal use
 }
 
 var _ flow.Sink = (*PGSink)(nil)
@@ -49,7 +50,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		conn:               conn,
 		destinationTableID: destinationTableID,
 		batchSize:          512,
-		records:            make([]map[string]interface{}, 0, batchSize),
+		records:            make([]model.Record, 0, batchSize),
 		fileRecordCounter:  0,
 	}
 
@@ -84,7 +85,7 @@ func (p *PGSink) process() {
 		}
 		p.Logger.Debug(fmt.Sprintf("sink(pg): received message: %s", string(b)))
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
 			p.Logger.Error(fmt.Sprintf("sink(pg): failed to unmarshal message: %s", string(b)))
 			p.SetError(errors.WithStack(errors.WithMessage(err, fmt.Sprintf("sink(pg): failed to unmarshal message: %s", string(b)))))

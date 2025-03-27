@@ -15,6 +15,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -107,21 +108,21 @@ func (mc *MaxcomputeSource) process() {
 		linePreRecord := make([]byte, len(rawPreRecord)) // Important: make a copy of the line before processing
 		copy(linePreRecord, rawPreRecord)
 
-		var preRecord map[string]interface{}
+		var preRecord model.Record
 		if err := json.Unmarshal(linePreRecord, &preRecord); err != nil {
 			mc.Logger.Error("source(mc): invalid data format")
 			mc.SetError(errors.WithStack(err))
 			return
 		}
 		// add prefix for every key
-		preRecordWithPrefix := make(map[string]interface{})
-		for k := range preRecord {
-			preRecordWithPrefix[fmt.Sprintf("%s%s", mc.metadataPrefix, k)] = preRecord[k]
+		preRecordWithPrefix := model.NewRecord()
+		for k := range preRecord.AllFromFront() {
+			preRecordWithPrefix.Set(fmt.Sprintf("%s%s", mc.metadataPrefix, k), preRecord.GetOrDefault(k, nil))
 		}
 		mc.Logger.Debug(fmt.Sprintf("source(mc): pre-record: %v", preRecordWithPrefix))
 
 		// compile query
-		query, err := extcommon.Compile(mc.queryTemplate, preRecordWithPrefix)
+		query, err := extcommon.Compile(mc.queryTemplate, model.ToMap(preRecordWithPrefix))
 		if err != nil {
 			mc.Logger.Error("source(mc): failed to compile query")
 			mc.SetError(errors.WithStack(err))
@@ -137,16 +138,16 @@ func (mc *MaxcomputeSource) process() {
 			lineRecord := make([]byte, len(rawRecord)) // Important: make a copy of the line before processing
 			copy(lineRecord, rawRecord)
 
-			var record map[string]interface{}
+			var record model.Record
 			if err := json.Unmarshal(lineRecord, &record); err != nil {
 				mc.Logger.Error("source(mc): invalid data format")
 				mc.SetError(errors.WithStack(err))
 				return
 			}
 			// merge with pre-record
-			for k := range preRecordWithPrefix {
-				if _, ok := record[k]; !ok {
-					record[k] = preRecordWithPrefix[k]
+			for k := range preRecordWithPrefix.AllFromFront() {
+				if _, ok := record.Get(k); !ok {
+					record.Set(k, preRecordWithPrefix.GetOrDefault(k, nil))
 				}
 			}
 

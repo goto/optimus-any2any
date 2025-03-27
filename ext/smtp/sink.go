@@ -13,6 +13,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
@@ -140,14 +141,14 @@ func (s *SMTPSink) process() {
 	for msg := range s.Read() {
 		s.Logger.Debug("sink(smtp): received message")
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(msg.([]byte), &record); err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): unmarshal error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))
 			continue
 		}
 
-		m, err := compileMetadata(s.emailMetadataTemplate, record)
+		m, err := compileMetadata(s.emailMetadataTemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): compile metadata error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))
@@ -164,7 +165,7 @@ func (s *SMTPSink) process() {
 			eh = s.emailHandlers[hash]
 		}
 
-		attachment, err := extcommon.Compile(s.emailMetadataTemplate.attachment, record)
+		attachment, err := extcommon.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): compile attachment error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))

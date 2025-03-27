@@ -5,11 +5,11 @@ go 1.23.0
 toolchain go1.23.7
 
 require (
+	github.com/GitRowin/orderedmapjson v0.4.1
 	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.1.3
 	github.com/aliyun/aliyun-odps-go-sdk v0.4.6
 	github.com/caarlos0/env/v11 v11.2.2
 	github.com/google/uuid v1.6.0
-	github.com/itchyny/gojq v0.12.17
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.7
@@ -41,6 +41,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -50,7 +51,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.23.0 // indirect
-	github.com/itchyny/timefmt-go v0.1.6 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

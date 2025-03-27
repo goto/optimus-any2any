@@ -14,6 +14,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -114,7 +115,7 @@ func (s *HTTPSink) process() {
 			continue
 		}
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
 			s.Logger.Error("sink(http): invalid data format")
 			s.SetError(errors.WithStack(err))
@@ -237,11 +238,11 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 	return nil
 }
 
-func compileMetadata(m httpMetadataTemplate, record map[string]interface{}) (httpMetadata, error) {
+func compileMetadata(m httpMetadataTemplate, record model.Record) (httpMetadata, error) {
 	metadata := httpMetadata{}
 
 	if m.method != nil {
-		method, err := extcommon.Compile(m.method, record)
+		method, err := extcommon.Compile(m.method, model.ToMap(record))
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
@@ -249,7 +250,7 @@ func compileMetadata(m httpMetadataTemplate, record map[string]interface{}) (htt
 	}
 
 	if m.endpoint != nil {
-		endpoint, err := extcommon.Compile(m.endpoint, record)
+		endpoint, err := extcommon.Compile(m.endpoint, model.ToMap(record))
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
@@ -257,7 +258,7 @@ func compileMetadata(m httpMetadataTemplate, record map[string]interface{}) (htt
 	}
 
 	if m.headers != nil {
-		headers, err := extcommon.Compile(m.headers, record)
+		headers, err := extcommon.Compile(m.headers, model.ToMap(record))
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
