@@ -5,6 +5,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/goto/optimus-any2any/ext/common/model"
 )
 
 func NewTemplate(name, raw string) (*template.Template, error) {
@@ -27,4 +29,12 @@ func Compile(tmpl *template.Template, values interface{}) (string, error) {
 		return "", err
 	}
 	return builder.String(), nil
+}
+
+func CompileRecord(tmpl *template.Template, record model.Record) (string, error) {
+	recordMap := map[string]interface{}{}
+	for k, v := range record.AllFromFront() {
+		recordMap[k] = v
+	}
+	return Compile(tmpl, recordMap)
 }

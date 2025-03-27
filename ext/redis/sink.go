@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -118,20 +119,20 @@ func (s *RedisSink) process() {
 		}
 		s.Logger.Debug(fmt.Sprintf("sink(redis): received message: %s", string(b)))
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
 			s.Logger.Error("sink(redis): invalid data format")
 			s.SetError(errors.WithStack(err))
 			continue
 		}
-		recordKey, err := extcommon.Compile(s.recordKeyTemplate, record)
+		recordKey, err := extcommon.CompileRecord(s.recordKeyTemplate, record)
 		if err != nil {
 			s.Logger.Error("sink(redis): failed to compile record key")
 			s.SetError(errors.WithStack(err))
 			continue
 		}
 		s.Logger.Debug(fmt.Sprintf("sink(redis): record key: %s", recordKey))
-		recordValue, err := extcommon.Compile(s.recordValueTemplate, record)
+		recordValue, err := extcommon.CompileRecord(s.recordValueTemplate, record)
 		if err != nil {
 			s.Logger.Error("sink(redis): failed to compile record value")
 			s.SetError(errors.WithStack(err))

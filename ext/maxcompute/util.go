@@ -13,6 +13,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/data"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/datatype"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/pkg/errors"
 )
 
@@ -404,20 +405,20 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 	}
 }
 
-func lowerCaseMapKeys(m map[string]interface{}) map[string]interface{} {
-	result := map[string]interface{}{}
-	for k, v := range m {
-		result[strings.ToLower(k)] = v
+func lowerCaseMapKeys(m model.Record) model.Record {
+	result := model.Record{}
+	for k, v := range m.AllFromFront() {
+		result.Set(strings.ToLower(k), v)
 	}
 	return result
 }
 
-func createRecord(l *slog.Logger, record map[string]interface{}, schema tableschema.TableSchema) (data.Record, error) {
+func createRecord(l *slog.Logger, record model.Record, schema tableschema.TableSchema) (data.Record, error) {
 	raw := lowerCaseMapKeys(record)
 	result := []data.Data{}
 	var errResult error = nil
 	for _, column := range schema.Columns {
-		d, err := createData(l, raw[strings.ToLower(column.Name)], column.Type)
+		d, err := createData(l, raw.GetOrDefault(strings.ToLower(column.Name), nil), column.Type)
 		if err != nil {
 			err = errors.Wrapf(err, "failed to create data for column %s", column.Name)
 			errResult = errs.Join(errResult, err)
@@ -557,13 +558,17 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a struct, found %+v, type %T", value, value))
 		}
-		curr = lowerCaseMapKeys(curr)
+		currRecord := model.Record{}
+		for k, v := range curr {
+			currRecord.Set(k, v)
+		}
+		currRecord = lowerCaseMapKeys(currRecord)
 
 		record := data.NewStructWithTyp(structType)
 		for _, field := range structType.Fields {
 			var d interface{} = nil
 
-			if currValue, ok := curr[strings.ToLower(field.Name)]; ok && currValue != nil {
+			if currValue := currRecord.GetOrDefault(strings.ToLower(field.Name), nil); currValue != nil {
 				v, err := createData(l, currValue, field.Type)
 				if err != nil {
 					return nil, errors.WithStack(err)

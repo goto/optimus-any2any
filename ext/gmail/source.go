@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -85,7 +86,7 @@ func (gs *GmailSource) process() {
 		gs.Logger.Info(fmt.Sprintf("source(gmail): fetched message %s", msg.Id))
 
 		// extract data
-		records := make([]map[string]interface{}, 0)
+		records := []model.Record{}
 
 		for _, p := range msg.Payload.Parts {
 			if p.Filename == "" {
@@ -116,7 +117,9 @@ func (gs *GmailSource) process() {
 				return
 			}
 			// set filename column
-			gs.setFilenameColumn(currentRecords, p.Filename)
+			for i := range currentRecords {
+				currentRecords[i].Set(gs.filenameColumn, p.Filename)
+			}
 			records = append(records, currentRecords...)
 		}
 
@@ -133,21 +136,13 @@ func (gs *GmailSource) process() {
 	}
 }
 
-func (gs *GmailSource) convertToRecords(fileExt string, r io.Reader) ([]map[string]interface{}, error) {
-	records := make([]map[string]interface{}, 0)
+func (gs *GmailSource) convertToRecords(fileExt string, r io.Reader) ([]model.Record, error) {
 	switch fileExt {
 	case "json":
 		return extcommon.FromJSONToRecords(gs.Logger, r)
 	case "csv":
 		return extcommon.FromCSVToRecords(gs.Logger, r)
 	default:
-		return records, errors.New(fmt.Sprintf("source(gmail): unknown extractor file format: %s", fileExt))
-	}
-}
-
-func (gs *GmailSource) setFilenameColumn(records []map[string]interface{}, filename string) {
-	gs.Logger.Debug(fmt.Sprintf("source(gmail): add filename column %s and set the value %s", gs.filenameColumn, filename))
-	for i := range records {
-		records[i][gs.filenameColumn] = filename
+		return []model.Record{}, errors.New(fmt.Sprintf("source(gmail): unknown extractor file format: %s", fileExt))
 	}
 }

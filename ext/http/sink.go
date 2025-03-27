@@ -14,6 +14,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -33,7 +34,7 @@ type httpMetadata struct {
 
 type httpHandler struct {
 	httpMetadata httpMetadata
-	records      []string
+	recordRaws   []string
 }
 
 type HTTPSink struct {
@@ -114,7 +115,7 @@ func (s *HTTPSink) process() {
 			continue
 		}
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
 			s.Logger.Error("sink(http): invalid data format")
 			s.SetError(errors.WithStack(err))
@@ -142,20 +143,20 @@ func (s *HTTPSink) process() {
 		if !ok {
 			s.httpHandlers[hash] = httpHandler{
 				httpMetadata: m,
-				records:      make([]string, 0, s.batchSize),
+				recordRaws:   make([]string, 0, s.batchSize),
 			}
 		}
 
 		// flush if batch size is reached
 		// batch size is 1 means no batching
-		if len(s.httpHandlers[hash].records) >= s.batchSize {
-			if err := s.flush(m, s.httpHandlers[hash].records); err != nil {
+		if len(s.httpHandlers[hash].recordRaws) >= s.batchSize {
+			if err := s.flush(m, s.httpHandlers[hash].recordRaws); err != nil {
 				s.Logger.Error(fmt.Sprintf("sink(http): failed to send data to %s: %s", m.endpoint, err.Error()))
 				s.SetError(errors.WithStack(err))
 				continue
 			}
 			hh := s.httpHandlers[hash]
-			hh.records = make([]string, 0, s.batchSize)
+			hh.recordRaws = make([]string, 0, s.batchSize)
 			s.httpHandlers[hash] = hh
 
 			if s.batchSize > 1 {
@@ -165,7 +166,7 @@ func (s *HTTPSink) process() {
 
 		// append record to the handler
 		hh := s.httpHandlers[hash]
-		hh.records = append(hh.records, string(raw))
+		hh.recordRaws = append(hh.recordRaws, string(raw))
 		s.httpHandlers[hash] = hh
 		recordCounter++
 
@@ -175,12 +176,12 @@ func (s *HTTPSink) process() {
 	}
 
 	for _, hh := range s.httpHandlers {
-		if len(hh.records) == 0 {
+		if len(hh.recordRaws) == 0 {
 			continue
 		}
 
 		err := s.Retry(func() error {
-			return s.flush(hh.httpMetadata, hh.records)
+			return s.flush(hh.httpMetadata, hh.recordRaws)
 		})
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(http): failed to send data to %s: %s", hh.httpMetadata.endpoint, err.Error()))
@@ -237,11 +238,11 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 	return nil
 }
 
-func compileMetadata(m httpMetadataTemplate, record map[string]interface{}) (httpMetadata, error) {
+func compileMetadata(m httpMetadataTemplate, record model.Record) (httpMetadata, error) {
 	metadata := httpMetadata{}
 
 	if m.method != nil {
-		method, err := extcommon.Compile(m.method, record)
+		method, err := extcommon.CompileRecord(m.method, record)
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
@@ -249,7 +250,7 @@ func compileMetadata(m httpMetadataTemplate, record map[string]interface{}) (htt
 	}
 
 	if m.endpoint != nil {
-		endpoint, err := extcommon.Compile(m.endpoint, record)
+		endpoint, err := extcommon.CompileRecord(m.endpoint, record)
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
@@ -257,7 +258,7 @@ func compileMetadata(m httpMetadataTemplate, record map[string]interface{}) (htt
 	}
 
 	if m.headers != nil {
-		headers, err := extcommon.Compile(m.headers, record)
+		headers, err := extcommon.CompileRecord(m.headers, record)
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}

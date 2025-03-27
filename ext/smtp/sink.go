@@ -13,6 +13,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
@@ -140,7 +141,7 @@ func (s *SMTPSink) process() {
 	for msg := range s.Read() {
 		s.Logger.Debug("sink(smtp): received message")
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(msg.([]byte), &record); err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): unmarshal error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))
@@ -164,7 +165,7 @@ func (s *SMTPSink) process() {
 			eh = s.emailHandlers[hash]
 		}
 
-		attachment, err := extcommon.Compile(s.emailMetadataTemplate.attachment, record)
+		attachment, err := extcommon.CompileRecord(s.emailMetadataTemplate.attachment, record)
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("sink(smtp): compile attachment error: %s", err.Error()))
 			s.SetError(errors.WithStack(err))
@@ -245,17 +246,17 @@ func (s *SMTPSink) process() {
 	}
 }
 
-func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (emailMetadata, error) {
+func compileMetadata(m emailMetadataTemplate, record model.Record) (emailMetadata, error) {
 	em := emailMetadata{}
 
-	from, err := extcommon.Compile(m.from, record)
+	from, err := extcommon.CompileRecord(m.from, record)
 	if err != nil {
 		return em, errors.WithStack(err)
 	}
 	em.from = from
 
 	for _, t := range m.to {
-		to, err := extcommon.Compile(t, record)
+		to, err := extcommon.CompileRecord(t, record)
 		if err != nil {
 			return em, errors.WithStack(err)
 		}
@@ -263,7 +264,7 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 	}
 
 	for _, c := range m.cc {
-		cc, err := extcommon.Compile(c, record)
+		cc, err := extcommon.CompileRecord(c, record)
 		if err != nil {
 			return em, errors.WithStack(err)
 		}
@@ -271,20 +272,20 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 	}
 
 	for _, b := range m.bcc {
-		bcc, err := extcommon.Compile(b, record)
+		bcc, err := extcommon.CompileRecord(b, record)
 		if err != nil {
 			return em, errors.WithStack(err)
 		}
 		em.bcc = append(em.bcc, bcc)
 	}
 
-	subject, err := extcommon.Compile(m.subject, record)
+	subject, err := extcommon.CompileRecord(m.subject, record)
 	if err != nil {
 		return em, errors.WithStack(err)
 	}
 	em.subject = subject
 
-	body, err := extcommon.Compile(m.body, record)
+	body, err := extcommon.CompileRecord(m.body, record)
 	if err != nil {
 		return em, errors.WithStack(err)
 	}

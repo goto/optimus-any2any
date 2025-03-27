@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
 )
@@ -57,7 +58,7 @@ func (fs *FileSink) process() {
 			fs.SetError(fmt.Errorf("invalid data type"))
 			continue
 		}
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(raw, &record); err != nil {
 			fs.Logger.Error("sink(file): invalid data format")
 			fs.SetError(errors.WithStack(err))

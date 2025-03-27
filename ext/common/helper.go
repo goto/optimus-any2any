@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/pkg/errors"
 )
 
@@ -27,93 +27,26 @@ var builtinValueFuns = map[string]func() string{
 }
 
 // RecordWithoutMetadata returns the record without given metadata prefix.
-func RecordWithoutMetadata(record map[string]interface{}, metadataPrefix string) map[string]interface{} {
-	recordWithoutMetadata := make(map[string]interface{})
-	for k, v := range record {
+func RecordWithoutMetadata(record model.Record, metadataPrefix string) model.Record {
+	recordWithoutMetadata := model.Record{}
+	for k, v := range record.AllFromFront() {
 		if strings.HasPrefix(k, metadataPrefix) {
 			continue
 		}
-		recordWithoutMetadata[k] = v
+		recordWithoutMetadata.Set(k, v)
 	}
 	return recordWithoutMetadata
 }
 
-// RenderFilename renders the filename pattern with the values.
-func RenderFilename(filenamePattern string, values map[string]string) string {
-	// Replace the filename pattern with the values
-	mergedValues := make(map[string]string)
-	for k, v := range builtinValueFuns {
-		mergedValues[k] = v()
-	}
-	for k, v := range values {
-		mergedValues[k] = v
-	}
-	for k, v := range mergedValues {
-		filenamePattern = strings.ReplaceAll(filenamePattern, fmt.Sprintf("{%s}", k), v)
-	}
-	return filenamePattern
-}
-
-// GetColumnMap reads the column map from the file.
-func GetColumnMap(columnMapFilePath string) (map[string]string, error) {
-	if columnMapFilePath == "" {
-		return nil, nil
-	}
-	columnMapRaw, err := os.ReadFile(columnMapFilePath)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	columnMap := make(map[string]string)
-	if err = json.Unmarshal(columnMapRaw, &columnMap); err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return columnMap, nil
-}
-
-// KeyMapping maps the keys of the value according to the keyMap.
-func KeyMapping(keyMap map[string]string, value map[string]interface{}) map[string]interface{} {
-	if keyMap == nil {
-		return value
-	}
-	mappedValue := make(map[string]interface{})
-	for key, val := range value {
-		if mappedKey, ok := keyMap[key]; ok {
-			mappedValue[mappedKey] = val
-		} else {
-			mappedValue[key] = val
-		}
-	}
-	return mappedValue
-}
-
-// GroupRecordsByKey groups the records by the key.
-func GroupRecordsByKey(groupedKey string, records [][]byte) (map[string][][]byte, error) {
-	groupRecords := map[string][][]byte{}
-	for _, raw := range records {
-		// parse the record
-		var v map[string]interface{}
-		if err := json.Unmarshal(raw, &v); err != nil {
-			return nil, errors.WithStack(err)
-		}
-		groupKeyRaw, ok := v[groupedKey]
-		if !ok {
-			return nil, errors.New(fmt.Sprintf("group by column not found: %s", groupedKey))
-		}
-		groupKey := fmt.Sprintf("%v", groupKeyRaw)
-		groupRecords[groupKey] = append(groupRecords[groupKey], raw)
-	}
-	return groupRecords, nil
-}
-
-func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{}, error) {
-	records := make([]map[string]interface{}, 0)
+func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]model.Record, error) {
+	records := []model.Record{}
 	sc := bufio.NewScanner(reader)
 	for sc.Scan() {
 		raw := sc.Bytes()
 		line := make([]byte, len(raw))
 		copy(line, raw)
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(line, &record); err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -122,8 +55,8 @@ func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface
 	return records, nil
 }
 
-func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{}, error) {
-	records := make([]map[string]interface{}, 0)
+func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]model.Record, error) {
+	records := []model.Record{}
 	r := csv.NewReader(reader)
 	r.FieldsPerRecord = -1
 	rows, err := r.ReadAll()
@@ -135,14 +68,14 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 		if i == 0 {
 			continue
 		}
-		record := make(map[string]interface{})
+		record := model.Record{}
 		if len(row) != len(rows[0]) {
 			l.Warn(fmt.Sprintf("record %d has different column count", i))
 			l.Debug(fmt.Sprintf("record %d: %v", i, row))
 			continue
 		}
 		for j, value := range row {
-			record[rows[0][j]] = value
+			record.Set(rows[0][j], value)
 		}
 		records = append(records, record)
 	}
@@ -150,14 +83,14 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 }
 
 func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
-	records := make([]map[string]interface{}, 0)
+	records := []model.Record{}
 	sc := bufio.NewScanner(reader)
 	for sc.Scan() {
 		raw := sc.Bytes()
 		line := make([]byte, len(raw))
 		copy(line, raw)
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(line, &record); err != nil {
 			l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
 			continue
@@ -229,14 +162,14 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 }
 
 // ToCSV converts the records to CSV.
-func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, skipHeader bool, delimiter ...rune) error {
+func ToCSV(l *slog.Logger, w io.Writer, records []model.Record, skipHeader bool, delimiter ...rune) error {
 	if len(records) == 0 {
 		return nil
 	}
 	// get the header
 	headerMap := make(map[string]bool)
 	for _, record := range records {
-		for k := range record {
+		for k := range record.AllFromFront() {
 			headerMap[k] = true
 		}
 	}
@@ -281,9 +214,9 @@ func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, skipHe
 	return nil
 }
 
-func convertRecordToMapString(record map[string]interface{}) (map[string]string, error) {
+func convertRecordToMapString(record model.Record) (map[string]string, error) {
 	recordString := make(map[string]string)
-	for k, v := range record {
+	for k, v := range record.AllFromFront() {
 		val, err := convertValueToString(v)
 		if err != nil {
 			return nil, errors.WithStack(err)
