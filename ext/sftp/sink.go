@@ -128,22 +128,13 @@ func (s *SFTPSink) process() {
 			}
 			s.fileHandlers[destinationURI] = fh
 		}
-		if _, err := fh.Write(append(b, '\n')); err != nil {
+		if err := s.Retry(func() error {
+			_, err := fh.Write(append(b, '\n'))
+			return err
+		}); err != nil {
 			s.Logger.Error("sink(sftp): failed to write data")
 			s.SetError(errors.WithStack(err))
 			continue
 		}
-	}
-}
-
-func (s *SFTPSink) writeFn(fh extcommon.FileHandler, b []byte) func() error {
-	return func() error {
-		written, err := fh.Write(append(b, '\n'))
-		if err != nil {
-			return err
-		}
-
-		s.Logger.Debug(fmt.Sprintf("sink(sftp): wrote %d bytes to sftp", written))
-		return nil
 	}
 }

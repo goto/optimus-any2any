@@ -251,7 +251,10 @@ func (o *OSSSink) process() {
 			tmpReader = f
 		}
 		o.Logger.Info(fmt.Sprintf("sink(oss): upload tmp file %s to oss %s", tmpURI, destinationURI))
-		if err := o.Retry(o.copyFn(oh, tmpReader)); err != nil {
+		if err := o.Retry(func() error {
+			_, err := io.Copy(oh, tmpReader)
+			return err
+		}); err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload tmp file to oss: %s", destinationURI))
 			o.SetError(errors.WithStack(err))
 			return
@@ -283,15 +286,4 @@ func getTmpURI(destinationURI string) (string, error) {
 	}
 	filepath.Base(targetURI.Path)
 	return fmt.Sprintf("file:///tmp/%s", filepath.Base(targetURI.Path)), nil
-}
-
-func (o *OSSSink) copyFn(oh extcommon.FileHandler, rc io.ReadCloser) func() error {
-	return func() error {
-		written, err := io.Copy(oh, rc)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		o.Logger.Debug(fmt.Sprintf("sink(oss): wrote %d bytes to oss", written))
-		return nil
-	}
 }
