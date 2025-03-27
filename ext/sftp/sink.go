@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -94,13 +95,13 @@ func (s *SFTPSink) process() {
 		}
 		s.Logger.Debug(fmt.Sprintf("sink(sftp): receive message: %s", string(b)))
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
 			s.Logger.Error("sink(sftp): invalid data format")
 			s.SetError(errors.WithStack(err))
 			continue
 		}
-		destinationURI, err := extcommon.Compile(s.destinationURITemplate, record)
+		destinationURI, err := extcommon.Compile(s.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger.Error("sink(sftp): failed to compile destination URI")
 			s.SetError(errors.WithStack(err))

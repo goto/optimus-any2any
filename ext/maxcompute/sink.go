@@ -11,6 +11,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -163,9 +164,8 @@ func (mc *MaxcomputeSink) process() {
 			continue
 		}
 
-		record := map[string]interface{}{}
-		err := json.Unmarshal(b, &record)
-		if err != nil {
+		var record model.Record
+		if err := json.Unmarshal(b, &record); err != nil {
 			mc.Logger.Error(fmt.Sprintf("sink(mc): message unmarshal error: %s", err.Error()))
 			mc.SetError(errors.WithStack(err))
 			continue

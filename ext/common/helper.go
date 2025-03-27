@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/pkg/errors"
 )
 
@@ -26,26 +28,26 @@ var builtinValueFuns = map[string]func() string{
 }
 
 // RecordWithoutMetadata returns the record without given metadata prefix.
-func RecordWithoutMetadata(record map[string]interface{}, metadataPrefix string) map[string]interface{} {
-	recordWithoutMetadata := make(map[string]interface{})
-	for k, v := range record {
+func RecordWithoutMetadata(record model.Record, metadataPrefix string) model.Record {
+	recordWithoutMetadata := model.NewRecord()
+	for k, v := range record.AllFromFront() {
 		if strings.HasPrefix(k, metadataPrefix) {
 			continue
 		}
-		recordWithoutMetadata[k] = v
+		recordWithoutMetadata.Set(k, v)
 	}
 	return recordWithoutMetadata
 }
 
-func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{}, error) {
-	records := make([]map[string]interface{}, 0)
+func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]model.Record, error) {
+	records := make([]model.Record, 0)
 	sc := bufio.NewScanner(reader)
 	for sc.Scan() {
 		raw := sc.Bytes()
 		line := make([]byte, len(raw))
 		copy(line, raw)
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(line, &record); err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -54,8 +56,8 @@ func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface
 	return records, nil
 }
 
-func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{}, error) {
-	records := make([]map[string]interface{}, 0)
+func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]model.Record, error) {
+	records := make([]model.Record, 0)
 	r := csv.NewReader(reader)
 	r.FieldsPerRecord = -1
 	rows, err := r.ReadAll()
@@ -67,14 +69,14 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 		if i == 0 {
 			continue
 		}
-		record := make(map[string]interface{})
+		record := model.NewRecord()
 		if len(row) != len(rows[0]) {
 			l.Warn(fmt.Sprintf("record %d has different column count", i))
 			l.Debug(fmt.Sprintf("record %d: %v", i, row))
 			continue
 		}
 		for j, value := range row {
-			record[rows[0][j]] = value
+			record.Set(rows[0][j], value)
 		}
 		records = append(records, record)
 	}
@@ -82,7 +84,7 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 }
 
 func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
-	records := make([]map[string]interface{}, 0)
+	records := make([]model.Record, 0)
 	sc := bufio.NewScanner(reader)
 	hasError := false
 	for sc.Scan() {
@@ -90,7 +92,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 		line := make([]byte, len(raw))
 		copy(line, raw)
 
-		var record map[string]interface{}
+		var record model.Record
 		if err := json.Unmarshal(line, &record); err != nil {
 			if !hasError {
 				l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
@@ -135,7 +137,7 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 					headers = append(headers, fmt.Sprintf("%d", i))
 				}
 			}
-			recordResult := map[string]interface{}{}
+			recordResult := model.NewRecord()
 			for i, header := range headers {
 				var val interface{}
 				if raw, err := strconv.ParseBool(record[i]); err == nil {
@@ -147,7 +149,7 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 				} else {
 					val = record[i]
 				}
-				recordResult[header] = val
+				recordResult.Set(header, val)
 			}
 			raw, err := json.Marshal(recordResult)
 			if err != nil {
@@ -165,19 +167,19 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 }
 
 // ToCSV converts the records to CSV.
-func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, skipHeader bool, delimiter ...rune) error {
+func ToCSV(l *slog.Logger, w io.Writer, records []model.Record, skipHeader bool, delimiter ...rune) error {
 	if len(records) == 0 {
 		return nil
 	}
 	// get the header
-	headerMap := make(map[string]bool)
+	headerMap := model.NewRecord()
 	for _, record := range records {
-		for k := range record {
-			headerMap[k] = true
+		for k := range record.AllFromFront() {
+			headerMap.Set(k, true)
 		}
 	}
-	header := make([]string, 0, len(headerMap))
-	for k := range headerMap {
+	header := make([]string, 0, headerMap.Len())
+	for k := range headerMap.AllFromFront() {
 		header = append(header, k)
 	}
 
@@ -202,9 +204,11 @@ func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, skipHe
 		}
 		recordString := []string{}
 		for _, k := range header {
-			if v, ok := mapString[k]; ok {
-				recordString = append(recordString, v)
-			} else {
+			if v := mapString.GetOrDefault(k, nil); v != nil {
+				if val, ok := v.(string); ok {
+					recordString = append(recordString, val)
+					continue
+				}
 				recordString = append(recordString, "")
 			}
 		}
@@ -217,14 +221,14 @@ func ToCSV(l *slog.Logger, w io.Writer, records []map[string]interface{}, skipHe
 	return nil
 }
 
-func convertRecordToMapString(record map[string]interface{}) (map[string]string, error) {
-	recordString := make(map[string]string)
-	for k, v := range record {
+func convertRecordToMapString(record model.Record) (model.Record, error) {
+	recordString := model.NewRecord()
+	for k, v := range record.AllFromFront() {
 		val, err := convertValueToString(v)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return recordString, errors.WithStack(err)
 		}
-		recordString[k] = val
+		recordString.Set(k, val)
 	}
 	return recordString, nil
 }
@@ -233,16 +237,27 @@ func convertValueToString(v interface{}) (string, error) {
 	switch val := v.(type) {
 	case bool:
 		return fmt.Sprintf("%t", val), nil
-	case int, int64:
+	case int:
 		return fmt.Sprintf("%d", val), nil
-	case float32, float64:
-		return fmt.Sprintf("%f", val), nil
+	case int64:
+		return strconv.FormatInt(val, 10), nil
+	case float64:
+		// Check if it's a whole number
+		if val == math.Trunc(val) {
+			return fmt.Sprintf("%.0f", val), nil
+		}
+		return strconv.FormatFloat(val, 'f', -1, 64), nil
+	case float32:
+		if float64(val) == math.Trunc(float64(val)) {
+			return fmt.Sprintf("%.0f", val), nil
+		}
+		return strconv.FormatFloat(float64(val), 'f', -1, 32), nil
 	case string:
 		return val, nil
 	case map[string]interface{}, []interface{}:
-		b := []byte{}
-		if err := json.Unmarshal(b, val); err != nil {
-			return "", errors.WithStack(err)
+		b, err := json.Marshal(val)
+		if err != nil {
+			return "", err
 		}
 		return string(b), nil
 	case nil:

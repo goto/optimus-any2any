@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/ext/direct"
@@ -196,6 +197,10 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 	}
 	compiledQuery, err := extcommon.Compile(tmpl, nil)
 	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	if _, err := exec.LookPath("jq"); err != nil {
+		l.Error("processor: jq not found")
 		return "", errors.WithStack(err)
 	}
 	l.Info(fmt.Sprintf("processor: jq query: %s", compiledQuery))
