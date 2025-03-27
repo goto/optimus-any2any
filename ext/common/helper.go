@@ -84,6 +84,7 @@ func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]map[string]interface{
 func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	records := make([]map[string]interface{}, 0)
 	sc := bufio.NewScanner(reader)
+	hasError := false
 	for sc.Scan() {
 		raw := sc.Bytes()
 		line := make([]byte, len(raw))
@@ -91,7 +92,10 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 
 		var record map[string]interface{}
 		if err := json.Unmarshal(line, &record); err != nil {
-			l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
+			if !hasError {
+				l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
+				hasError = true
+			}
 			continue
 		}
 

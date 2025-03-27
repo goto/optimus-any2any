@@ -98,6 +98,9 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 }
 
 func (o *OSSSink) process() {
+	var destinationURI string
+	var err error
+
 	logCheckPoint := 1000
 	recordCounter := 0
 	if o.batchSize > 0 {
@@ -122,7 +125,7 @@ func (o *OSSSink) process() {
 			o.SetError(errors.WithStack(err))
 			continue
 		}
-		destinationURI, err := extcommon.Compile(o.destinationURITemplate, record)
+		destinationURI, err = extcommon.Compile(o.destinationURITemplate, record)
 		if err != nil {
 			o.Logger.Error("sink(oss): failed to compile destination URI")
 			o.SetError(errors.WithStack(err))
@@ -130,29 +133,29 @@ func (o *OSSSink) process() {
 		}
 		// use uri with batch size for its suffix if batch size is set
 		if o.batchSize > 0 {
-			destinationURI = fmt.Sprintf("%s.%d.%s",
-				destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
-				int(recordCounter/o.batchSize)*o.batchSize,
-				filepath.Ext(destinationURI)[1:])
+			// flush previous batch
+			if recordCounter%o.batchSize == 0 && recordCounter > 0 {
+				prevDestinationURI := getDestinationURIByBatch(destinationURI, recordCounter-1, o.batchSize)
+				if err := o.flush(prevDestinationURI, o.ossHandlers[prevDestinationURI]); err != nil {
+					o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush records: %s", err.Error()))
+					o.SetError(errors.WithStack(err))
+					continue
+				}
+			}
+			destinationURI = getDestinationURIByBatch(destinationURI, recordCounter, o.batchSize)
 		}
 
 		// stream to tmp file
-		tmpURI, err := getTmpURI(destinationURI)
+		tmpPath, err := getTmpPath(destinationURI)
 		if err != nil {
 			o.Logger.Error(fmt.Sprintf("sink(oss): failed to get tmp URI: %s", destinationURI))
 			o.SetError(errors.WithStack(err))
 			continue
 		}
-		fh, ok := o.fileHandlers[tmpURI]
+		fh, ok := o.fileHandlers[tmpPath]
 		if !ok {
 			// create new tmp file handler
-			targetTempURI, err := url.Parse(tmpURI)
-			if err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): failed to parse tmp URI: %s", tmpURI))
-				o.SetError(errors.WithStack(err))
-				continue
-			}
-			fh, err = file.NewStdFileHandler(o.Logger, targetTempURI.Path)
+			fh, err = file.NewStdFileHandler(o.Logger, tmpPath)
 			if err != nil {
 				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create tmp file handler: %s", err.Error()))
 				o.SetError(errors.WithStack(err))
@@ -188,7 +191,7 @@ func (o *OSSSink) process() {
 			}
 
 			// dual handlers for both tmp file and oss
-			o.fileHandlers[tmpURI] = fh
+			o.fileHandlers[tmpPath] = fh
 			o.ossHandlers[destinationURI] = oh
 		}
 
@@ -209,57 +212,24 @@ func (o *OSSSink) process() {
 		}
 
 		recordCounter++
-		o.fileRecordCounters[tmpURI]++
+		o.fileRecordCounters[tmpPath]++
 		if recordCounter%logCheckPoint == 0 {
-			o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to tmp file: %s", o.fileRecordCounters[tmpURI], tmpURI))
+			o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to tmp file: %s", o.fileRecordCounters[tmpPath], tmpPath))
 		}
 	}
 
-	// upload tmp file to oss
-	for destinationURI, oh := range o.ossHandlers {
-		tmpURI, err := getTmpURI(destinationURI)
-		if err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to get tmp URI: %s", destinationURI))
-			o.SetError(errors.WithStack(err))
-			return
-		}
-		sourceURI, err := url.Parse(tmpURI)
-		if err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to parse tmp URI: %s", tmpURI))
-			o.SetError(errors.WithStack(err))
-			return
-		}
-		f, err := os.OpenFile(sourceURI.Path, os.O_RDONLY, 0644)
-		if err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to open tmp file: %s", tmpURI))
-			o.SetError(errors.WithStack(err))
-			return
-		}
-		defer f.Close()
-
-		// convert to appropriate format if necessary
-		var tmpReader io.ReadCloser
-		switch filepath.Ext(destinationURI) {
-		case ".json":
-			tmpReader = f
-		case ".csv":
-			tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader)
-		case ".tsv":
-			tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader, rune('\t'))
-		default:
-			o.Logger.Warn(fmt.Sprintf("sink(oss): unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
-			tmpReader = f
-		}
-		o.Logger.Info(fmt.Sprintf("sink(oss): upload tmp file %s to oss %s", tmpURI, destinationURI))
-		if err := o.Retry(func() error {
-			_, err := io.Copy(oh, tmpReader)
-			return err
-		}); err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to upload tmp file to oss: %s", destinationURI))
-			o.SetError(errors.WithStack(err))
-			return
-		}
+	if recordCounter == 0 {
+		o.Logger.Info("sink(oss): no records to write")
+		return
 	}
+
+	// flush remain records
+	if err := o.flush(destinationURI, o.ossHandlers[destinationURI]); err != nil {
+		o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush records: %s", err.Error()))
+		o.SetError(errors.WithStack(err))
+		return
+	}
+
 	o.Logger.Info(fmt.Sprintf("sink(oss): successfully written %d records", recordCounter))
 }
 
@@ -279,11 +249,48 @@ func (o *OSSSink) remove(bucket, path string) error {
 	return nil
 }
 
-func getTmpURI(destinationURI string) (string, error) {
+func (o *OSSSink) flush(destinationURI string, oh extcommon.FileHandler) error {
+	tmpPath, err := getTmpPath(destinationURI)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	f, err := os.OpenFile(tmpPath, os.O_RDONLY, 0644)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer f.Close()
+
+	// convert to appropriate format if necessary
+	var tmpReader io.ReadCloser
+	switch filepath.Ext(destinationURI) {
+	case ".json":
+		tmpReader = f
+	case ".csv":
+		tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader)
+	case ".tsv":
+		tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader, rune('\t'))
+	default:
+		o.Logger.Warn(fmt.Sprintf("sink(oss): unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
+		tmpReader = f
+	}
+	o.Logger.Info(fmt.Sprintf("sink(oss): upload tmp file %s to oss %s", tmpPath, destinationURI))
+	return o.Retry(func() error {
+		_, err := io.Copy(oh, tmpReader)
+		return err
+	})
+}
+
+func getTmpPath(destinationURI string) (string, error) {
 	targetURI, err := url.Parse(destinationURI)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	filepath.Base(targetURI.Path)
-	return fmt.Sprintf("file:///tmp/%s", filepath.Base(targetURI.Path)), nil
+	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
+}
+
+func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize int) string {
+	return fmt.Sprintf("%s.%d.%s",
+		destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
+		int(recordCounter/batchSize)*batchSize,
+		filepath.Ext(destinationURI)[1:])
 }
