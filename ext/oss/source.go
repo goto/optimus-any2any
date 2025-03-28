@@ -36,7 +36,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	sourceURI string, csvDelimiter rune, skipHeader bool, opts ...common.Option) (*OSSSource, error) {
 	// create commonSource source
 	commonSource := common.NewSource(l, opts...)
-	commonSource.SetName("source(oss)")
+	commonSource.SetName("oss")
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -62,7 +62,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 
 	// add clean function
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug(fmt.Sprintf("%s: cleaning up", commonSource.Name()))
+		commonSource.Logger.Debug(fmt.Sprintf("cleaning up"))
 	})
 
 	// register source process
@@ -78,21 +78,21 @@ func (o *OSSSource) process() error {
 		Prefix: oss.Ptr(o.path),
 	})
 	if err != nil {
-		o.Logger.Error(fmt.Sprintf("%s: failed to list objects in bucket: %s", o.Name(), o.bucket))
+		o.Logger.Error(fmt.Sprintf("failed to list objects in bucket: %s", o.bucket))
 		return errors.WithStack(err)
 	}
 	if len(objectResult.Contents) == 0 {
-		o.Logger.Info(fmt.Sprintf("%s: no objects found", o.Name()))
+		o.Logger.Info(fmt.Sprintf("no objects found"))
 		return nil
 	}
 
 	// process objects
 	for _, objectProp := range objectResult.Contents {
-		o.Logger.Info(fmt.Sprintf("%s: processing object: %s", o.Name(), oss.ToString(objectProp.Key)))
+		o.Logger.Info(fmt.Sprintf("processing object: %s", oss.ToString(objectProp.Key)))
 		// read object
 		ossFile, err := o.client.OpenFile(o.ctx, o.bucket, oss.ToString(objectProp.Key))
 		if err != nil {
-			o.Logger.Warn(fmt.Sprintf("%s: failed to open object: %s", o.Name(), oss.ToString(objectProp.Key)))
+			o.Logger.Warn(fmt.Sprintf("failed to open object: %s", oss.ToString(objectProp.Key)))
 			return errors.WithStack(err)
 		}
 		defer ossFile.Close()
@@ -109,7 +109,7 @@ func (o *OSSSource) process() error {
 		case ".tsv":
 			reader = extcommon.FromCSVToJSON(o.Logger, ossFile, o.skipHeader, rune('\t'))
 		default:
-			o.Logger.Warn(fmt.Sprintf("%s: unsupported file format: %s, use default (json)", o.Name(), filepath.Ext(oss.ToString(objectProp.Key))))
+			o.Logger.Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
 			reader = ossFile
 		}
 

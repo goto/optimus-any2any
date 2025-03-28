@@ -73,7 +73,7 @@ func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sour
 	}
 
 	queryToExecute := fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", sanitizeTableID(destinationTableID), strings.Join(orderedColumns, ","), sanitizeTableID(sourceTableID))
-	l.Info(fmt.Sprintf("sink(mc): executing query: %s", queryToExecute))
+	l.Info(fmt.Sprintf("executing query: %s", queryToExecute))
 	instance, err := client.ExecSQl(queryToExecute)
 	if err != nil {
 		return errors.WithStack(err)
@@ -117,7 +117,7 @@ func dropTable(l *slog.Logger, client *odps.Odps, tableID string) error {
 	// set schema to the table
 	client.SetCurrentSchemaName(schema)
 
-	l.Debug(fmt.Sprintf("sink(mc): dropping table: %s", tableID))
+	l.Debug(fmt.Sprintf("dropping table: %s", tableID))
 	return odpsDropTable(l, client, project, schema, name)
 }
 
@@ -138,7 +138,7 @@ func odpsDropTable(l *slog.Logger, client *odps.Odps, project, schema, name stri
 		"odps.namespace.schema": "true",
 	})
 
-	l.Debug(fmt.Sprintf("sink(mc): dropping table: %s.%s.%s", project, schema, name))
+	l.Debug(fmt.Sprintf("dropping table: %s.%s.%s", project, schema, name))
 	instances := odps.NewInstances(client, client.DefaultProjectName())
 	i, err := instances.CreateTask(client.DefaultProjectName(), &sqlTask)
 	if err != nil {
@@ -178,7 +178,7 @@ func createTempTable(l *slog.Logger, client *odps.Odps, tableID string, tableIDR
 	tempSchema.Lifecycle = lifecycleInDays
 
 	// create table
-	l.Debug(fmt.Sprintf("sink(mc): creating temporary table: %s", tableID))
+	l.Debug(fmt.Sprintf("creating temporary table: %s", tableID))
 
 	return odpsCreateTable(l, client, project, schema, tempSchema)
 }
@@ -194,7 +194,7 @@ func odpsCreateTable(l *slog.Logger, client *odps.Odps, project, schema string, 
 		"odps.namespace.schema": "true",
 	})
 
-	l.Debug(fmt.Sprintf("sink(mc): creating table: %s.%s.%s", project, schema, tableSchema.TableName))
+	l.Debug(fmt.Sprintf("creating table: %s.%s.%s", project, schema, tableSchema.TableName))
 	instances := odps.NewInstances(client, client.DefaultProjectName())
 	ins, err := instances.CreateTask(client.DefaultProjectName(), &task)
 	if err != nil {
@@ -225,7 +225,7 @@ func getTable(l *slog.Logger, client *odps.Odps, tableID string) (*odps.Table, e
 	client.SetCurrentSchemaName(schema)
 
 	// get table
-	l.Debug(fmt.Sprintf("sink(mc): getting table: %s", tableID))
+	l.Debug(fmt.Sprintf("getting table: %s", tableID))
 	table := client.Tables().Get(name)
 	if err := table.Load(); err != nil {
 		return nil, errors.WithStack(err)
@@ -588,7 +588,7 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 	var e error
 	// try to parse with RFC3339
-	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with RFC3339 format: %s", curr))
+	l.Debug(fmt.Sprintf("trying to parse time with RFC3339 format: %s", curr))
 	t, err := time.Parse(time.RFC3339, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -596,7 +596,7 @@ func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with TimeStampFormat
-	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with TimeStampFormat: %s", curr))
+	l.Debug(fmt.Sprintf("trying to parse time with TimeStampFormat: %s", curr))
 	t, err = time.Parse(data.TimeStampFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -604,7 +604,7 @@ func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with DateTimeFormat
-	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with DateTimeFormat: %s", curr))
+	l.Debug(fmt.Sprintf("trying to parse time with DateTimeFormat: %s", curr))
 	t, err = time.Parse(data.DateTimeFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -612,7 +612,7 @@ func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with DateFormat
-	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with DateFormat: %s", curr))
+	l.Debug(fmt.Sprintf("trying to parse time with DateFormat: %s", curr))
 	t, err = time.Parse(data.DateFormat, curr)
 	if err != nil {
 		e = errs.Join(e, err)
@@ -620,7 +620,7 @@ func parseTime(l *slog.Logger, curr string) (time.Time, error) {
 		return t, nil
 	}
 	// try to parse with ISO non-standard format
-	l.Debug(fmt.Sprintf("sink(mc): trying to parse time with ISO non-standard format: %s", curr))
+	l.Debug(fmt.Sprintf("trying to parse time with ISO non-standard format: %s", curr))
 	for _, format := range ISONonStandardDateTimeFormats {
 		t, err := time.Parse(format, curr)
 		if err != nil {

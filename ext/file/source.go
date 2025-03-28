@@ -25,14 +25,15 @@ var _ flow.Source = (*FileSource)(nil)
 func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, error) {
 	// create commonSource
 	commonSource := common.NewSource(l, opts...)
-	commonSource.SetName("source(file)")
+	commonSource.SetName("file")
+
 	// open file
 	sourceURI, err := url.Parse(uri)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	if sourceURI.Scheme != "file" {
-		return nil, fmt.Errorf("%s: invalid scheme: %s", commonSource.Name(), sourceURI.Scheme)
+		return nil, fmt.Errorf("invalid scheme: %s", sourceURI.Scheme)
 	}
 	f, err := os.Open(sourceURI.Path)
 	if err != nil {
@@ -61,7 +62,7 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Info(fmt.Sprintf("%s: close files", commonSource.Name()))
+		commonSource.Logger.Info(fmt.Sprintf("close files"))
 		for _, f := range files {
 			_ = f.Close()
 		}

@@ -36,7 +36,8 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// create commonSource
 	commonSource := common.NewSource(l, opts...)
-	commonSource.SetName("source(gmail)")
+	commonSource.SetName("gmail")
+
 	// create gmail service
 	srv, err := NewServiceFromToken(ctx, []byte(tokenJSON))
 	if err != nil {
@@ -53,7 +54,7 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug(fmt.Sprintf("%s: close gmail service", gs.Name()))
+		commonSource.Logger.Debug(fmt.Sprintf("close gmail service"))
 	})
 	commonSource.RegisterProcess(gs.process)
 
@@ -66,11 +67,11 @@ func (gs *GmailSource) process() error {
 	user := "me"
 	r, err := gs.service.Users.Messages.List(user).Q(gs.filterRules).Do()
 	if err != nil {
-		gs.Logger.Error(fmt.Sprintf("%s: failed to list messages %s", gs.Name(), err.Error()))
+		gs.Logger.Error(fmt.Sprintf("failed to list messages %s", err.Error()))
 		return errors.WithStack(err)
 	}
 	if len(r.Messages) == 0 {
-		gs.Logger.Info(fmt.Sprintf("%s: no messages found", gs.Name()))
+		gs.Logger.Info(fmt.Sprintf("no messages found"))
 		return nil
 	}
 
@@ -78,28 +79,28 @@ func (gs *GmailSource) process() error {
 	for _, m := range r.Messages {
 		msg, err := gs.service.Users.Messages.Get(user, m.Id).Do()
 		if err != nil {
-			gs.Logger.Error(fmt.Sprintf("%s: failed to get message %s", gs.Name(), err.Error()))
+			gs.Logger.Error(fmt.Sprintf("failed to get message %s", err.Error()))
 			return errors.WithStack(err)
 		}
-		gs.Logger.Info(fmt.Sprintf("%s: fetched message %s", gs.Name(), msg.Id))
+		gs.Logger.Info(fmt.Sprintf("fetched message %s", msg.Id))
 
 		// extract data
 		for _, p := range msg.Payload.Parts {
 			if p.Filename == "" {
-				gs.Logger.Debug(fmt.Sprintf("%s: no attachment found", gs.Name()))
+				gs.Logger.Debug(fmt.Sprintf("no attachment found"))
 				continue
 			}
 			// get attachment
-			gs.Logger.Info(fmt.Sprintf("%s: found attachment %s", gs.Name(), p.Filename))
+			gs.Logger.Info(fmt.Sprintf("found attachment %s", p.Filename))
 			attachment, err := gs.service.Users.Messages.Attachments.Get(user, msg.Id, p.Body.AttachmentId).Do()
 			if err != nil {
-				gs.Logger.Error(fmt.Sprintf("%s: failed to get attachment %s", gs.Name(), err.Error()))
+				gs.Logger.Error(fmt.Sprintf("failed to get attachment %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			// decode attachment
 			data, err := base64.URLEncoding.DecodeString(attachment.Data)
 			if err != nil {
-				gs.Logger.Error(fmt.Sprintf("%s: failed to decode attachment %s", gs.Name(), err.Error()))
+				gs.Logger.Error(fmt.Sprintf("failed to decode attachment %s", err.Error()))
 				return errors.WithStack(err)
 			}
 
@@ -113,7 +114,7 @@ func (gs *GmailSource) process() error {
 			case ".tsv":
 				reader = extcommon.FromCSVToJSON(gs.Logger, bytes.NewReader(data), false, rune('\t'))
 			default:
-				gs.Logger.Warn(fmt.Sprintf("%s: unsupported file format: %s, use default (json)", gs.Name(), filepath.Ext(p.Filename)))
+				gs.Logger.Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(p.Filename)))
 				reader = bytes.NewReader(data)
 			}
 

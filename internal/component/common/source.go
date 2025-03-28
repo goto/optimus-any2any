@@ -18,7 +18,6 @@ import (
 type Source struct {
 	Logger *slog.Logger
 
-	name       string
 	m          metric.Meter
 	c          chan any
 	err        error
@@ -51,19 +50,13 @@ func (commonSource *Source) Out() <-chan any {
 }
 
 func (commonSource *Source) Close() {
-	commonSource.Logger.Debug(fmt.Sprintf("%s: close", commonSource.name))
+	commonSource.Logger.Debug("close")
 	for _, clean := range commonSource.cleanFuncs {
 		clean()
 	}
 }
-
-func (commonSource *Source) Name() string {
-	return commonSource.name
-}
-
 func (commonSource *Source) SetName(name string) {
-	commonSource.Logger = commonSource.Logger.With("component_name", name)
-	commonSource.name = name
+	commonSource.Logger = commonSource.Logger.WithGroup("source").With("name", name)
 }
 
 func (commonSource *Source) SetBufferSize(bufferSize int) {
@@ -71,25 +64,25 @@ func (commonSource *Source) SetBufferSize(bufferSize int) {
 }
 
 func (commonSource *Source) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
-	commonSource.Logger.Debug(fmt.Sprintf("%s: set otel sdk: %s", commonSource.name, otelCollectorGRPCEndpoint))
+	commonSource.Logger.Debug(fmt.Sprintf("set otel sdk: %s", otelCollectorGRPCEndpoint))
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("%s: set otel sdk error: %s", commonSource.name, err.Error()))
+		commonSource.Logger.Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
 	}
 	commonSource.AddCleanFunc(func() {
 		if err := shutdownFunc(); err != nil {
-			commonSource.Logger.Error(fmt.Sprintf("%s: otel sdk shutdown error: %s", commonSource.name, err.Error()))
+			commonSource.Logger.Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
 		}
 	})
 }
 
 func (commonSource *Source) SetLogger(logLevel string) {
-	logger, err := logger.NewLogger(logLevel)
+	l, err := logger.NewLogger(logLevel)
 	if err != nil {
-		commonSource.Logger.Warn(fmt.Sprintf("%s: set logger error: %s; use default", commonSource.name, err.Error()))
-		logger = slog.Default()
+		commonSource.Logger.Warn(fmt.Sprintf("set logger error: %s; use default", err.Error()))
+		l = logger.NewDefaultLogger()
 	}
-	commonSource.Logger = logger
+	commonSource.Logger = l
 }
 
 func (commonSource *Source) SetRetry(int, int64) {
@@ -104,11 +97,11 @@ func (commonSource *Source) Send(v any) {
 	// capture count of sent data (this is just a sample on how to use metric)
 	sendCount, err := commonSource.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("%s: send count error: %s", commonSource.name, err.Error()))
+		commonSource.Logger.Error(fmt.Sprintf("send count error: %s", err.Error()))
 	}
 	sendBytes, err := commonSource.m.Int64Counter("send_bytes", metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("%s: send bytes error: %s", commonSource.name, err.Error()))
+		commonSource.Logger.Error(fmt.Sprintf("send bytes error: %s", err.Error()))
 	}
 	sendCount.Add(context.Background(), 1)
 	sendBytes.Add(context.Background(), int64(len(v.([]byte))))
@@ -129,11 +122,11 @@ func (commonSource *Source) AddCleanFunc(f func()) {
 func (commonSource *Source) RegisterProcess(f func() error) {
 	go func() {
 		defer func() {
-			commonSource.Logger.Debug(fmt.Sprintf("%s: close success", commonSource.name))
+			commonSource.Logger.Debug(fmt.Sprintf("close success"))
 			close(commonSource.c)
 		}()
 		if err := f(); err != nil {
-			commonSource.Logger.Error(fmt.Sprintf("%s: process error: %s", commonSource.name, err.Error()))
+			commonSource.Logger.Error(fmt.Sprintf("process error: %s", err.Error()))
 			commonSource.setError(errors.WithStack(err))
 		}
 	}()

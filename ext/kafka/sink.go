@@ -28,7 +28,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	opts ...common.Option) (*KafkaSink, error) {
 	// create common
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("sink(kafka)")
+	commonSink.SetName("kafka")
 
 	// create kafka client
 	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
@@ -44,7 +44,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Info(fmt.Sprintf("%s: close client", ks.Name()))
+		commonSink.Logger.Info(fmt.Sprintf("close client"))
 		client.Close()
 	})
 	// register process, it will immediately start the process
@@ -60,23 +60,23 @@ func (ks *KafkaSink) process() error {
 		count atomic.Int32
 	)
 	// read from channel
-	ks.Logger.Info(fmt.Sprintf("%s: start reading from source", ks.Name()))
+	ks.Logger.Info(fmt.Sprintf("start reading from source"))
 	for v := range ks.Read() {
 		raw, ok := v.([]byte)
 		if !ok {
-			ks.Logger.Error(fmt.Sprintf("%s: invalid data format", ks.Name()))
+			ks.Logger.Error(fmt.Sprintf("invalid data format"))
 			return fmt.Errorf("invalid data format")
 		}
 
 		var record model.Record
 		if err := json.Unmarshal(raw, &record); err != nil {
-			ks.Logger.Error(fmt.Sprintf("%s: invalid data format", ks.Name()))
+			ks.Logger.Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
 		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, ks.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
-			ks.Logger.Error(fmt.Sprintf("%s: failed to marshal record", ks.Name()))
+			ks.Logger.Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)
 		}
 
@@ -91,18 +91,18 @@ func (ks *KafkaSink) process() error {
 			}
 			count.Add(1)
 			if count.Load()%200 == 0 {
-				ks.Logger.Info(fmt.Sprintf("%s: record sent: %d", ks.Name(), count.Load()))
+				ks.Logger.Info(fmt.Sprintf("record sent: %d", count.Load()))
 			}
 		})
 		if e != nil {
-			ks.Logger.Error(fmt.Sprintf("%s: error: %s", ks.Name(), e.Error()))
+			ks.Logger.Error(fmt.Sprintf("error: %s", e.Error()))
 			return errors.WithStack(e)
 		}
 	}
 
 	wg.Wait()
 	if count.Load()%200 != 0 {
-		ks.Logger.Info(fmt.Sprintf("%s: record sent: %d", ks.Name(), count.Load()))
+		ks.Logger.Info(fmt.Sprintf("record sent: %d", count.Load()))
 	}
 
 	return nil

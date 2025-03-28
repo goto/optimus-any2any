@@ -38,10 +38,10 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// create common sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("sink(redis)")
+	commonSink.SetName("redis")
 
 	// parse connectionDSN
-	l.Debug(fmt.Sprintf("%s: connection DSN: %s", commonSink.Name(), connectionDSN))
+	l.Debug(fmt.Sprintf("connection DSN: %s", connectionDSN))
 	parsedConnection, err := url.Parse(connectionDSN)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -97,7 +97,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug(fmt.Sprintf("%s: close record writer", commonSink.Name()))
+		commonSink.Logger.Debug(fmt.Sprintf("close record writer"))
 	})
 
 	// register sink process
@@ -110,33 +110,33 @@ func (s *RedisSink) process() error {
 	for msg := range s.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
-			s.Logger.Error(fmt.Sprintf("%s: message type assertion error: %T", s.Name(), msg))
+			s.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
 			return fmt.Errorf("message type assertion error: %T", msg)
 		}
-		s.Logger.Debug(fmt.Sprintf("%s: received message: %s", s.Name(), string(b)))
+		s.Logger.Debug(fmt.Sprintf("received message: %s", string(b)))
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			s.Logger.Error(fmt.Sprintf("%s: invalid data format", s.Name()))
+			s.Logger.Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
 		recordKey, err := extcommon.Compile(s.recordKeyTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("%s: failed to compile record key", s.Name()))
+			s.Logger.Error(fmt.Sprintf("failed to compile record key"))
 			return errors.WithStack(err)
 		}
-		s.Logger.Debug(fmt.Sprintf("%s: record key: %s", s.Name(), recordKey))
+		s.Logger.Debug(fmt.Sprintf("record key: %s", recordKey))
 		recordValue, err := extcommon.Compile(s.recordValueTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("%s: failed to compile record value", s.Name()))
+			s.Logger.Error(fmt.Sprintf("failed to compile record value"))
 			return errors.WithStack(err)
 		}
 
-		s.Logger.Debug(fmt.Sprintf("%s: record value: %s", s.Name(), recordValue))
+		s.Logger.Debug(fmt.Sprintf("record value: %s", recordValue))
 		// flush records
 		if len(s.records) == cap(s.records) {
 			if err := s.Retry(s.flush); err != nil {
-				s.Logger.Error(fmt.Sprintf("%s: failed to set records", s.Name()))
+				s.Logger.Error(fmt.Sprintf("failed to set records"))
 				return errors.WithStack(err)
 			}
 			s.records = s.records[:0]
@@ -147,7 +147,7 @@ func (s *RedisSink) process() error {
 	// flush remaining records
 	if len(s.records) > 0 {
 		if err := s.Retry(s.flush); err != nil {
-			s.Logger.Error(fmt.Sprintf("%s: failed to set records", s.Name()))
+			s.Logger.Error(fmt.Sprintf("failed to set records"))
 			return errors.WithStack(err)
 		}
 	}
@@ -155,7 +155,7 @@ func (s *RedisSink) process() error {
 }
 
 func (s *RedisSink) flush() error {
-	s.Logger.Info(fmt.Sprintf("%s: flushing %d records", s.Name(), len(s.records)/2))
+	s.Logger.Info(fmt.Sprintf("flushing %d records", len(s.records)/2))
 	if err := s.client.MSet(s.ctx, s.records...).Err(); err != nil {
 		return err
 	}

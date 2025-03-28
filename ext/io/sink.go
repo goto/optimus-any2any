@@ -20,7 +20,7 @@ var _ flow.Sink = (*IOSink)(nil)
 func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSink {
 	// create common
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("%s")
+	commonSink.SetName("io")
 	s := &IOSink{
 		Sink: commonSink,
 		w:    os.Stdout,
@@ -28,7 +28,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSi
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink(io): close func called")
+		commonSink.Logger.Debug("close func called")
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
@@ -40,9 +40,9 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSi
 func (s *IOSink) process() error {
 	// read from channel
 	for v := range s.Read() {
-		s.Logger.Debug(fmt.Sprintf("%s: read: %s", s.Name(), string(v.([]byte))))
+		s.Logger.Debug(fmt.Sprintf("read: %s", string(v.([]byte))))
 		fmt.Fprintf(s.w, "%s\n", string(v.([]byte)))
-		s.Logger.Debug(fmt.Sprintf("%s: done: %s", s.Name(), string(v.([]byte))))
+		s.Logger.Debug(fmt.Sprintf("done: %s", string(v.([]byte))))
 	}
 	return nil
 }

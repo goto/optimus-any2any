@@ -46,7 +46,7 @@ var _ flow.Sink = (*MaxcomputeSink)(nil)
 func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("sink(mc)")
+	commonSink.SetName("mc")
 
 	// create client for maxcompute
 	client, err := NewClient(creds)
@@ -56,17 +56,17 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 	if executionProject != "" {
 		client.SetDefaultProjectName(executionProject)
 	}
-	l.Info(fmt.Sprintf("%s: client created, execution project: %s", commonSink.Name(), client.DefaultProject().Name()))
+	l.Info(fmt.Sprintf("client created, execution project: %s", client.DefaultProject().Name()))
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
 	if loadMethod == LOAD_METHOD_REPLACE {
 		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
-		l.Info(fmt.Sprintf("%s: load method is replace, creating temporary table: %s", commonSink.Name(), tableID))
+		l.Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
 		if err := createTempTable(l, client, tableID, tableIDDestination, 1); err != nil {
 			return nil, errors.WithStack(err)
 		}
-		l.Info(fmt.Sprintf("%s: temporary table created: %s", commonSink.Name(), tableID))
+		l.Info(fmt.Sprintf("temporary table created: %s", tableID))
 	}
 
 	destination, err := getTable(l, client, tableID)
@@ -132,12 +132,12 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		l.Info(fmt.Sprintf("%s: drop temporary table", mc.Name()))
+		l.Info(fmt.Sprintf("drop temporary table"))
 		// delete temporary table if load method is replace
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
-			l.Info(fmt.Sprintf("%s: load method is replace, deleting temporary table: %s", mc.Name(), mc.tableIDTransition))
+			l.Info(fmt.Sprintf("load method is replace, deleting temporary table: %s", mc.tableIDTransition))
 			if err := dropTable(l, client, mc.tableIDTransition); err != nil {
-				l.Error(fmt.Sprintf("%s: delete temporary table error: %s", mc.Name(), err.Error()))
+				l.Error(fmt.Sprintf("delete temporary table error: %s", err.Error()))
 				// set error
 			}
 		}
@@ -149,87 +149,87 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 }
 
 func (mc *MaxcomputeSink) process() error {
-	mc.Logger.Info(fmt.Sprintf("%s: start writing records to table: %s", mc.Name(), mc.tableSchema.TableName))
-	mc.Logger.Debug(fmt.Sprintf("%s: record column: %+v", mc.Name(), mc.tableSchema.Columns))
+	mc.Logger.Info(fmt.Sprintf("start writing records to table: %s", mc.tableSchema.TableName))
+	mc.Logger.Debug(fmt.Sprintf("record column: %+v", mc.tableSchema.Columns))
 	countRecord := 0
 	for msg := range mc.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
 			err := fmt.Errorf("message type assertion error: %T", msg)
-			mc.Logger.Error(fmt.Sprintf("%s: message type assertion error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("message type assertion error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			mc.Logger.Error(fmt.Sprintf("%s: message unmarshal error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("message unmarshal error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 		record = extcommon.RecordWithoutMetadata(record, mc.MetadataPrefix)
 
-		mc.Logger.Debug(fmt.Sprintf("%s: message: %s", mc.Name(), string(b)))
+		mc.Logger.Debug(fmt.Sprintf("message: %s", string(b)))
 		mcRecord, err := createRecord(mc.Logger, record, mc.tableSchema)
 		if err != nil {
-			mc.Logger.Error(fmt.Sprintf("%s: record creation error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("record creation error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
-		mc.Logger.Debug(fmt.Sprintf("%s: record: %v", mc.Name(), mcRecord))
+		mc.Logger.Debug(fmt.Sprintf("record: %v", mcRecord))
 
 		countRecord++
 		if mc.uploadMode == "STREAM" {
 			if err := mc.packWriter.Append(mcRecord); err != nil {
-				mc.Logger.Error(fmt.Sprintf("%s: record write error: %s", mc.Name(), err.Error()))
+				mc.Logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			if mc.packWriter.DataSize() > 524288 { // flush every ~512KB
-				mc.Logger.Info(fmt.Sprintf("%s: write %d records", mc.Name(), countRecord))
+				mc.Logger.Info(fmt.Sprintf("write %d records", countRecord))
 				if err := mc.Retry(mc.flush); err != nil {
-					mc.Logger.Error(fmt.Sprintf("%s: record flush error: %s", mc.Name(), err.Error()))
+					mc.Logger.Error(fmt.Sprintf("record flush error: %s", err.Error()))
 					return errors.WithStack(err)
 				}
 			}
 		} else if mc.uploadMode == "REGULAR" {
 			if err := mc.recordWriter.Write(mcRecord); err != nil {
-				mc.Logger.Error(fmt.Sprintf("%s: record write error: %s", mc.Name(), err.Error()))
+				mc.Logger.Error(fmt.Sprintf("record write error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			if countRecord%100 == 0 {
-				mc.Logger.Info(fmt.Sprintf("%s: write %d records", mc.Name(), countRecord))
+				mc.Logger.Info(fmt.Sprintf("write %d records", countRecord))
 			}
 		}
 	}
 
 	if countRecord > 0 {
-		mc.Logger.Info(fmt.Sprintf("%s: write %d records", mc.Name(), countRecord))
+		mc.Logger.Info(fmt.Sprintf("write %d records", countRecord))
 	}
 
 	if mc.uploadMode == "STREAM" {
 		// flush remaining records
 		if err := mc.Retry(mc.flush); err != nil {
-			mc.Logger.Error(fmt.Sprintf("%s: record flush error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("record flush error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 	} else if mc.uploadMode == "REGULAR" {
 		if err := mc.recordWriter.Close(); err != nil {
-			mc.Logger.Error(fmt.Sprintf("%s: record writer close error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("record writer close error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 		err := mc.Retry(func() error {
 			return mc.sessionRegular.Commit([]int{0})
 		})
 		if err != nil {
-			mc.Logger.Error(fmt.Sprintf("%s: session commit error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("session commit error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 	}
 
 	if mc.loadMethod == LOAD_METHOD_REPLACE {
-		mc.Logger.Info(fmt.Sprintf("%s: load method is replace, load data from temporary table to destination table: %s", mc.Name(), mc.tableIDDestination))
+		mc.Logger.Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
 		if err := insertOverwrite(mc.Logger, mc.client, mc.tableIDDestination, mc.tableIDTransition); err != nil {
-			mc.Logger.Error(fmt.Sprintf("%s: insert overwrite error: %s", mc.Name(), err.Error()))
+			mc.Logger.Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
-		mc.Logger.Info(fmt.Sprintf("%s: load method is replace, data successfully loaded to destination table: %s", mc.Name(), mc.tableIDDestination))
+		mc.Logger.Info(fmt.Sprintf("load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
 	}
 	return nil
 }
@@ -239,6 +239,6 @@ func (mc *MaxcomputeSink) flush() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	mc.Logger.Debug(fmt.Sprintf("%s: flush trace id: %s, record count: %d, bytes send: %d", mc.Name(), traceId, recordCount, bytesSend))
+	mc.Logger.Debug(fmt.Sprintf("flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
 	return nil
 }
