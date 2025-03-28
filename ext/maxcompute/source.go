@@ -171,7 +171,7 @@ func (mc *MaxcomputeSource) process() error {
 func (mc *MaxcomputeSource) getRecordReader(query string) (io.ReadCloser, error) {
 	var e error
 	r, w := io.Pipe()
-	go func() {
+	go func(w io.WriteCloser) {
 		defer w.Close()
 		if query == "" {
 			w.Write([]byte("{}\n"))
@@ -212,11 +212,11 @@ func (mc *MaxcomputeSource) getRecordReader(query string) (io.ReadCloser, error)
 		mc.Logger.Info(fmt.Sprintf("record count: %d", recordCount))
 
 		e = mc.sendRecordToWriter(session, recordCount, w)
-	}()
+	}(w)
 	return r, e
 }
 
-func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDownloadSession, recordCount int, w *io.PipeWriter) error {
+func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDownloadSession, recordCount int, w io.WriteCloser) error {
 	// read records
 	i := 0
 	step := 1000 // batch size for reading records

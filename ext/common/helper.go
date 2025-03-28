@@ -61,12 +61,12 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 	}
 
 	r, w := io.Pipe()
-	go func() {
+	go func(w io.WriteCloser) {
 		defer w.Close()
 		if err := ToCSV(l, w, records, skipHeader, delimiter...); err != nil {
 			l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
 		}
-	}()
+	}(w)
 	return r
 }
 

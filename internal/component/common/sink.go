@@ -131,12 +131,10 @@ func (commonSink *Sink) RegisterProcess(f func() error) {
 			commonSink.Logger.Error(fmt.Sprintf("process error: %s", err.Error()))
 			commonSink.err = errors.WithStack(err)
 		}
-		go func() {
-			commonSink.Logger.Debug(fmt.Sprintf("skip message"))
-			for _, ok := <-commonSink.Read(); ok; _, ok = <-commonSink.Read() {
-				// drain the channel if it still contains messages
-			}
-		}()
+		commonSink.Logger.Debug(fmt.Sprintf("skip message"))
+		for _, ok := <-commonSink.Read(); ok; _, ok = <-commonSink.Read() {
+			// drain the channel if it still contains messages
+		}
 	}()
 }
 

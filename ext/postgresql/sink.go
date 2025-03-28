@@ -115,7 +115,7 @@ func (p *PGSink) process() error {
 // flush writes records buffer to file
 func (p *PGSink) flush() error {
 	var wg sync.WaitGroup
-	pipeReader, pipeWriter := io.Pipe()
+	r, w := io.Pipe()
 	defer func() {
 		p.Logger.Debug(fmt.Sprintf("clear records buffer"))
 		p.records = p.records[:0]
@@ -124,23 +124,23 @@ func (p *PGSink) flush() error {
 	// converting to csv
 	errChan := make(chan error)
 	wg.Add(1)
-	go func(errChan chan error) {
+	go func(w io.WriteCloser, errChan chan error) {
 		defer func() {
 			p.Logger.Debug(fmt.Sprintf("close pipe writer"))
-			pipeWriter.Close()
+			w.Close()
 			wg.Done()
 		}()
-		if err := extcommon.ToCSV(p.Logger, pipeWriter, p.records, false); err != nil {
+		if err := extcommon.ToCSV(p.Logger, w, p.records, false); err != nil {
 			errChan <- errors.WithStack(err)
 			return
 		}
-	}(errChan)
+	}(w, errChan)
 
 	// piping the records to pg
 	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
 	p.Logger.Info(fmt.Sprintf("start writing %d records to pg", len(p.records)))
 	p.Logger.Debug(fmt.Sprintf("query: %s", query))
-	t, err := p.conn.PgConn().CopyFrom(p.ctx, pipeReader, query)
+	t, err := p.conn.PgConn().CopyFrom(p.ctx, r, query)
 	if err != nil {
 		return errors.WithStack(err)
 	}
