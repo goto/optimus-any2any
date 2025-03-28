@@ -25,13 +25,15 @@ var _ flow.Source = (*FileSource)(nil)
 func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, error) {
 	// create commonSource
 	commonSource := common.NewSource(l, opts...)
+	commonSource.SetName("file")
+
 	// open file
 	sourceURI, err := url.Parse(uri)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 	if sourceURI.Scheme != "file" {
-		return nil, errors.New("source(file): invalid scheme")
+		return nil, fmt.Errorf("invalid scheme: %s", sourceURI.Scheme)
 	}
 	f, err := os.Open(sourceURI.Path)
 	if err != nil {
@@ -60,8 +62,10 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source(file): close file")
-		f.Close()
+		commonSource.Logger.Info(fmt.Sprintf("close files"))
+		for _, f := range files {
+			_ = f.Close()
+		}
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
@@ -71,7 +75,7 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 }
 
 // process reads data from the file and sends it to the channel.
-func (fs *FileSource) process() {
+func (fs *FileSource) process() error {
 	// read files
 	for _, f := range fs.files {
 		sc := bufio.NewScanner(f)
@@ -80,11 +84,11 @@ func (fs *FileSource) process() {
 			raw := sc.Bytes()
 			line := make([]byte, len(raw)) // Important: make a copy of the line before sending
 			copy(line, raw)
-			fs.Logger.Debug(fmt.Sprintf("source(file): read line: %s", string(line)))
 			// send to channel
 			fs.Send(line)
 		}
 	}
+	return nil
 }
 
 func readFiles(dir string) ([]*os.File, error) {

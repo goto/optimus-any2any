@@ -45,6 +45,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// create common sink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
+	commonSink.SetName("oss")
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -55,7 +56,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	// parse destinationURI as template
 	tmpl, err := extcommon.NewTemplate("sink_oss_destination_uri", destinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("sink(oss): failed to parse destination URI template: %w", err)
+		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
 	ossSink := &OSSSink{
@@ -74,21 +75,18 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	// add clean func
 	commonSink.AddCleanFunc(func() {
 		for destinationURI, oh := range ossSink.fileHandlers {
-			commonSink.Logger.Info(fmt.Sprintf("sink(oss): close file: %s", destinationURI))
+			commonSink.Logger.Info(fmt.Sprintf("close file: %s", destinationURI))
 			_ = oh.Close()
 		}
-		for tmpURI, fh := range ossSink.fileHandlers {
-			targetTmpURI, err := url.Parse(tmpURI)
-			if err != nil {
-				commonSink.Logger.Error(fmt.Sprintf("sink(oss): failed to parse tmp URI: %s", tmpURI))
-				continue
-			}
-			commonSink.Logger.Info(fmt.Sprintf("sink(oss): remove tmp file: %s", tmpURI))
-			if err := os.Remove(targetTmpURI.Path); err != nil {
-				commonSink.Logger.Error(fmt.Sprintf("sink(oss): failed to remove tmp file: %s", tmpURI))
-			}
-			commonSink.Logger.Info(fmt.Sprintf("sink(oss): close tmp file: %s", tmpURI))
+	})
+	commonSink.AddCleanFunc(func() {
+		for tmpPath, fh := range ossSink.fileHandlers {
+			commonSink.Logger.Info(fmt.Sprintf("close tmp file: %s", tmpPath))
 			_ = fh.Close()
+			commonSink.Logger.Info(fmt.Sprintf("remove tmp file: %s", tmpPath))
+			if err := os.Remove(tmpPath); err != nil {
+				commonSink.Logger.Error(fmt.Sprintf("failed to remove tmp file: %s", tmpPath))
+			}
 		}
 	})
 
@@ -98,7 +96,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	return ossSink, nil
 }
 
-func (o *OSSSink) process() {
+func (o *OSSSink) process() error {
 	var destinationURI string
 	var err error
 
@@ -109,86 +107,74 @@ func (o *OSSSink) process() {
 	}
 
 	for msg := range o.Read() {
-		if o.Err() != nil {
-			continue
-		}
 		b, ok := msg.([]byte)
 		if !ok {
-			o.Logger.Error(fmt.Sprintf("sink(oss): message type assertion error: %T", msg))
-			o.SetError(errors.New(fmt.Sprintf("sink(oss): message type assertion error: %T", msg)))
-			continue
+			o.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
+			return errors.New(fmt.Sprintf("message type assertion error: %T", msg))
 		}
-		o.Logger.Debug(fmt.Sprintf("sink(oss): received message: %s", string(b)))
+		o.Logger.Debug(fmt.Sprintf("received message: %s", string(b)))
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			o.Logger.Error("sink(oss): invalid data format")
-			o.SetError(errors.WithStack(err))
-			continue
+			o.Logger.Error(fmt.Sprintf("invalid data format"))
+			return errors.WithStack(err)
 		}
 		destinationURI, err = extcommon.Compile(o.destinationURITemplate, model.ToMap(record))
 		if err != nil {
-			o.Logger.Error("sink(oss): failed to compile destination URI")
-			o.SetError(errors.WithStack(err))
-			continue
+			o.Logger.Error(fmt.Sprintf("failed to compile destination URI"))
+			return errors.WithStack(err)
 		}
-		// use uri with batch size for its suffix if batch size is set
+
 		if o.batchSize > 0 {
 			// flush previous batch
 			if recordCounter%o.batchSize == 0 && recordCounter > 0 {
 				prevDestinationURI := getDestinationURIByBatch(destinationURI, recordCounter-1, o.batchSize)
 				if err := o.flush(prevDestinationURI, o.ossHandlers[prevDestinationURI]); err != nil {
-					o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush records: %s", err.Error()))
-					o.SetError(errors.WithStack(err))
-					continue
+					o.Logger.Error(fmt.Sprintf("failed to flush records: %s", err.Error()))
+					return errors.WithStack(err)
 				}
 			}
+			// use uri with batch size for its suffix if batch size is set
 			destinationURI = getDestinationURIByBatch(destinationURI, recordCounter, o.batchSize)
 		}
 
 		// stream to tmp file
 		tmpPath, err := getTmpPath(destinationURI)
 		if err != nil {
-			o.Logger.Error(fmt.Sprintf("sink(oss): failed to get tmp URI: %s", destinationURI))
-			o.SetError(errors.WithStack(err))
-			continue
+			o.Logger.Error(fmt.Sprintf("failed to get tmp URI: %s", destinationURI))
+			return errors.WithStack(err)
 		}
 		fh, ok := o.fileHandlers[tmpPath]
 		if !ok {
 			// create new tmp file handler
 			fh, err = file.NewStdFileHandler(o.Logger, tmpPath)
 			if err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create tmp file handler: %s", err.Error()))
-				o.SetError(errors.WithStack(err))
-				continue
+				o.Logger.Error(fmt.Sprintf("failed to create tmp file handler: %s", err.Error()))
+				return errors.WithStack(err)
 			}
 
 			// create new oss file handler
 			targetDestinationURI, err := url.Parse(destinationURI)
 			if err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): failed to parse destination URI: %s", destinationURI))
-				o.SetError(errors.WithStack(err))
-				continue
+				o.Logger.Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
+				return errors.WithStack(err)
 			}
 			if targetDestinationURI.Scheme != "oss" {
-				o.Logger.Error(fmt.Sprintf("sink(oss): invalid scheme: %s", targetDestinationURI.Scheme))
-				o.SetError(errors.WithStack(err))
-				continue
+				o.Logger.Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
+				return errors.WithStack(err)
 			}
 			// remove object if overwrite is enabled
 			if _, ok := o.ossHandlers[destinationURI]; !ok && o.enableOverwrite {
-				o.Logger.Info(fmt.Sprintf("sink(oss): remove object: %s", destinationURI))
+				o.Logger.Info(fmt.Sprintf("remove object: %s", destinationURI))
 				if err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/")); err != nil {
-					o.Logger.Error(fmt.Sprintf("sink(oss): failed to remove object: %s", destinationURI))
-					o.SetError(errors.WithStack(err))
-					continue
+					o.Logger.Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
+					return errors.WithStack(err)
 				}
 			}
 			oh, err := oss.NewAppendFile(o.ctx, o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 			if err != nil {
-				o.Logger.Error(fmt.Sprintf("sink(oss): failed to create oss file handler: %s", err.Error()))
-				o.SetError(errors.WithStack(err))
-				continue
+				o.Logger.Error(fmt.Sprintf("failed to create oss file handler: %s", err.Error()))
+				return errors.WithStack(err)
 			}
 
 			// dual handlers for both tmp file and oss
@@ -200,38 +186,36 @@ func (o *OSSSink) process() {
 		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, o.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
-			o.Logger.Error("sink(oss): failed to marshal record")
-			o.SetError(errors.WithStack(err))
-			continue
+			o.Logger.Error(fmt.Sprintf("failed to marshal record"))
+			return errors.WithStack(err)
 		}
 
 		_, err = fh.Write(append(raw, '\n'))
 		if err != nil {
-			o.Logger.Error("sink(oss): failed to write to file")
-			o.SetError(errors.WithStack(err))
-			continue
+			o.Logger.Error(fmt.Sprintf("failed to write to file"))
+			return errors.WithStack(err)
 		}
 
 		recordCounter++
 		o.fileRecordCounters[tmpPath]++
 		if recordCounter%logCheckPoint == 0 {
-			o.Logger.Info(fmt.Sprintf("sink(oss): written %d records to tmp file: %s", o.fileRecordCounters[tmpPath], tmpPath))
+			o.Logger.Info(fmt.Sprintf("written %d records to tmp file: %s", o.fileRecordCounters[tmpPath], tmpPath))
 		}
 	}
 
 	if recordCounter == 0 {
-		o.Logger.Info("sink(oss): no records to write")
-		return
+		o.Logger.Info(fmt.Sprintf("no records to write"))
+		return nil
 	}
 
-	// flush remain records
+	// flush remaining records
 	if err := o.flush(destinationURI, o.ossHandlers[destinationURI]); err != nil {
-		o.Logger.Error(fmt.Sprintf("sink(oss): failed to flush records: %s", err.Error()))
-		o.SetError(errors.WithStack(err))
-		return
+		o.Logger.Error(fmt.Sprintf("failed to flush records: %s", err.Error()))
+		return errors.WithStack(err)
 	}
 
-	o.Logger.Info(fmt.Sprintf("sink(oss): successfully written %d records", recordCounter))
+	o.Logger.Info(fmt.Sprintf("successfully written %d records", recordCounter))
+	return nil
 }
 
 func (o *OSSSink) remove(bucket, path string) error {
@@ -246,7 +230,7 @@ func (o *OSSSink) remove(bucket, path string) error {
 		err := errors.New(fmt.Sprintf("failed to delete object: %d", response.StatusCode))
 		return errors.WithStack(err)
 	}
-	o.Logger.Info(fmt.Sprintf("sink(oss): delete %s objects", path))
+	o.Logger.Info(fmt.Sprintf("delete %s objects", path))
 	return nil
 }
 
@@ -271,10 +255,10 @@ func (o *OSSSink) flush(destinationURI string, oh extcommon.FileHandler) error {
 	case ".tsv":
 		tmpReader = extcommon.FromJSONToCSV(o.Logger, f, o.skipHeader, rune('\t'))
 	default:
-		o.Logger.Warn(fmt.Sprintf("sink(oss): unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
+		o.Logger.Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		tmpReader = f
 	}
-	o.Logger.Info(fmt.Sprintf("sink(oss): upload tmp file %s to oss %s", tmpPath, destinationURI))
+	o.Logger.Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
 	return o.Retry(func() error {
 		_, err := io.Copy(oh, tmpReader)
 		return err

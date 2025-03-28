@@ -164,3 +164,7 @@ func (o *OSS2MC) SetLogger(logLevel string) {
 func (o *OSS2MC) SetRetry(int, int64) {
 	// no implementation needed
 }
+
+func (o *OSS2MC) SetName(string) {
+	// no implementation needed
+}

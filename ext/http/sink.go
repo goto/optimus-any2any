@@ -54,6 +54,9 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	method, endpoint string, headers map[string]string, headerContent string,
 	body, bodyContent string,
 	batchSize int, opts ...common.Option) (*HTTPSink, error) {
+	// create common
+	commonSink := common.NewSink(l, metadataPrefix, opts...)
+	commonSink.SetName("http")
 
 	// prepare template
 	m := httpMetadataTemplate{}
@@ -73,8 +76,6 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 	bodyContentTemplate := template.Must(extcommon.NewTemplate("sink_http_body", body))
 
-	// create common
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
 	s := &HTTPSink{
 		Sink:                 commonSink,
 		ctx:                  ctx,
@@ -87,8 +88,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		l.Debug("sink(http): close func called")
-		l.Info("sink(http): close idle connections")
+		l.Info(fmt.Sprintf("close idle connections"))
 		s.client.CloseIdleConnections()
 	})
 	// register process, it will immediately start the process
@@ -98,44 +98,35 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	return s, nil
 }
 
-func (s *HTTPSink) process() {
+func (s *HTTPSink) process() error {
 	// log checkpoint
 	logCheckPoint := 500
 	recordCounter := 0
 	for msg := range s.Read() {
-		if s.Err() != nil {
-			s.Logger.Warn("sink(http): error occurred, skip processing")
-			continue
-		}
-
 		b, ok := msg.([]byte)
 		if !ok {
-			s.Logger.Error(fmt.Sprintf("sink(http): invalid message type: %T", msg))
-			s.SetError(fmt.Errorf("sink(http): invalid message type: %T", msg))
-			continue
+			s.Logger.Error(fmt.Sprintf("invalid message type: %T", msg))
+			return fmt.Errorf("invalid message type: %T", msg)
 		}
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			s.Logger.Error("sink(http): invalid data format")
-			s.SetError(errors.WithStack(err))
-			continue
+			s.Logger.Error(fmt.Sprintf("invalid data format"))
+			return errors.WithStack(err)
 		}
 
 		m, err := compileMetadata(s.httpMetadataTemplate, record)
 		if err != nil {
-			s.Logger.Error("sink(http): compile metadata error")
-			s.SetError(errors.WithStack(err))
-			continue
+			s.Logger.Error(fmt.Sprintf("compile metadata error"))
+			return errors.WithStack(err)
 		}
 
 		// remove metadata prefix
 		record = extcommon.RecordWithoutMetadata(record, s.MetadataPrefix)
 		raw, err := json.Marshal(record)
 		if err != nil {
-			s.Logger.Error("sink(http): marshal record error")
-			s.SetError(errors.WithStack(err))
-			continue
+			s.Logger.Error(fmt.Sprintf("marshal record error"))
+			return errors.WithStack(err)
 		}
 
 		hash := hashMetadata(m)
@@ -151,16 +142,15 @@ func (s *HTTPSink) process() {
 		// batch size is 1 means no batching
 		if len(s.httpHandlers[hash].records) >= s.batchSize {
 			if err := s.flush(m, s.httpHandlers[hash].records); err != nil {
-				s.Logger.Error(fmt.Sprintf("sink(http): failed to send data to %s: %s", m.endpoint, err.Error()))
-				s.SetError(errors.WithStack(err))
-				continue
+				s.Logger.Error(fmt.Sprintf("failed to send data to %s; %s", m.endpoint, err.Error()))
+				return errors.WithStack(err)
 			}
 			hh := s.httpHandlers[hash]
 			hh.records = make([]string, 0, s.batchSize)
 			s.httpHandlers[hash] = hh
 
 			if s.batchSize > 1 {
-				s.Logger.Info(fmt.Sprintf("sink(http): successfully send %d records %s %s", s.batchSize, m.method, m.endpoint))
+				s.Logger.Info(fmt.Sprintf("successfully send %d records %s %s", s.batchSize, m.method, m.endpoint))
 			}
 		}
 
@@ -171,7 +161,7 @@ func (s *HTTPSink) process() {
 		recordCounter++
 
 		if s.batchSize == 1 && recordCounter%logCheckPoint == 0 {
-			s.Logger.Info(fmt.Sprintf("sink(http): successfully send %d records", recordCounter))
+			s.Logger.Info(fmt.Sprintf("successfully send %d records", recordCounter))
 		}
 	}
 
@@ -184,19 +174,19 @@ func (s *HTTPSink) process() {
 			return s.flush(hh.httpMetadata, hh.records)
 		})
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("sink(http): failed to send data to %s: %s", hh.httpMetadata.endpoint, err.Error()))
-			s.SetError(errors.WithStack(err))
-			return
+			s.Logger.Error(fmt.Sprintf("failed to send data to %s; %s", hh.httpMetadata.endpoint, err.Error()))
+			return errors.WithStack(err)
 		}
 
 		if s.batchSize > 1 {
-			s.Logger.Info(fmt.Sprintf("sink(http): successfully send %d records %s %s", s.batchSize, hh.httpMetadata.method, hh.httpMetadata.endpoint))
+			s.Logger.Info(fmt.Sprintf("successfully send %d records %s %s", s.batchSize, hh.httpMetadata.method, hh.httpMetadata.endpoint))
 		}
 	}
 
 	if s.batchSize == 1 && recordCounter%logCheckPoint != 0 {
-		s.Logger.Info(fmt.Sprintf("sink(http): successfully send %d records", recordCounter))
+		s.Logger.Info(fmt.Sprintf("successfully send %d records", recordCounter))
 	}
+	return nil
 }
 
 func (s *HTTPSink) flush(m httpMetadata, records []string) error {
@@ -234,7 +224,6 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	s.Logger.Debug(fmt.Sprintf("sink(http): sent data to %s success with status code %d", m.endpoint, resp.StatusCode))
 	return nil
 }
 

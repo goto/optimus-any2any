@@ -12,8 +12,9 @@ func NewLogger(logLevel string) (*slog.Logger, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	slog.SetLogLoggerLevel(level)
-	return slog.Default(), nil
+	return slog.New(newCustomHandler(&slog.HandlerOptions{
+		Level: level,
+	})), nil
 }
 
 func NewDefaultLogger() *slog.Logger {

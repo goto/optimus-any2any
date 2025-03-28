@@ -39,6 +39,7 @@ var _ flow.Source = (*MaxcomputeSource)(nil)
 func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, opts ...common.Option) (*MaxcomputeSource, error) {
 	// create commonSource source
 	commonSource := common.NewSource(l, opts...)
+	commonSource.SetName("mc")
 
 	// create client for maxcompute
 	client, err := NewClient(creds)
@@ -89,7 +90,7 @@ func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePat
 
 	// add clean function
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source(mc): cleaning up")
+		commonSource.Logger.Debug(fmt.Sprintf("cleaning up"))
 	})
 
 	commonSource.RegisterProcess(mc.process)
@@ -98,8 +99,12 @@ func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePat
 }
 
 // process is the process function for MaxcomputeSource.
-func (mc *MaxcomputeSource) process() {
-	preRecordReader := mc.getRecordReader(mc.preQuery)
+func (mc *MaxcomputeSource) process() error {
+	preRecordReader, err := mc.getRecordReader(mc.preQuery)
+	if err != nil {
+		mc.Logger.Error(fmt.Sprintf("failed to get pre-record reader"))
+		return errors.WithStack(err)
+	}
 	defer preRecordReader.Close()
 
 	scPreQuery := bufio.NewScanner(preRecordReader)
@@ -110,26 +115,28 @@ func (mc *MaxcomputeSource) process() {
 
 		var preRecord model.Record
 		if err := json.Unmarshal(linePreRecord, &preRecord); err != nil {
-			mc.Logger.Error("source(mc): invalid data format")
-			mc.SetError(errors.WithStack(err))
-			return
+			mc.Logger.Error(fmt.Sprintf("invalid data format"))
+			return errors.WithStack(err)
 		}
 		// add prefix for every key
 		preRecordWithPrefix := model.NewRecord()
 		for k := range preRecord.AllFromFront() {
 			preRecordWithPrefix.Set(fmt.Sprintf("%s%s", mc.metadataPrefix, k), preRecord.GetOrDefault(k, nil))
 		}
-		mc.Logger.Debug(fmt.Sprintf("source(mc): pre-record: %v", preRecordWithPrefix))
+		mc.Logger.Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
 
 		// compile query
 		query, err := extcommon.Compile(mc.queryTemplate, model.ToMap(preRecordWithPrefix))
 		if err != nil {
-			mc.Logger.Error("source(mc): failed to compile query")
-			mc.SetError(errors.WithStack(err))
-			return
+			mc.Logger.Error(fmt.Sprintf("failed to compile query"))
+			return errors.WithStack(err)
 		}
 
-		recordReader := mc.getRecordReader(query)
+		recordReader, err := mc.getRecordReader(query)
+		if err != nil {
+			mc.Logger.Error(fmt.Sprintf("failed to get record reader"))
+			return errors.WithStack(err)
+		}
 		defer recordReader.Close()
 
 		scQuery := bufio.NewScanner(recordReader)
@@ -140,9 +147,8 @@ func (mc *MaxcomputeSource) process() {
 
 			var record model.Record
 			if err := json.Unmarshal(lineRecord, &record); err != nil {
-				mc.Logger.Error("source(mc): invalid data format")
-				mc.SetError(errors.WithStack(err))
-				return
+				mc.Logger.Error(fmt.Sprintf("invalid data format"))
+				return errors.WithStack(err)
 			}
 			// merge with pre-record
 			for k := range preRecordWithPrefix.AllFromFront() {
@@ -153,16 +159,17 @@ func (mc *MaxcomputeSource) process() {
 
 			raw, err := json.Marshal(record)
 			if err != nil {
-				mc.Logger.Error("source(mc): failed to marshal record")
-				mc.SetError(errors.WithStack(err))
-				return
+				mc.Logger.Error(fmt.Sprintf("failed to marshal record"))
+				return errors.WithStack(err)
 			}
 			mc.Send(raw)
 		}
 	}
+	return nil
 }
 
-func (mc *MaxcomputeSource) getRecordReader(query string) io.ReadCloser {
+func (mc *MaxcomputeSource) getRecordReader(query string) (io.ReadCloser, error) {
+	var e error
 	r, w := io.Pipe()
 	go func() {
 		defer w.Close()
@@ -176,49 +183,48 @@ func (mc *MaxcomputeSource) getRecordReader(query string) io.ReadCloser {
 		if strings.Contains(query, ";") {
 			additionalHints["odps.sql.submit.mode"] = "script"
 		}
-		mc.Logger.Info(fmt.Sprintf("source(mc): running query:\n%s", query))
+		mc.Logger.Info(fmt.Sprintf("running query:\n%s", query))
 		instance, err := mc.client.ExecSQl(query, additionalHints)
 		if err != nil {
-			mc.Logger.Error(fmt.Sprintf("source(mc): failed to run query: %s", query))
-			mc.SetError(errors.WithStack(err))
+			mc.Logger.Error(fmt.Sprintf("failed to run query: %s", query))
+			e = errors.WithStack(err)
 			return
 		}
 
 		// wait for query to finish
-		mc.Logger.Info("source(mc): waiting for query to finish")
+		mc.Logger.Info(fmt.Sprintf("waiting for query to finish"))
 		if err := instance.WaitForSuccess(); err != nil {
-			mc.Logger.Error("source(mc): query failed")
-			mc.SetError(errors.WithStack(err))
+			mc.Logger.Error(fmt.Sprintf("query failed"))
+			e = errors.WithStack(err)
 			return
 		}
 
 		// create session for reading records
-		mc.Logger.Info("source(mc): creating session for reading records")
+		mc.Logger.Info(fmt.Sprintf("creating session for reading records"))
 		session, err := mc.tunnel.CreateInstanceResultDownloadSession(mc.client.DefaultProjectName(), instance.Id())
 		if err != nil {
-			mc.Logger.Error("source(mc): failed to create session for reading records")
-			mc.SetError(errors.WithStack(err))
+			mc.Logger.Error(fmt.Sprintf("failed to create session for reading records"))
+			e = errors.WithStack(err)
 			return
 		}
 
 		recordCount := session.RecordCount()
-		mc.Logger.Info(fmt.Sprintf("source(mc): record count: %d", recordCount))
+		mc.Logger.Info(fmt.Sprintf("record count: %d", recordCount))
 
-		mc.sendRecordToWriter(session, recordCount, w)
+		e = mc.sendRecordToWriter(session, recordCount, w)
 	}()
-	return r
+	return r, e
 }
 
-func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDownloadSession, recordCount int, w *io.PipeWriter) {
+func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDownloadSession, recordCount int, w *io.PipeWriter) error {
 	// read records
 	i := 0
 	step := 1000 // batch size for reading records
 	for i < recordCount {
 		reader, err := session.OpenRecordReader(i, step, 0, nil)
 		if err != nil {
-			mc.Logger.Error("source(mc): failed to open record reader")
-			mc.SetError(errors.WithStack(err))
-			return
+			mc.Logger.Error(fmt.Sprintf("failed to open record reader"))
+			return errors.WithStack(err)
 		}
 		defer reader.Close()
 
@@ -229,29 +235,26 @@ func (mc *MaxcomputeSource) sendRecordToWriter(session *tunnel.InstanceResultDow
 				if errors.Is(err, io.EOF) {
 					break
 				}
-				mc.Logger.Error("source(mc): failed to read record")
-				mc.SetError(errors.WithStack(err))
-				return
+				mc.Logger.Error(fmt.Sprintf("failed to read record"))
+				return errors.WithStack(err)
 			}
 
 			// process record
-			mc.Logger.Debug(fmt.Sprintf("source(mc): record: %s", record))
+			mc.Logger.Debug(fmt.Sprintf("record: %s", record))
 			v, err := fromRecord(mc.Logger, record, session.Schema())
 			if err != nil {
-				mc.Logger.Error("source(mc): failed to process record")
-				mc.SetError(errors.WithStack(err))
-				return
+				mc.Logger.Error(fmt.Sprintf("failed to process record"))
+				return errors.WithStack(err)
 			}
 			raw, err := json.Marshal(v)
 			if err != nil {
-				mc.SetError(errors.WithStack(err))
-				return
+				return errors.WithStack(err)
 			}
-			w.Write(raw)
-			w.Write([]byte("\n"))
+			w.Write(append(raw, byte('\n')))
 			count++
 		}
 		i += count
-		mc.Logger.Info(fmt.Sprintf("source(mc): send %d records to writer", count))
+		mc.Logger.Info(fmt.Sprintf("send %d records to writer", count))
 	}
+	return nil
 }
