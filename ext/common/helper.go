@@ -39,50 +39,6 @@ func RecordWithoutMetadata(record model.Record, metadataPrefix string) model.Rec
 	return recordWithoutMetadata
 }
 
-func FromJSONToRecords(l *slog.Logger, reader io.Reader) ([]model.Record, error) {
-	records := make([]model.Record, 0)
-	sc := bufio.NewScanner(reader)
-	for sc.Scan() {
-		raw := sc.Bytes()
-		line := make([]byte, len(raw))
-		copy(line, raw)
-
-		var record model.Record
-		if err := json.Unmarshal(line, &record); err != nil {
-			return nil, errors.WithStack(err)
-		}
-		records = append(records, record)
-	}
-	return records, nil
-}
-
-func FromCSVToRecords(l *slog.Logger, reader io.Reader) ([]model.Record, error) {
-	records := make([]model.Record, 0)
-	r := csv.NewReader(reader)
-	r.FieldsPerRecord = -1
-	rows, err := r.ReadAll()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	// csv to json records
-	for i, row := range rows {
-		if i == 0 {
-			continue
-		}
-		record := model.NewRecord()
-		if len(row) != len(rows[0]) {
-			l.Warn(fmt.Sprintf("record %d has different column count", i))
-			l.Debug(fmt.Sprintf("record %d: %v", i, row))
-			continue
-		}
-		for j, value := range row {
-			record.Set(rows[0][j], value)
-		}
-		records = append(records, record)
-	}
-	return records, nil
-}
-
 func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	records := make([]model.Record, 0)
 	sc := bufio.NewScanner(reader)
