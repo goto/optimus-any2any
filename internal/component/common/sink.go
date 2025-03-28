@@ -19,6 +19,7 @@ type Sink struct {
 	Logger         *slog.Logger
 	MetadataPrefix string
 
+	name       string
 	m          metric.Meter
 	done       chan uint8
 	c          chan any
@@ -39,7 +40,8 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...Option) *Sink {
 		Logger:         l,
 		MetadataPrefix: metadataPrefix,
 
-		m:          opentelemetry.GetMeterProvider().Meter("source"),
+		name:       "",
+		m:          opentelemetry.GetMeterProvider().Meter("sink"),
 		done:       make(chan uint8),
 		c:          make(chan any),
 		err:        nil,
@@ -63,10 +65,19 @@ func (commonSink *Sink) Wait() {
 }
 
 func (commonSink *Sink) Close() {
-	commonSink.Logger.Debug("sink: close")
+	commonSink.Logger.Debug(fmt.Sprintf("%s: close", commonSink.name))
 	for _, clean := range commonSink.cleanFuncs {
 		clean()
 	}
+}
+
+func (commonSink *Sink) Name() string {
+	return commonSink.name
+}
+
+func (commonSink *Sink) SetName(name string) {
+	commonSink.Logger = commonSink.Logger.With("component_name", name)
+	commonSink.name = name
 }
 
 func (commonSink *Sink) SetBufferSize(bufferSize int) {
@@ -74,14 +85,14 @@ func (commonSink *Sink) SetBufferSize(bufferSize int) {
 }
 
 func (commonSink *Sink) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
-	commonSink.Logger.Debug(fmt.Sprintf("sink: set otel sdk: %s", otelCollectorGRPCEndpoint))
+	commonSink.Logger.Debug(fmt.Sprintf("%s: set otel sdk: %s", commonSink.name, otelCollectorGRPCEndpoint))
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
-		commonSink.Logger.Error(fmt.Sprintf("sink: set otel sdk error: %s", err.Error()))
+		commonSink.Logger.Error(fmt.Sprintf("%s: set otel sdk error: %s", commonSink.name, err.Error()))
 	}
 	commonSink.AddCleanFunc(func() {
 		if err := shutdownFunc(); err != nil {
-			commonSink.Logger.Error(fmt.Sprintf("source: otel sdk shutdown error: %s", err.Error()))
+			commonSink.Logger.Error(fmt.Sprintf("%s: otel sdk shutdown error: %s", commonSink.name, err.Error()))
 		}
 	})
 }
@@ -89,8 +100,8 @@ func (commonSink *Sink) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoin
 func (commonSink *Sink) SetLogger(logLevel string) {
 	logger, err := logger.NewLogger(logLevel)
 	if err != nil {
-		commonSink.Logger.Error(fmt.Sprintf("sink: set logger error: %s", err.Error()))
-		return
+		commonSink.Logger.Warn(fmt.Sprintf("%s: set logger error: %s; use default", commonSink.name, err.Error()))
+		logger = slog.Default()
 	}
 	commonSink.Logger = logger
 }
@@ -104,7 +115,6 @@ func (commonSink *Sink) SetRetry(retryMax int, retryBackoffMs int64) {
 // This is additional functionality that is not part of the flow.Sink interface.
 // It provides a way to read data from the channel without exposing the channel itself.
 func (commonSink *Sink) Read() <-chan any {
-	commonSink.Logger.Debug("sink: read")
 	return commonSink.c
 }
 
@@ -118,19 +128,29 @@ func (commonSink *Sink) AddCleanFunc(f func()) {
 // RegisterProcess registers a process function that is run in a goroutine.
 // The process function should read data from the channel and process it.
 // Please note that you should use the Read method to read data from the channel.
-func (commonSink *Sink) RegisterProcess(f func()) {
+func (commonSink *Sink) RegisterProcess(f func() error) {
 	go func() {
 		defer func() {
-			commonSink.Logger.Debug("sink: close success")
+			commonSink.Logger.Debug(fmt.Sprintf("%s: close success", commonSink.name))
 			commonSink.done <- 0
 		}()
-		f()
+		if err := f(); err != nil {
+			commonSink.Logger.Error(fmt.Sprintf("%s: process error: %s", commonSink.name, err.Error()))
+			commonSink.setError(errors.WithStack(err))
+		}
 	}()
 }
 
 // SetError sets the error of the sink.
 // This is additional functionality that is not part of the flow.Sink interface.
-func (commonSink *Sink) SetError(err error) {
+func (commonSink *Sink) setError(err error) {
+	if commonSink.err == nil {
+		go func() {
+			commonSink.Logger.Debug(fmt.Sprintf("%s: skip message", commonSink.name))
+			for _ = range commonSink.Read() {
+			}
+		}()
+	}
 	commonSink.err = errors.WithStack(err)
 }
 

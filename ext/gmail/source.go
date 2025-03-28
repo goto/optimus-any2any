@@ -1,17 +1,16 @@
 package gmail
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"path/filepath"
 
 	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -37,6 +36,7 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// create commonSource
 	commonSource := common.NewSource(l, opts...)
+	commonSource.SetName("source(gmail)")
 	// create gmail service
 	srv, err := NewServiceFromToken(ctx, []byte(tokenJSON))
 	if err != nil {
@@ -53,7 +53,7 @@ func NewSource(ctx context.Context, l *slog.Logger,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source(gmail): close gmail service")
+		commonSource.Logger.Debug(fmt.Sprintf("%s: close gmail service", gs.Name()))
 	})
 	commonSource.RegisterProcess(gs.process)
 
@@ -61,89 +61,73 @@ func NewSource(ctx context.Context, l *slog.Logger,
 }
 
 // process reads data from Gmail.
-func (gs *GmailSource) process() {
+func (gs *GmailSource) process() error {
 	// get messages
 	user := "me"
 	r, err := gs.service.Users.Messages.List(user).Q(gs.filterRules).Do()
 	if err != nil {
-		gs.Logger.Error(fmt.Sprintf("source(gmail): failed to list messages %s", err.Error()))
-		gs.SetError(errors.WithStack(err))
-		return
+		gs.Logger.Error(fmt.Sprintf("%s: failed to list messages %s", gs.Name(), err.Error()))
+		return errors.WithStack(err)
 	}
 	if len(r.Messages) == 0 {
-		gs.Logger.Info("source(gmail): no messages found")
-		return
+		gs.Logger.Info(fmt.Sprintf("%s: no messages found", gs.Name()))
+		return nil
 	}
 
 	// process messages
 	for _, m := range r.Messages {
 		msg, err := gs.service.Users.Messages.Get(user, m.Id).Do()
 		if err != nil {
-			gs.Logger.Error(fmt.Sprintf("source(gmail): failed to get message %s", err.Error()))
-			gs.SetError(errors.WithStack(err))
-			return
+			gs.Logger.Error(fmt.Sprintf("%s: failed to get message %s", gs.Name(), err.Error()))
+			return errors.WithStack(err)
 		}
-		gs.Logger.Info(fmt.Sprintf("source(gmail): fetched message %s", msg.Id))
+		gs.Logger.Info(fmt.Sprintf("%s: fetched message %s", gs.Name(), msg.Id))
 
 		// extract data
-		records := make([]model.Record, 0)
-
 		for _, p := range msg.Payload.Parts {
 			if p.Filename == "" {
-				gs.Logger.Debug("source(gmail): no attachment found")
+				gs.Logger.Debug(fmt.Sprintf("%s: no attachment found", gs.Name()))
 				continue
 			}
 			// get attachment
-			gs.Logger.Info(fmt.Sprintf("source(gmail): found attachment %s", p.Filename))
+			gs.Logger.Info(fmt.Sprintf("%s: found attachment %s", gs.Name(), p.Filename))
 			attachment, err := gs.service.Users.Messages.Attachments.Get(user, msg.Id, p.Body.AttachmentId).Do()
 			if err != nil {
-				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to get attachment %s", err.Error()))
-				gs.SetError(errors.WithStack(err))
-				return
+				gs.Logger.Error(fmt.Sprintf("%s: failed to get attachment %s", gs.Name(), err.Error()))
+				return errors.WithStack(err)
 			}
 			// decode attachment
 			data, err := base64.URLEncoding.DecodeString(attachment.Data)
 			if err != nil {
-				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to decode attachment %s", err.Error()))
-				gs.SetError(errors.WithStack(err))
-				return
+				gs.Logger.Error(fmt.Sprintf("%s: failed to decode attachment %s", gs.Name(), err.Error()))
+				return errors.WithStack(err)
 			}
 
 			// convert to json
-			currentRecords, err := gs.convertToRecords(filepath.Ext(p.Filename)[1:], bytes.NewReader(data))
-			if err != nil {
-				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to convert attachment to records %s", err.Error()))
-				gs.SetError(errors.WithStack(err))
-				return
+			var reader io.Reader
+			switch filepath.Ext(p.Filename) {
+			case ".json":
+				reader = bytes.NewReader(data)
+			case ".csv":
+				reader = extcommon.FromCSVToJSON(gs.Logger, bytes.NewReader(data), false)
+			case ".tsv":
+				reader = extcommon.FromCSVToJSON(gs.Logger, bytes.NewReader(data), false, rune('\t'))
+			default:
+				gs.Logger.Warn(fmt.Sprintf("%s: unsupported file format: %s, use default (json)", gs.Name(), filepath.Ext(p.Filename)))
+				reader = bytes.NewReader(data)
 			}
-			// set filename column
-			for i := range records {
-				currentRecords[i].Set(gs.filenameColumn, p.Filename)
-			}
-			records = append(records, currentRecords...)
-		}
 
-		// map columns and send records
-		for _, record := range records {
-			raw, err := json.Marshal(record)
-			if err != nil {
-				gs.Logger.Error(fmt.Sprintf("source(gmail): failed to marshal record: %s", err.Error()))
-				gs.SetError(errors.WithStack(err))
-				continue
+			// send records
+			sc := bufio.NewScanner(reader)
+			for sc.Scan() {
+				// read line
+				raw := sc.Bytes()
+				line := make([]byte, len(raw)) // Important: make a copy of the line before sending
+				copy(line, raw)
+				// send to channel
+				gs.Send(line)
 			}
-			gs.Send(raw)
 		}
 	}
-}
-
-func (gs *GmailSource) convertToRecords(fileExt string, r io.Reader) ([]model.Record, error) {
-	records := make([]model.Record, 0)
-	switch fileExt {
-	case "json":
-		return extcommon.FromJSONToRecords(gs.Logger, r)
-	case "csv":
-		return extcommon.FromCSVToRecords(gs.Logger, r)
-	default:
-		return records, errors.New(fmt.Sprintf("source(gmail): unknown extractor file format: %s", fileExt))
-	}
+	return nil
 }

@@ -23,10 +23,11 @@ type FileSink struct {
 func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// create commonSink
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
+	commonSink.SetName("sink(file)")
 	// parse destinationURI as template
 	tmpl, err := extcommon.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("sink(file): failed to parse destination URI template: %w", err)
+		return nil, fmt.Errorf("%s: failed to parse destination URI template: %w", commonSink.Name(), err)
 	}
 	// create sink
 	fs := &FileSink{
@@ -37,7 +38,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 
 	// add clean func
 	commonSink.AddCleanFunc(func() {
-		commonSink.Logger.Debug("sink(file): close file")
+		commonSink.Logger.Info(fmt.Sprintf("%s: close files", commonSink.Name()))
 		for _, fh := range fs.fileHandlers {
 			_ = fh.Close()
 		}
@@ -50,45 +51,36 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 }
 
 // process reads from the channel and writes to the file.
-func (fs *FileSink) process() {
+func (fs *FileSink) process() error {
 	for v := range fs.Read() {
 		raw, ok := v.([]byte)
 		if !ok {
-			fs.Logger.Error("sink(file): invalid data type")
-			fs.SetError(fmt.Errorf("invalid data type"))
-			continue
+			return fmt.Errorf("%s: invalid data type", fs.Name())
 		}
 		var record model.Record
 		if err := json.Unmarshal(raw, &record); err != nil {
-			fs.Logger.Error("sink(file): invalid data format")
-			fs.SetError(errors.WithStack(err))
-			continue
+			return errors.WithStack(err)
 		}
 		destinationURI, err := extcommon.Compile(fs.destinationURITemplate, model.ToMap(record))
 		if err != nil {
-			fs.Logger.Error("sink(file): failed to compile destination URI")
-			fs.SetError(errors.WithStack(err))
-			continue
+			return errors.WithStack(err)
 		}
 		fh, ok := fs.fileHandlers[destinationURI]
 		if !ok {
-			fs.Logger.Debug(fmt.Sprintf("sink(file): create new file handler: %s", destinationURI))
+			fs.Logger.Debug(fmt.Sprintf("%s: create new file handler: %s", fs.Name(), destinationURI))
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
-				fs.Logger.Error(fmt.Sprintf("sink(file): failed to parse destination URI: %s", destinationURI))
-				fs.SetError(errors.WithStack(err))
-				continue
+				fs.Logger.Error(fmt.Sprintf("%s: failed to parse destination URI: %s", fs.Name(), destinationURI))
+				return errors.WithStack(err)
 			}
 			if targetURI.Scheme != "file" {
-				fs.Logger.Error(fmt.Sprintf("sink(file): invalid scheme: %s", targetURI.Scheme))
-				fs.SetError(fmt.Errorf("invalid scheme"))
-				continue
+				fs.Logger.Error(fmt.Sprintf("%s: invalid scheme: %s", fs.Name(), targetURI.Scheme))
+				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 			}
 			fh, err = NewStdFileHandler(fs.Logger, targetURI.Path)
 			if err != nil {
-				fs.Logger.Error(fmt.Sprintf("sink(file): failed to create file handler: %s", err.Error()))
-				fs.SetError(errors.WithStack(err))
-				continue
+				fs.Logger.Error(fmt.Sprintf("%s: failed to create file handler: %s", fs.Name(), err.Error()))
+				return errors.WithStack(err)
 			}
 			fs.fileHandlers[destinationURI] = fh
 		}
@@ -96,17 +88,17 @@ func (fs *FileSink) process() {
 		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, fs.MetadataPrefix)
 		raw, err = json.Marshal(recordWithoutMetadata)
 		if err != nil {
-			fs.Logger.Error("sink(file): failed to marshal record")
-			fs.SetError(errors.WithStack(err))
-			continue
+			fs.Logger.Error(fmt.Sprintf("%s: failed to marshal record", fs.Name()))
+			return errors.WithStack(err)
 		}
 
-		fs.Logger.Debug(fmt.Sprintf("sink(file): write %s", string(raw)))
+		fs.Logger.Debug(fmt.Sprintf("%s: write %s", fs.Name(), string(raw)))
 		_, err = fh.Write(append(raw, '\n'))
 		if err != nil {
-			fs.Logger.Error("sink(file): failed to write to file")
-			fs.SetError(errors.WithStack(err))
-			continue
+			fs.Logger.Error(fmt.Sprintf("%s: failed to write to file", fs.Name()))
+			return errors.WithStack(err)
 		}
 	}
+
+	return nil
 }

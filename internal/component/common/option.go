@@ -8,6 +8,7 @@ import (
 // SetupOptions is an interface that defines the options that can be set up
 // for the component. It provides shared methods for setting up the component.
 type SetupOptions interface {
+	SetName(string)
 	SetBufferSize(int)
 	SetOtelSDK(context.Context, string, map[string]string)
 	SetLogger(string)

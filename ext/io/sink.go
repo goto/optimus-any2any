@@ -20,6 +20,7 @@ var _ flow.Sink = (*IOSink)(nil)
 func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSink {
 	// create common
 	commonSink := common.NewSink(l, metadataPrefix, opts...)
+	commonSink.SetName("%s")
 	s := &IOSink{
 		Sink: commonSink,
 		w:    os.Stdout,
@@ -36,11 +37,12 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSi
 	return s
 }
 
-func (s *IOSink) process() {
+func (s *IOSink) process() error {
 	// read from channel
 	for v := range s.Read() {
-		s.Logger.Debug(fmt.Sprintf("sink(io): read: %s", string(v.([]byte))))
+		s.Logger.Debug(fmt.Sprintf("%s: read: %s", s.Name(), string(v.([]byte))))
 		fmt.Fprintf(s.w, "%s\n", string(v.([]byte)))
-		s.Logger.Debug(fmt.Sprintf("sink(io): done: %s", string(v.([]byte))))
+		s.Logger.Debug(fmt.Sprintf("%s: done: %s", s.Name(), string(v.([]byte))))
 	}
+	return nil
 }

@@ -36,6 +36,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	sourceURI string, csvDelimiter rune, skipHeader bool, opts ...common.Option) (*OSSSource, error) {
 	// create commonSource source
 	commonSource := common.NewSource(l, opts...)
+	commonSource.SetName("source(oss)")
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -61,7 +62,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 
 	// add clean function
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source(oss): cleaning up")
+		commonSource.Logger.Debug(fmt.Sprintf("%s: cleaning up", commonSource.Name()))
 	})
 
 	// register source process
@@ -70,31 +71,29 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	return ossSource, nil
 }
 
-func (o *OSSSource) process() {
+func (o *OSSSource) process() error {
 	// list objects
 	objectResult, err := o.client.ListObjects(o.ctx, &oss.ListObjectsRequest{
 		Bucket: oss.Ptr(o.bucket),
 		Prefix: oss.Ptr(o.path),
 	})
 	if err != nil {
-		o.Logger.Error(fmt.Sprintf("source(oss): failed to list objects in bucket: %s", o.bucket))
-		o.SetError(errors.WithStack(err))
-		return
+		o.Logger.Error(fmt.Sprintf("%s: failed to list objects in bucket: %s", o.Name(), o.bucket))
+		return errors.WithStack(err)
 	}
 	if len(objectResult.Contents) == 0 {
-		o.Logger.Info("source(oss): no objects found")
-		return
+		o.Logger.Info(fmt.Sprintf("%s: no objects found", o.Name()))
+		return nil
 	}
 
 	// process objects
 	for _, objectProp := range objectResult.Contents {
-		o.Logger.Info(fmt.Sprintf("source(oss): processing object: %s", oss.ToString(objectProp.Key)))
+		o.Logger.Info(fmt.Sprintf("%s: processing object: %s", o.Name(), oss.ToString(objectProp.Key)))
 		// read object
 		ossFile, err := o.client.OpenFile(o.ctx, o.bucket, oss.ToString(objectProp.Key))
 		if err != nil {
-			o.Logger.Warn(fmt.Sprintf("source(oss): failed to open object: %s", oss.ToString(objectProp.Key)))
-			o.SetError(errors.WithStack(err))
-			return
+			o.Logger.Warn(fmt.Sprintf("%s: failed to open object: %s", o.Name(), oss.ToString(objectProp.Key)))
+			return errors.WithStack(err)
 		}
 		defer ossFile.Close()
 
@@ -110,7 +109,7 @@ func (o *OSSSource) process() {
 		case ".tsv":
 			reader = extcommon.FromCSVToJSON(o.Logger, ossFile, o.skipHeader, rune('\t'))
 		default:
-			o.Logger.Warn(fmt.Sprintf("source(oss): unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
+			o.Logger.Warn(fmt.Sprintf("%s: unsupported file format: %s, use default (json)", o.Name(), filepath.Ext(oss.ToString(objectProp.Key))))
 			reader = ossFile
 		}
 
@@ -122,4 +121,5 @@ func (o *OSSSource) process() {
 			o.Send(line)
 		}
 	}
+	return nil
 }

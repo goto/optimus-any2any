@@ -18,6 +18,7 @@ import (
 type Source struct {
 	Logger *slog.Logger
 
+	name       string
 	m          metric.Meter
 	c          chan any
 	err        error
@@ -50,10 +51,19 @@ func (commonSource *Source) Out() <-chan any {
 }
 
 func (commonSource *Source) Close() {
-	commonSource.Logger.Debug("source: close")
+	commonSource.Logger.Debug(fmt.Sprintf("%s: close", commonSource.name))
 	for _, clean := range commonSource.cleanFuncs {
 		clean()
 	}
+}
+
+func (commonSource *Source) Name() string {
+	return commonSource.name
+}
+
+func (commonSource *Source) SetName(name string) {
+	commonSource.Logger = commonSource.Logger.With("component_name", name)
+	commonSource.name = name
 }
 
 func (commonSource *Source) SetBufferSize(bufferSize int) {
@@ -61,14 +71,14 @@ func (commonSource *Source) SetBufferSize(bufferSize int) {
 }
 
 func (commonSource *Source) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
-	commonSource.Logger.Debug(fmt.Sprintf("source: set otel sdk: %s", otelCollectorGRPCEndpoint))
+	commonSource.Logger.Debug(fmt.Sprintf("%s: set otel sdk: %s", commonSource.name, otelCollectorGRPCEndpoint))
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("source: set otel sdk error: %s", err.Error()))
+		commonSource.Logger.Error(fmt.Sprintf("%s: set otel sdk error: %s", commonSource.name, err.Error()))
 	}
 	commonSource.AddCleanFunc(func() {
 		if err := shutdownFunc(); err != nil {
-			commonSource.Logger.Error(fmt.Sprintf("source: otel sdk shutdown error: %s", err.Error()))
+			commonSource.Logger.Error(fmt.Sprintf("%s: otel sdk shutdown error: %s", commonSource.name, err.Error()))
 		}
 	})
 }
@@ -76,8 +86,8 @@ func (commonSource *Source) SetOtelSDK(ctx context.Context, otelCollectorGRPCEnd
 func (commonSource *Source) SetLogger(logLevel string) {
 	logger, err := logger.NewLogger(logLevel)
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("source: set logger error: %s", err.Error()))
-		return
+		commonSource.Logger.Warn(fmt.Sprintf("%s: set logger error: %s; use default", commonSource.name, err.Error()))
+		logger = slog.Default()
 	}
 	commonSource.Logger = logger
 }
@@ -94,18 +104,16 @@ func (commonSource *Source) Send(v any) {
 	// capture count of sent data (this is just a sample on how to use metric)
 	sendCount, err := commonSource.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("source: send count error: %s", err.Error()))
+		commonSource.Logger.Error(fmt.Sprintf("%s: send count error: %s", commonSource.name, err.Error()))
 	}
 	sendBytes, err := commonSource.m.Int64Counter("send_bytes", metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
 	if err != nil {
-		commonSource.Logger.Error(fmt.Sprintf("source: send bytes error: %s", err.Error()))
+		commonSource.Logger.Error(fmt.Sprintf("%s: send bytes error: %s", commonSource.name, err.Error()))
 	}
 	sendCount.Add(context.Background(), 1)
 	sendBytes.Add(context.Background(), int64(len(v.([]byte))))
 
-	commonSource.Logger.Debug(fmt.Sprintf("source: send: %s", string(v.([]byte))))
 	commonSource.c <- v
-	commonSource.Logger.Debug(fmt.Sprintf("source: done: %s", string(v.([]byte))))
 }
 
 // AddCleanFunc adds a clean function to the source.
@@ -118,19 +126,22 @@ func (commonSource *Source) AddCleanFunc(f func()) {
 // RegisterProcess registers a process function that is run in a goroutine.
 // The process function should read data from the source and send it to the channel.
 // Please note that you should use the Send method to send data to the channel.
-func (commonSource *Source) RegisterProcess(f func()) {
+func (commonSource *Source) RegisterProcess(f func() error) {
 	go func() {
 		defer func() {
-			commonSource.Logger.Debug("source: close success")
+			commonSource.Logger.Debug(fmt.Sprintf("%s: close success", commonSource.name))
 			close(commonSource.c)
 		}()
-		f()
+		if err := f(); err != nil {
+			commonSource.Logger.Error(fmt.Sprintf("%s: process error: %s", commonSource.name, err.Error()))
+			commonSource.setError(errors.WithStack(err))
+		}
 	}()
 }
 
 // SetError sets the error of the source.
 // This is additional functionality that is not part of the flow.Source interface.
-func (commonSource *Source) SetError(err error) {
+func (commonSource *Source) setError(err error) {
 	commonSource.err = errors.WithStack(err)
 }
 

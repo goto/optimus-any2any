@@ -30,6 +30,7 @@ func NewSource(l *slog.Logger,
 	soqlFilePath string, opts ...common.Option) (*SalesforceSource, error) {
 	// create commonSource
 	commonSource := common.NewSource(l, opts...)
+	commonSource.SetName("source(sf)")
 	// create salesforce client
 	client, err := createClient(sfURL, sfUser, sfPassword, sfToken)
 	if err != nil {
@@ -45,12 +46,11 @@ func NewSource(l *slog.Logger,
 		Source:    commonSource,
 		client:    client,
 		soqlQuery: string(soqlQueryRaw),
-		// columnMap: columnMap,
 	}
 
 	// add clean func
 	commonSource.AddCleanFunc(func() {
-		commonSource.Logger.Debug("source(sf): close salesforce client")
+		commonSource.Logger.Debug(fmt.Sprintf("%s: close salesforce client", sf.Name()))
 	})
 	commonSource.RegisterProcess(sf.process)
 
@@ -58,33 +58,32 @@ func NewSource(l *slog.Logger,
 }
 
 // process reads data from Salesforce and sends it to the channel.
-func (sf *SalesforceSource) process() {
+func (sf *SalesforceSource) process() error {
 	// initiate record result
 	result := &simpleforce.QueryResult{
 		Done:           false,
 		NextRecordsURL: sf.soqlQuery, // next records url can be soql query or url
 	}
-	sf.Logger.Info(fmt.Sprintf("source(sf): fetching records from:\n%s", sf.soqlQuery))
+	sf.Logger.Info(fmt.Sprintf("%s: fetching records from:\n%s", sf.Name(), sf.soqlQuery))
 	// fetch records until done
 	for !result.Done {
-		sf.Logger.Debug(fmt.Sprintf("source(sf): fetching more records from: %s", result.NextRecordsURL))
+		sf.Logger.Debug(fmt.Sprintf("%s: fetching more records from: %s", sf.Name(), result.NextRecordsURL))
 		currentResult, err := sf.client.Query(result.NextRecordsURL)
 		if err != nil {
-			sf.Logger.Error(fmt.Sprintf("source(sf): failed to query more salesforce: %s", err.Error()))
-			sf.SetError(errors.WithStack(err))
-			return
+			sf.Logger.Error(fmt.Sprintf("%s: failed to query more salesforce: %s", sf.Name(), err.Error()))
+			return errors.WithStack(err)
 		}
-		sf.Logger.Info(fmt.Sprintf("source(sf): fetched %d records", len(currentResult.Records)))
+		sf.Logger.Info(fmt.Sprintf("%s: fetched %d records", sf.Name(), len(currentResult.Records)))
 		for _, v := range currentResult.Records {
 			record := map[string]interface{}(v)
 			raw, err := json.Marshal(record)
 			if err != nil {
-				sf.Logger.Error(fmt.Sprintf("source(sf): failed to marshal record: %s", err.Error()))
-				sf.SetError(errors.WithStack(err))
-				continue
+				sf.Logger.Error(fmt.Sprintf("%s: failed to marshal record: %s", sf.Name(), err.Error()))
+				return errors.WithStack(err)
 			}
 			sf.Send(raw)
 		}
 		result = currentResult
 	}
+	return nil
 }
