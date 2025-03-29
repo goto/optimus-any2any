@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	errs "errors"
 	"fmt"
 	"log/slog"
 
@@ -23,7 +24,7 @@ type Sink struct {
 	done       chan uint8
 	c          chan any
 	err        error
-	cleanFuncs []func()
+	cleanFuncs []func() error
 
 	retryMax       int
 	retryBackoffMs int64
@@ -43,7 +44,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...Option) *Sink {
 		done:       make(chan uint8),
 		c:          make(chan any),
 		err:        nil,
-		cleanFuncs: []func(){},
+		cleanFuncs: []func() error{},
 	}
 
 	for _, opt := range opts {
@@ -62,11 +63,16 @@ func (commonSink *Sink) Wait() {
 	close(commonSink.done)
 }
 
-func (commonSink *Sink) Close() {
+func (commonSink *Sink) Close() error {
 	commonSink.Logger.Debug("close")
+	var e error
 	for _, clean := range commonSink.cleanFuncs {
-		clean()
+		e = errs.Join(e, clean())
 	}
+	if e != nil {
+		commonSink.Logger.Warn(fmt.Sprintf("close error: %s", e.Error()))
+	}
+	return e
 }
 
 func (commonSink *Sink) SetName(name string) {
@@ -83,10 +89,12 @@ func (commonSink *Sink) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoin
 	if err != nil {
 		commonSink.Logger.Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
 	}
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		if err := shutdownFunc(); err != nil {
 			commonSink.Logger.Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
+			return errors.WithStack(err)
 		}
+		return nil
 	})
 }
 
@@ -114,7 +122,7 @@ func (commonSink *Sink) Read() <-chan any {
 // AddCleanFunc adds a clean function to the source.
 // Clean functions are called when the source is closed
 // whether it is closed gracefully or due to an error.
-func (commonSink *Sink) AddCleanFunc(f func()) {
+func (commonSink *Sink) AddCleanFunc(f func() error) {
 	commonSink.cleanFuncs = append(commonSink.cleanFuncs, f)
 }
 

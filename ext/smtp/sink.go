@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/json"
+	errs "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -118,19 +119,26 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		commonSink.Logger.Info(fmt.Sprintf("close smtp client"))
-		_ = client.Close()
+		return client.Close()
 	})
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
+		var e error
+
 		for _, eh := range smtpSink.emailHandlers {
 			for attachment, fh := range eh.fileHandlers {
-				_ = fh.Close()
+				commonSink.Logger.Info("close file handler")
+				fh.Close()
+
 				attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
 				commonSink.Logger.Info(fmt.Sprintf("remove tmp attachment file %s", attachmentPath))
-				_ = os.Remove(attachmentPath)
+				err := os.Remove(attachmentPath)
+				e = errs.Join(e, err)
 			}
 		}
+
+		return e
 	})
 
 	// register sink process

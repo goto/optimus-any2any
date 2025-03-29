@@ -89,8 +89,9 @@ func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePat
 	}
 
 	// add clean function
-	commonSource.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() error {
 		commonSource.Logger.Debug(fmt.Sprintf("cleaning up"))
+		return nil
 	})
 
 	commonSource.RegisterProcess(mc.process)

@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	errs "errors"
 	"fmt"
 	"log/slog"
 
@@ -21,7 +22,7 @@ type Source struct {
 	m          metric.Meter
 	c          chan any
 	err        error
-	cleanFuncs []func()
+	cleanFuncs []func() error
 }
 
 var _ flow.Source = (*Source)(nil)
@@ -35,7 +36,7 @@ func NewSource(l *slog.Logger, opts ...Option) *Source {
 		m:          opentelemetry.GetMeterProvider().Meter("source"),
 		c:          make(chan any),
 		err:        nil,
-		cleanFuncs: []func(){},
+		cleanFuncs: []func() error{},
 	}
 
 	for _, opt := range opts {
@@ -49,11 +50,16 @@ func (commonSource *Source) Out() <-chan any {
 	return commonSource.c
 }
 
-func (commonSource *Source) Close() {
+func (commonSource *Source) Close() error {
 	commonSource.Logger.Debug("close")
+	var e error
 	for _, clean := range commonSource.cleanFuncs {
-		clean()
+		e = errs.Join(e, clean())
 	}
+	if e != nil {
+		commonSource.Logger.Warn(fmt.Sprintf("close error: %s", e.Error()))
+	}
+	return e
 }
 func (commonSource *Source) SetName(name string) {
 	commonSource.Logger = commonSource.Logger.WithGroup("source").With("name", name)
@@ -69,10 +75,12 @@ func (commonSource *Source) SetOtelSDK(ctx context.Context, otelCollectorGRPCEnd
 	if err != nil {
 		commonSource.Logger.Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
 	}
-	commonSource.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() error {
 		if err := shutdownFunc(); err != nil {
 			commonSource.Logger.Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
+			return err
 		}
+		return nil
 	})
 }
 
@@ -112,7 +120,7 @@ func (commonSource *Source) Send(v any) {
 // AddCleanFunc adds a clean function to the source.
 // Clean functions are called when the source is closed
 // whether it is closed gracefully or due to an error.
-func (commonSource *Source) AddCleanFunc(f func()) {
+func (commonSource *Source) AddCleanFunc(f func() error) {
 	commonSource.cleanFuncs = append(commonSource.cleanFuncs, f)
 }
 

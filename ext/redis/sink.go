@@ -96,8 +96,9 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		commonSink.Logger.Debug(fmt.Sprintf("close record writer"))
+		return nil
 	})
 
 	// register sink process

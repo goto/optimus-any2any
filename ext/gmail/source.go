@@ -53,8 +53,9 @@ func NewSource(ctx context.Context, l *slog.Logger,
 	}
 
 	// add clean func
-	commonSource.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() error {
 		commonSource.Logger.Debug(fmt.Sprintf("close gmail service"))
+		return nil
 	})
 	commonSource.RegisterProcess(gs.process)
 

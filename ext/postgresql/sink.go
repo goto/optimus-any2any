@@ -62,9 +62,9 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		commonSink.Logger.Info(fmt.Sprintf("close pg connection"))
-		_ = pgSink.conn.Close(ctx)
+		return pgSink.conn.Close(ctx)
 	})
 
 	// register sink process

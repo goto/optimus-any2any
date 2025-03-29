@@ -50,8 +50,9 @@ func NewSource(l *slog.Logger,
 	}
 
 	// add clean func
-	commonSource.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() error {
 		commonSource.Logger.Debug(fmt.Sprintf("close salesforce client"))
+		return nil
 	})
 	commonSource.RegisterProcess(sf.process)
 

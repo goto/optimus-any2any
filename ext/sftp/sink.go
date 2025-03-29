@@ -68,15 +68,16 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
-		_ = s.client.Close()
-		commonSink.Logger.Info(fmt.Sprintf("client closed"))
+	commonSink.AddCleanFunc(func() error {
+		commonSink.Logger.Info(fmt.Sprintf("close client"))
+		return s.client.Close()
 	})
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		for _, fh := range s.fileHandlers {
-			_ = fh.Close()
+			fh.Close()
 		}
 		commonSink.Logger.Info("file handlers closed")
+		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine

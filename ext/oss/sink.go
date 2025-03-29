@@ -3,6 +3,7 @@ package oss
 import (
 	"context"
 	"encoding/json"
+	errs "errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -73,21 +74,28 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
+		commonSink.Logger.Info("close oss files")
+		var e error
 		for destinationURI, oh := range ossSink.fileHandlers {
-			commonSink.Logger.Info(fmt.Sprintf("close file: %s", destinationURI))
-			_ = oh.Close()
+			commonSink.Logger.Debug(fmt.Sprintf("close file: %s", destinationURI))
+			err := oh.Close()
+			e = errs.Join(e, err)
 		}
+		return e
 	})
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
+		commonSink.Logger.Info("close & remove tmp files")
+		var e error
 		for tmpPath, fh := range ossSink.fileHandlers {
-			commonSink.Logger.Info(fmt.Sprintf("close tmp file: %s", tmpPath))
-			_ = fh.Close()
-			commonSink.Logger.Info(fmt.Sprintf("remove tmp file: %s", tmpPath))
-			if err := os.Remove(tmpPath); err != nil {
-				commonSink.Logger.Error(fmt.Sprintf("failed to remove tmp file: %s", tmpPath))
-			}
+			commonSink.Logger.Debug(fmt.Sprintf("close tmp file: %s", tmpPath))
+			fh.Close()
+
+			commonSink.Logger.Debug(fmt.Sprintf("remove tmp file: %s", tmpPath))
+			err := os.Remove(tmpPath)
+			e = errs.Join(e, err)
 		}
+		return e
 	})
 
 	// register sink process

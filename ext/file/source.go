@@ -61,11 +61,12 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 	}
 
 	// add clean func
-	commonSource.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() error {
 		commonSource.Logger.Info(fmt.Sprintf("close files"))
 		for _, f := range files {
-			_ = f.Close()
+			f.Close()
 		}
+		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine

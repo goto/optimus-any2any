@@ -38,6 +38,7 @@ func (p *NoPipeline) Errs() []error {
 }
 
 // Close closes the no-pipeline.
-func (p *NoPipeline) Close() {
+func (p *NoPipeline) Close() error {
 	p.executor.Close()
+	return nil
 }

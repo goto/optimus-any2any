@@ -43,9 +43,10 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		commonSink.Logger.Info(fmt.Sprintf("close client"))
 		client.Close()
+		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine

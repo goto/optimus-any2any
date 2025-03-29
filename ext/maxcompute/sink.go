@@ -131,16 +131,16 @@ func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProje
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		l.Info(fmt.Sprintf("drop temporary table"))
 		// delete temporary table if load method is replace
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			l.Info(fmt.Sprintf("load method is replace, deleting temporary table: %s", mc.tableIDTransition))
-			if err := dropTable(l, client, mc.tableIDTransition); err != nil {
-				l.Error(fmt.Sprintf("delete temporary table error: %s", err.Error()))
-				// set error
-			}
+			return mc.Retry(func() error {
+				return dropTable(l, client, mc.tableIDTransition)
+			})
 		}
+		return nil
 	})
 	// register process, it will immediately start the process
 	commonSink.RegisterProcess(mc.process)

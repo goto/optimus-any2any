@@ -14,7 +14,7 @@ type Outlet interface {
 // It contains Close method for closing the source.
 type Source interface {
 	Outlet
-	Close()
+	Close() error
 	Err() error
 }
 
@@ -23,7 +23,7 @@ type Source interface {
 // and Wait method for waiting until the sink is done.
 type Sink interface {
 	Inlet
-	Close()
+	Close() error
 	Wait()
 	Err() error
 }

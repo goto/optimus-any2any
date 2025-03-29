@@ -37,7 +37,7 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 	var p interface {
 		Run() <-chan uint8
 		Errs() []error
-		Close()
+		Close() error
 	}
 
 	if noPipeline {

@@ -61,8 +61,9 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 	}
 
 	// add clean function
-	commonSource.AddCleanFunc(func() {
+	commonSource.AddCleanFunc(func() error {
 		commonSource.Logger.Debug(fmt.Sprintf("cleaning up"))
+		return nil
 	})
 
 	// register source process

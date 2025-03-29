@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	errs "errors"
 	"log/slog"
 	"sync"
 
@@ -57,11 +58,18 @@ func (p *MultiSinkPipeline) Errs() []error {
 }
 
 // Close closes source and sink gracefully.
-func (p *MultiSinkPipeline) Close() {
-	p.source.Close()
+func (p *MultiSinkPipeline) Close() error {
+	var e error
+
+	err := p.source.Close()
+	e = errs.Join(e, err)
+
 	for _, sink := range p.sinks {
-		sink.Close()
+		err = sink.Close()
+		e = errs.Join(e, err)
 	}
+
+	return e
 }
 
 // groupSinkWait waits until all sinks are done.

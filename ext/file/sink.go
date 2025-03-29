@@ -40,11 +40,12 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		commonSink.Logger.Info("close files")
 		for _, fh := range fs.fileHandlers {
-			_ = fh.Close()
+			fh.Close()
 		}
+		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine

@@ -27,8 +27,9 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSi
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() {
+	commonSink.AddCleanFunc(func() error {
 		commonSink.Logger.Debug("close func called")
+		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
