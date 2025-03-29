@@ -13,9 +13,10 @@ import (
 	"strings"
 	"text/template"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -59,21 +60,21 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// prepare template
 	m := httpMetadataTemplate{}
-	m.method = template.Must(extcommon.NewTemplate("sink_http_method", method))
-	m.endpoint = template.Must(extcommon.NewTemplate("sink_http_endpoint", endpoint))
+	m.method = template.Must(compiler.NewTemplate("sink_http_method", method))
+	m.endpoint = template.Must(compiler.NewTemplate("sink_http_endpoint", endpoint))
 	if headerContent != "" {
-		m.headers = template.Must(extcommon.NewTemplate("sink_http_headers", headerContent))
+		m.headers = template.Must(compiler.NewTemplate("sink_http_headers", headerContent))
 	} else {
 		headerStrBuilder := strings.Builder{}
 		for k, v := range headers {
 			headerStrBuilder.WriteString(fmt.Sprintf("%s: %s\n", k, v))
 		}
-		m.headers = template.Must(extcommon.NewTemplate("sink_http_headers", headerStrBuilder.String()))
+		m.headers = template.Must(compiler.NewTemplate("sink_http_headers", headerStrBuilder.String()))
 	}
 	if bodyContent != "" {
 		body = bodyContent
 	}
-	bodyContentTemplate := template.Must(extcommon.NewTemplate("sink_http_body", body))
+	bodyContentTemplate := template.Must(compiler.NewTemplate("sink_http_body", body))
 
 	s := &HTTPSink{
 		CommonSink:           commonSink,
@@ -122,7 +123,7 @@ func (s *HTTPSink) process() error {
 		}
 
 		// remove metadata prefix
-		record = extcommon.RecordWithoutMetadata(record, s.MetadataPrefix)
+		record = helper.RecordWithoutMetadata(record, s.MetadataPrefix)
 		raw, err := json.Marshal(record)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal record error"))
@@ -197,7 +198,7 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 		raw = records
 	}
 	// prefix metadata will not be used in the body content template
-	body, err := extcommon.Compile(s.bodyContentTemplate, raw)
+	body, err := compiler.Compile(s.bodyContentTemplate, raw)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -231,7 +232,7 @@ func compileMetadata(m httpMetadataTemplate, record model.Record) (httpMetadata,
 	metadata := httpMetadata{}
 
 	if m.method != nil {
-		method, err := extcommon.Compile(m.method, model.ToMap(record))
+		method, err := compiler.Compile(m.method, model.ToMap(record))
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
@@ -239,7 +240,7 @@ func compileMetadata(m httpMetadataTemplate, record model.Record) (httpMetadata,
 	}
 
 	if m.endpoint != nil {
-		endpoint, err := extcommon.Compile(m.endpoint, model.ToMap(record))
+		endpoint, err := compiler.Compile(m.endpoint, model.ToMap(record))
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}
@@ -247,7 +248,7 @@ func compileMetadata(m httpMetadataTemplate, record model.Record) (httpMetadata,
 	}
 
 	if m.headers != nil {
-		headers, err := extcommon.Compile(m.headers, model.ToMap(record))
+		headers, err := compiler.Compile(m.headers, model.ToMap(record))
 		if err != nil {
 			return metadata, errors.WithStack(err)
 		}

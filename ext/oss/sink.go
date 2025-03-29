@@ -14,10 +14,11 @@ import (
 	"text/template"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/ext/file"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -28,8 +29,8 @@ type OSSSink struct {
 
 	client                 *oss.Client
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]extcommon.FileHandler // tmp file handler
-	ossHandlers            map[string]extcommon.FileHandler
+	fileHandlers           map[string]io.WriteCloser // tmp file handler
+	ossHandlers            map[string]io.WriteCloser
 	fileRecordCounters     map[string]int
 	batchSize              int
 	enableOverwrite        bool
@@ -54,7 +55,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	// parse destinationURI as template
-	tmpl, err := extcommon.NewTemplate("sink_oss_destination_uri", destinationURI)
+	tmpl, err := compiler.NewTemplate("sink_oss_destination_uri", destinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
@@ -64,8 +65,8 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: tmpl,
-		fileHandlers:           make(map[string]extcommon.FileHandler),
-		ossHandlers:            make(map[string]extcommon.FileHandler),
+		fileHandlers:           make(map[string]io.WriteCloser),
+		ossHandlers:            make(map[string]io.WriteCloser),
 		fileRecordCounters:     make(map[string]int),
 		batchSize:              batchSize,
 		enableOverwrite:        enableOverwrite,
@@ -126,7 +127,7 @@ func (o *OSSSink) process() error {
 			o.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
-		destinationURI, err = extcommon.Compile(o.destinationURITemplate, model.ToMap(record))
+		destinationURI, err = compiler.Compile(o.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
 			return errors.WithStack(err)
@@ -190,7 +191,7 @@ func (o *OSSSink) process() error {
 		}
 
 		// record without metadata
-		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, o.MetadataPrefix)
+		recordWithoutMetadata := helper.RecordWithoutMetadata(record, o.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to marshal record"))
@@ -241,7 +242,7 @@ func (o *OSSSink) remove(bucket, path string) error {
 	return nil
 }
 
-func (o *OSSSink) flush(destinationURI string, oh extcommon.FileHandler) error {
+func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	tmpPath, err := getTmpPath(destinationURI)
 	if err != nil {
 		return errors.WithStack(err)
@@ -258,9 +259,9 @@ func (o *OSSSink) flush(destinationURI string, oh extcommon.FileHandler) error {
 	case ".json":
 		tmpReader = f
 	case ".csv":
-		tmpReader = extcommon.FromJSONToCSV(o.Logger(), f, o.skipHeader)
+		tmpReader = helper.FromJSONToCSV(o.Logger(), f, o.skipHeader)
 	case ".tsv":
-		tmpReader = extcommon.FromJSONToCSV(o.Logger(), f, o.skipHeader, rune('\t'))
+		tmpReader = helper.FromJSONToCSV(o.Logger(), f, o.skipHeader, rune('\t'))
 	default:
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		tmpReader = f

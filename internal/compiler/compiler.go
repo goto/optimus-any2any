@@ -1,17 +1,20 @@
-package extcommon
+package compiler
 
 import (
 	"encoding/json"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func NewTemplate(name, raw string) (*template.Template, error) {
 	return template.New(name).
 		Delims("[[", "]]").
 		Funcs(template.FuncMap{
-			"now": func() time.Time { return time.Now().UTC() },
+			"uuid": func() string { return uuid.New().String() },
+			"now":  func() time.Time { return time.Now().UTC() },
 			"tojson": func(v interface{}) string {
 				b, _ := json.Marshal(v) // TODO: handle error
 				return string(b)

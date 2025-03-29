@@ -1,5 +1,5 @@
 // Description: This package contains common helper functions that are used by multiple packages.
-package extcommon
+package helper
 
 import (
 	"bufio"
@@ -11,21 +11,10 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/google/uuid"
-	"github.com/goto/optimus-any2any/ext/common/model"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
-
-var builtinValueFuns = map[string]func() string{
-	"uuid": func() string {
-		return uuid.New().String()
-	},
-	"timestamp_utc": func() string {
-		return fmt.Sprintf("%d", time.Now().Unix())
-	},
-}
 
 // RecordWithoutMetadata returns the record without given metadata prefix.
 func RecordWithoutMetadata(record model.Record, metadataPrefix string) model.Record {

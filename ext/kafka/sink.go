@@ -8,9 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -73,7 +73,7 @@ func (k *KafkaSink) process() error {
 			k.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
-		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, k.MetadataPrefix)
+		recordWithoutMetadata := helper.RecordWithoutMetadata(record, k.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			k.Logger().Error(fmt.Sprintf("failed to marshal record"))

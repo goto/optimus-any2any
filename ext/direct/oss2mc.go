@@ -1,3 +1,5 @@
+// Description: This file contains the implementation of the OSS2MC struct, which is responsible for executing a query from OSS to MaxCompute.
+// this is experimental and not yet ready for production use
 package direct
 
 import (

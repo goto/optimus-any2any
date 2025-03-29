@@ -3,13 +3,15 @@ package file
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"text/template"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
@@ -17,7 +19,7 @@ import (
 type FileSink struct {
 	*common.CommonSink
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]extcommon.FileHandler
+	fileHandlers           map[string]io.WriteCloser
 	fileRecordCounters     map[string]int
 }
 
@@ -26,7 +28,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 	commonSink := common.NewCommonSink(l, "file", metadataPrefix, opts...)
 
 	// parse destinationURI as template
-	tmpl, err := extcommon.NewTemplate("sink_file_destination_uri", destinationURI)
+	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
@@ -34,7 +36,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 	fs := &FileSink{
 		CommonSink:             commonSink,
 		destinationURITemplate: tmpl,
-		fileHandlers:           make(map[string]extcommon.FileHandler),
+		fileHandlers:           make(map[string]io.WriteCloser),
 		fileRecordCounters:     make(map[string]int),
 	}
 
@@ -66,7 +68,7 @@ func (fs *FileSink) process() error {
 		if err := json.Unmarshal(raw, &record); err != nil {
 			return errors.WithStack(err)
 		}
-		destinationURI, err := extcommon.Compile(fs.destinationURITemplate, model.ToMap(record))
+		destinationURI, err := compiler.Compile(fs.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -91,7 +93,7 @@ func (fs *FileSink) process() error {
 			fs.fileRecordCounters[destinationURI] = 0
 		}
 
-		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, fs.MetadataPrefix)
+		recordWithoutMetadata := helper.RecordWithoutMetadata(record, fs.MetadataPrefix)
 		raw, err = json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			fs.Logger().Error(fmt.Sprintf("failed to marshal record"))

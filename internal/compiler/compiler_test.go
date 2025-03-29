@@ -1,10 +1,10 @@
-package extcommon_test
+package compiler_test
 
 import (
 	"testing"
 	"time"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,9 +18,9 @@ func TestCompile(t *testing.T) {
 			"column2": "value2",
 		}
 
-		tmpl, err := extcommon.NewTemplate("test", tmplString)
+		tmpl, err := compiler.NewTemplate("test", tmplString)
 		assert.NoError(t, err)
-		actual, err := extcommon.Compile(tmpl, record)
+		actual, err := compiler.Compile(tmpl, record)
 		assert.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
@@ -35,9 +35,9 @@ func TestCompile(t *testing.T) {
 			},
 		}
 
-		tmpl, err := extcommon.NewTemplate("test", tmplString)
+		tmpl, err := compiler.NewTemplate("test", tmplString)
 		assert.NoError(t, err)
-		actual, err := extcommon.Compile(tmpl, record)
+		actual, err := compiler.Compile(tmpl, record)
 		assert.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
@@ -50,9 +50,9 @@ func TestCompile(t *testing.T) {
 			"column2": "value2",
 		}
 
-		tmpl, err := extcommon.NewTemplate("test", tmplString)
+		tmpl, err := compiler.NewTemplate("test", tmplString)
 		assert.NoError(t, err)
-		actual, err := extcommon.Compile(tmpl, record)
+		actual, err := compiler.Compile(tmpl, record)
 		assert.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
@@ -65,9 +65,9 @@ func TestCompile(t *testing.T) {
 			"column2": "value2",
 		}
 
-		tmpl, err := extcommon.NewTemplate("test", tmplString)
+		tmpl, err := compiler.NewTemplate("test", tmplString)
 		assert.NoError(t, err)
-		actual, err := extcommon.Compile(tmpl, record)
+		actual, err := compiler.Compile(tmpl, record)
 		assert.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})

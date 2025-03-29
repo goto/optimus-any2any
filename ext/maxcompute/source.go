@@ -14,9 +14,9 @@ import (
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -62,7 +62,7 @@ func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePat
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	queryTemplate, err := extcommon.NewTemplate("source_mc_query", string(rawQuery))
+	queryTemplate, err := compiler.NewTemplate("source_mc_query", string(rawQuery))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -126,7 +126,7 @@ func (mc *MaxcomputeSource) process() error {
 		mc.Logger().Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
 
 		// compile query
-		query, err := extcommon.Compile(mc.queryTemplate, model.ToMap(preRecordWithPrefix))
+		query, err := compiler.Compile(mc.queryTemplate, model.ToMap(preRecordWithPrefix))
 		if err != nil {
 			mc.Logger().Error(fmt.Sprintf("failed to compile query"))
 			return errors.WithStack(err)

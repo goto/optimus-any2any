@@ -11,9 +11,9 @@ import (
 	"strings"
 	"text/template"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -53,7 +53,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		if connectionTLSCert == "" || connectionTLSKey == "" || connectionTLSCACert == "" {
 			return nil, fmt.Errorf("missing TLS certificate, key or CA certificate")
 		}
-		c, err := extcommon.NewTLSConfig(connectionTLSCert, connectionTLSKey, connectionTLSCACert)
+		c, err := NewTLSConfig(connectionTLSCert, connectionTLSKey, connectionTLSCACert)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -76,11 +76,11 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		return nil, errors.WithStack(err)
 	}
 
-	recordKeyTemplate, err := extcommon.NewTemplate("sink_redis_record_key", recordKey)
+	recordKeyTemplate, err := compiler.NewTemplate("sink_redis_record_key", recordKey)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	recordValueTemplate, err := extcommon.NewTemplate("sink_redis_record_value", recordValue)
+	recordValueTemplate, err := compiler.NewTemplate("sink_redis_record_value", recordValue)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -120,13 +120,13 @@ func (s *RedisSink) process() error {
 			s.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
-		recordKey, err := extcommon.Compile(s.recordKeyTemplate, model.ToMap(record))
+		recordKey, err := compiler.Compile(s.recordKeyTemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to compile record key"))
 			return errors.WithStack(err)
 		}
 		s.Logger().Debug(fmt.Sprintf("record key: %s", recordKey))
-		recordValue, err := extcommon.Compile(s.recordValueTemplate, model.ToMap(record))
+		recordValue, err := compiler.Compile(s.recordValueTemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to compile record value"))
 			return errors.WithStack(err)

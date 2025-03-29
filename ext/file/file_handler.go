@@ -1,16 +1,16 @@
 package file
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/pkg/errors"
 )
 
 // NewStdFileHandler creates a new file handler.
-func NewStdFileHandler(l *slog.Logger, path string) (extcommon.FileHandler, error) {
+func NewStdFileHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, 0755); err != nil {

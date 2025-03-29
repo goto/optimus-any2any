@@ -13,10 +13,11 @@ import (
 	"strings"
 	"text/template"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/ext/file"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
@@ -45,7 +46,7 @@ type emailMetadata struct {
 
 type emailHandler struct {
 	emailMetadata emailMetadata
-	fileHandlers  map[string]extcommon.FileHandler
+	fileHandlers  map[string]io.WriteCloser
 }
 
 type SMTPSink struct {
@@ -91,23 +92,23 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// parse email metadata as template
 	m := emailMetadataTemplate{}
-	m.from = template.Must(extcommon.NewTemplate("sink_smtp_email_metadata_from", from))
+	m.from = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_from", from))
 	for i, t := range strings.Split(to, ",") {
-		m.to = append(m.to, template.Must(extcommon.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_to_%d", i), t)))
+		m.to = append(m.to, template.Must(compiler.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_to_%d", i), t)))
 	}
 	for i, c := range strings.Split(cc, ",") {
-		m.cc = append(m.cc, template.Must(extcommon.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_cc_%d", i), c)))
+		m.cc = append(m.cc, template.Must(compiler.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_cc_%d", i), c)))
 	}
 	for i, b := range strings.Split(bcc, ",") {
-		m.bcc = append(m.bcc, template.Must(extcommon.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_bcc_%d", i), b)))
+		m.bcc = append(m.bcc, template.Must(compiler.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_bcc_%d", i), b)))
 	}
-	m.subject = template.Must(extcommon.NewTemplate("sink_smtp_email_metadata_subject", subject))
+	m.subject = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_subject", subject))
 	body, err := os.ReadFile(bodyFilePath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	m.body = template.Must(extcommon.NewTemplate("sink_smtp_email_metadata_body", string(body)))
-	m.attachment = template.Must(extcommon.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
+	m.body = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_body", string(body)))
+	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
 
 	s := &SMTPSink{
 		CommonSink:            commonSink,
@@ -167,12 +168,12 @@ func (s *SMTPSink) process() error {
 		if !ok {
 			s.emailHandlers[hash] = emailHandler{
 				emailMetadata: m,
-				fileHandlers:  make(map[string]extcommon.FileHandler),
+				fileHandlers:  make(map[string]io.WriteCloser),
 			}
 			eh = s.emailHandlers[hash]
 		}
 
-		attachment, err := extcommon.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
+		attachment, err := compiler.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
 			return errors.WithStack(err)
@@ -188,7 +189,7 @@ func (s *SMTPSink) process() error {
 			eh.fileHandlers[attachment] = fh
 		}
 
-		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, s.MetadataPrefix)
+		recordWithoutMetadata := helper.RecordWithoutMetadata(record, s.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal error: %s", err.Error()))
@@ -225,9 +226,9 @@ func (s *SMTPSink) process() error {
 			case ".json":
 				tmpReader = f
 			case ".csv":
-				tmpReader = extcommon.FromJSONToCSV(s.Logger(), f, false) // no skip header by default
+				tmpReader = helper.FromJSONToCSV(s.Logger(), f, false) // no skip header by default
 			case ".tsv":
-				tmpReader = extcommon.FromJSONToCSV(s.Logger(), f, false, rune('\t'))
+				tmpReader = helper.FromJSONToCSV(s.Logger(), f, false, rune('\t'))
 			default:
 				s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
 				tmpReader = f
@@ -258,14 +259,14 @@ func (s *SMTPSink) process() error {
 func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (emailMetadata, error) {
 	em := emailMetadata{}
 
-	from, err := extcommon.Compile(m.from, record)
+	from, err := compiler.Compile(m.from, record)
 	if err != nil {
 		return em, errors.WithStack(err)
 	}
 	em.from = from
 
 	for _, t := range m.to {
-		to, err := extcommon.Compile(t, record)
+		to, err := compiler.Compile(t, record)
 		if err != nil {
 			return em, errors.WithStack(err)
 		}
@@ -273,7 +274,7 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 	}
 
 	for _, c := range m.cc {
-		cc, err := extcommon.Compile(c, record)
+		cc, err := compiler.Compile(c, record)
 		if err != nil {
 			return em, errors.WithStack(err)
 		}
@@ -281,20 +282,20 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 	}
 
 	for _, b := range m.bcc {
-		bcc, err := extcommon.Compile(b, record)
+		bcc, err := compiler.Compile(b, record)
 		if err != nil {
 			return em, errors.WithStack(err)
 		}
 		em.bcc = append(em.bcc, bcc)
 	}
 
-	subject, err := extcommon.Compile(m.subject, record)
+	subject, err := compiler.Compile(m.subject, record)
 	if err != nil {
 		return em, errors.WithStack(err)
 	}
 	em.subject = subject
 
-	body, err := extcommon.Compile(m.body, record)
+	body, err := compiler.Compile(m.body, record)
 	if err != nil {
 		return em, errors.WithStack(err)
 	}

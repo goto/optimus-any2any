@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"sync"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
@@ -129,7 +129,7 @@ func (p *PGSink) flush() error {
 			w.Close()
 			wg.Done()
 		}()
-		if err := extcommon.ToCSV(p.Logger(), w, p.records, false); err != nil {
+		if err := helper.ToCSV(p.Logger(), w, p.records, false); err != nil {
 			errChan <- errors.WithStack(err)
 			return
 		}

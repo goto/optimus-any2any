@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
 	"text/template"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
-	"github.com/goto/optimus-any2any/ext/common/model"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
@@ -24,7 +25,7 @@ type SFTPSink struct {
 
 	client                 *sftp.Client
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]extcommon.FileHandler
+	fileHandlers           map[string]io.WriteCloser
 }
 
 var _ flow.Sink = (*SFTPSink)(nil)
@@ -53,7 +54,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		return nil, errors.WithStack(err)
 	}
 	u := url.URL{Scheme: urlParsed.Scheme, Path: urlParsed.Path}
-	t, err := extcommon.NewTemplate("sink_sftp_destination_uri", u.String())
+	t, err := compiler.NewTemplate("sink_sftp_destination_uri", u.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
@@ -63,7 +64,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: t,
-		fileHandlers:           map[string]extcommon.FileHandler{},
+		fileHandlers:           map[string]io.WriteCloser{},
 	}
 
 	// add clean func
@@ -99,7 +100,7 @@ func (s *SFTPSink) process() error {
 			s.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
-		destinationURI, err := extcommon.Compile(s.destinationURITemplate, model.ToMap(record))
+		destinationURI, err := compiler.Compile(s.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
 			return errors.WithStack(err)

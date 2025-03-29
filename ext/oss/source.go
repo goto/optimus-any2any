@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
-	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -102,12 +102,12 @@ func (o *OSSSource) process() error {
 		case ".json":
 			reader = ossFile
 		case ".csv":
-			reader = extcommon.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader)
+			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader)
 			if o.csvDelimiter != 0 {
-				reader = extcommon.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.csvDelimiter)
+				reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.csvDelimiter)
 			}
 		case ".tsv":
-			reader = extcommon.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, rune('\t'))
+			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, rune('\t'))
 		default:
 			o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
 			reader = ossFile

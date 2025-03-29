@@ -10,8 +10,8 @@ import (
 	"log/slog"
 	"path/filepath"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"google.golang.org/api/gmail/v1"
@@ -110,9 +110,9 @@ func (gs *GmailSource) process() error {
 			case ".json":
 				reader = bytes.NewReader(data)
 			case ".csv":
-				reader = extcommon.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false)
+				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false)
 			case ".tsv":
-				reader = extcommon.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, rune('\t'))
+				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, rune('\t'))
 			default:
 				gs.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(p.Filename)))
 				reader = bytes.NewReader(data)

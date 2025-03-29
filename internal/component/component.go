@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 
-	extcommon "github.com/goto/optimus-any2any/ext/common"
 	"github.com/goto/optimus-any2any/ext/direct"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
@@ -21,6 +20,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
 	"github.com/goto/optimus-any2any/ext/smtp"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -191,11 +191,11 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 	}
 	// TODO: refactor the package extcommon, since it's also being used
 	// in internal folder
-	tmpl, err := extcommon.NewTemplate("connector_jq", string(query))
+	tmpl, err := compiler.NewTemplate("connector_jq", string(query))
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	compiledQuery, err := extcommon.Compile(tmpl, nil)
+	compiledQuery, err := compiler.Compile(tmpl, nil)
 	if err != nil {
 		return "", errors.WithStack(err)
 	}

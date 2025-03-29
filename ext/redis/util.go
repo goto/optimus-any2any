@@ -1,4 +1,4 @@
-package extcommon
+package redis
 
 import (
 	"crypto/tls"
