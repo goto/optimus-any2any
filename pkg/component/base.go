@@ -6,8 +6,8 @@ import (
 	"log/slog"
 )
 
-// Base is a source that provides common functionality.
-// It is used as a base for other sources at minimum.
+// Base is a component that provides minimal functionality.
+// It is used as a base for other components.
 type Base struct {
 	l          *slog.Logger
 	c          chan any
@@ -15,6 +15,7 @@ type Base struct {
 	cleanFuncs []func() error
 }
 
+// NewBase creates a new base component.
 func NewBase(l *slog.Logger, cleanFuncs ...func() error) *Base {
 	b := &Base{
 		l:          l,
@@ -28,10 +29,12 @@ func NewBase(l *slog.Logger, cleanFuncs ...func() error) *Base {
 	return b
 }
 
+// Logger returns the logger for logging.
 func (b *Base) Logger() *slog.Logger {
 	return b.l
 }
 
+// Close closes the component and runs all clean functions.
 func (b *Base) Close() error {
 	b.l.Debug("close")
 	var e error
@@ -44,6 +47,7 @@ func (b *Base) Close() error {
 	return e
 }
 
+// Err returns the error if any.
 func (b *Base) Err() error {
 	return b.err
 }

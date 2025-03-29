@@ -10,7 +10,6 @@ import (
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
-	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/internal/otel"
@@ -29,7 +28,7 @@ type OSS2MC struct {
 }
 
 // NewOSS2MC creates a new direct component to execute from OSS to MaxCompute.
-func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig, opts ...common.Option) (flow.NoFlow, error) {
+func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig) (flow.NoFlow, error) {
 
 	// create client for maxcompute
 	client, err := maxcompute.NewClient(cfg.Credentials)
@@ -48,10 +47,6 @@ func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig, op
 		query:            query,
 		logViewRetention: cfg.LogViewRetentionInDays * 24,
 		cleanFuncs:       []func(){},
-	}
-
-	for _, opt := range opts {
-		opt(oss2mc)
 	}
 
 	// add clean function

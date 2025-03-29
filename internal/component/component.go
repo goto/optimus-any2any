@@ -209,14 +209,14 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 
 func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink Type, cfg *config.Config, envs ...string) (flow.NoFlow, error) {
 	// set up options
-	opts := getOpts(ctx, cfg)
+	// opts := getOpts(ctx, cfg)
 
 	if source == OSS && sink == MC {
 		directCfg, err := config.OSS2MC(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return direct.NewOSS2MC(ctx, l, directCfg, opts...)
+		return direct.NewOSS2MC(ctx, l, directCfg)
 	}
 	return nil, fmt.Errorf("direct: unknown source-sink: %s-%s", source, sink)
 }
@@ -224,6 +224,7 @@ func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink 
 // getOpts returns options based on the given config.
 func getOpts(ctx context.Context, cfg *config.Config) []common.Option {
 	return []common.Option{
+		common.SetupLogger(cfg.LogLevel),
 		common.SetupBufferSize(cfg.BufferSize),
 		common.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
 		common.SetupRetry(cfg.RetryMax, cfg.RetryBackoffMs),

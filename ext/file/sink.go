@@ -12,6 +12,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
@@ -22,6 +23,8 @@ type FileSink struct {
 	fileHandlers           map[string]io.WriteCloser
 	fileRecordCounters     map[string]int
 }
+
+var _ flow.Sink = (*FileSink)(nil)
 
 func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// create commonSink

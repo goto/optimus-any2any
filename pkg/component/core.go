@@ -7,11 +7,22 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Registrants is an interface that defines the methods
+// that a component must implement to register processes and clean functions.
 type Registrants interface {
 	AddCleanFunc(f func() error)
 	RegisterProcess(f func() error)
 }
 
+// Setter is an interface that defines the methods
+// that a component must implement to set some internal
+// properties like logger and buffer size.
+type Setter interface {
+	SetLogger(l *slog.Logger)
+	SetBufferSize(size int)
+}
+
+// Core is a struct that implements the Registrants and Setter interfaces.
 type Core struct {
 	*Base
 	component       string
@@ -20,7 +31,9 @@ type Core struct {
 }
 
 var _ Registrants = (*Core)(nil)
+var _ Setter = (*Core)(nil)
 
+// NewCore creates a new Core instance.
 func NewCore(l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
@@ -32,27 +45,29 @@ func NewCore(l *slog.Logger, component, name string) *Core {
 	return c
 }
 
+// SetLogger sets the logger for the core component.
 func (c *Core) SetLogger(l *slog.Logger) {
 	c.l = l
 	c.l = c.l.WithGroup(c.component).With("name", c.name)
 }
 
+// SetBufferSize sets the buffer size for the channel.
 func (c *Core) SetBufferSize(size int) {
 	if size > 0 {
 		c.c = make(chan any, size)
 	}
 }
 
-// AddCleanFunc adds a clean function to the source.
-// Clean functions are called when the source is closed
+// AddCleanFunc adds a clean function to the component.
+// Clean functions are called when the component is closed
 // whether it is closed gracefully or due to an error.
 func (c *Core) AddCleanFunc(f func() error) {
 	c.cleanFuncs = append(c.cleanFuncs, f)
 }
 
 // RegisterProcess registers a process function that is run in a goroutine.
-// The process function should read data from the source and send it to the channel.
-// Please note that you should use the Send method to send data to the channel.
+// The process function is expected to return an error if it fails.
+// And postHookProcess is called after all processes are done.
 func (c *Core) RegisterProcess(f func() error) {
 	go func() {
 		defer func() {

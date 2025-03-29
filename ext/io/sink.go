@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/goto/optimus-any2any/pkg/component"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
 type IOSink struct {
-	*component.CoreSink
+	*common.CommonSink
 	w io.Writer
 }
 
@@ -19,20 +19,20 @@ var _ flow.Sink = (*IOSink)(nil)
 
 func NewSink(l *slog.Logger, metadataPrefix string) *IOSink {
 	// create common
-	coreSink := component.NewCoreSink(l, "io")
+	commonSink := common.NewCommonSink(l, "io", metadataPrefix)
 	s := &IOSink{
-		CoreSink: coreSink,
-		w:        os.Stdout,
+		CommonSink: commonSink,
+		w:          os.Stdout,
 	}
 
 	// add clean func
-	coreSink.AddCleanFunc(func() error {
+	commonSink.AddCleanFunc(func() error {
 		s.Logger().Debug("close func called")
 		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
-	coreSink.RegisterProcess(s.process)
+	commonSink.RegisterProcess(s.process)
 
 	return s
 }

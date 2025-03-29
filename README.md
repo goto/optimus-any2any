@@ -92,6 +92,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/or/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+
 ## Supported Sinks
 
 | Component | Configuration | Description |
@@ -145,6 +146,18 @@ It applies when sink and source are in the same environment. For example, transf
 |---|---|---|
 | JQ | JQ__QUERY | Any valid jq query. If set, it will override the query from file path. |
 | | JQ__QUERY_FILE_PATH | Any valid jq query loaded from file. |
+
+## Common Configuration
+
+| Configuration | Description |
+|---|---|
+| LOG_LEVEL | Log level for the application. (default: INFO) |
+| OTEL_COLLECTOR_GRPC_ENDPOINT | OpenTelemetry collector gRPC endpoint. |
+| OTEL_ATTRIBUTES | OpenTelemetry attributes for tracing. key=value with comma separated. |
+| BUFFER_SIZE | Buffer size for the data transfer. (default: 0 / no buffer) |
+| METADATA_PREFIX | Metadata prefix for the data transfer. (default: __METADATA__) |
+| RETRY_MAX | Maximum number of retries for the data transfer. (default: 3) |
+| RETRY_BACKOFF_MS | Backoff time in milliseconds for the retry. (default: 1000) |
 
 ## Supported Direct Execution For Data Transfer
 | Component | Configuration | Description |

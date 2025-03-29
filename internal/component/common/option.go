@@ -2,27 +2,40 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"strings"
+
+	"github.com/goto/optimus-any2any/internal/logger"
 )
 
-type SetupOptions interface {
-	SetBufferSize(int)
-	SetOtelSDK(context.Context, string, map[string]string)
-	SetRetry(int, int64)
+// Option is a function that takes a Common struct and modifies it
+// It is used to set up the Common struct with different configurations
+type Option func(*Common)
+
+// SetupLogger sets up the logger for the Common struct
+func SetupLogger(level string) Option {
+	return func(c *Common) {
+		l, err := logger.NewLogger(level)
+		if err != nil {
+			c.Logger().Warn(fmt.Sprintf("failed to set logger %s, use default", err.Error()))
+			l = logger.NewDefaultLogger()
+		}
+		c.SetLogger(l)
+	}
 }
 
-type Option func(SetupOptions)
-
+// SetupBufferSize sets up the buffer size for the Common struct
 func SetupBufferSize(bufferSize int) Option {
-	return func(o SetupOptions) {
+	return func(c *Common) {
 		if bufferSize > 0 {
-			o.SetBufferSize(bufferSize)
+			c.SetBufferSize(bufferSize)
 		}
 	}
 }
 
+// SetupOtelSDK sets up the OpenTelemetry SDK for the Common struct
 func SetupOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes string) Option {
-	return func(o SetupOptions) {
+	return func(c *Common) {
 		if otelCollectorGRPCEndpoint == "" {
 			return
 		}
@@ -34,15 +47,16 @@ func SetupOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAtt
 				attr[kv[0]] = kv[1]
 			}
 		}
-		o.SetOtelSDK(ctx, otelCollectorGRPCEndpoint, attr)
+		c.SetOtelSDK(ctx, otelCollectorGRPCEndpoint, attr)
 	}
 }
 
+// SetupRetry sets up the retry parameters for the Common struct
 func SetupRetry(retryMax int, retryBackoffMs int64) Option {
-	return func(o SetupOptions) {
-		o.SetRetry(1, 1000)
+	return func(c *Common) {
+		c.SetRetry(1, 1000)
 		if retryMax > 0 {
-			o.SetRetry(retryMax, retryBackoffMs)
+			c.SetRetry(retryMax, retryBackoffMs)
 		}
 	}
 }
