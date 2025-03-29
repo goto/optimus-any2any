@@ -17,7 +17,7 @@ import (
 
 // KafkaSink is a sink for Kafka
 type KafkaSink struct {
-	*common.Sink
+	*common.CommonSink
 
 	ctx    context.Context
 	client *kgo.Client
@@ -27,8 +27,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	bootstrapServers []string, topic string,
 	opts ...common.Option) (*KafkaSink, error) {
 	// create common
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("kafka")
+	commonSink := common.NewCommonSink(l, "kafka", metadataPrefix, opts...)
 
 	// create kafka client
 	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
@@ -36,55 +35,55 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		return nil, errors.WithStack(err)
 	}
 
-	ks := &KafkaSink{
-		Sink:   commonSink,
-		ctx:    ctx,
-		client: client,
+	k := &KafkaSink{
+		CommonSink: commonSink,
+		ctx:        ctx,
+		client:     client,
 	}
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Info(fmt.Sprintf("close client"))
+		k.Logger().Info(fmt.Sprintf("close client"))
 		client.Close()
 		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
-	commonSink.RegisterProcess(ks.process)
+	commonSink.RegisterProcess(k.process)
 
-	return ks, nil
+	return k, nil
 }
 
-func (ks *KafkaSink) process() error {
+func (k *KafkaSink) process() error {
 	var (
 		wg    sync.WaitGroup
 		count atomic.Int32
 	)
 	// read from channel
-	ks.Logger.Info(fmt.Sprintf("start reading from source"))
-	for v := range ks.Read() {
+	k.Logger().Info(fmt.Sprintf("start reading from source"))
+	for v := range k.Read() {
 		raw, ok := v.([]byte)
 		if !ok {
-			ks.Logger.Error(fmt.Sprintf("invalid data format"))
+			k.Logger().Error(fmt.Sprintf("invalid data format"))
 			return fmt.Errorf("invalid data format")
 		}
 
 		var record model.Record
 		if err := json.Unmarshal(raw, &record); err != nil {
-			ks.Logger.Error(fmt.Sprintf("invalid data format"))
+			k.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
-		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, ks.MetadataPrefix)
+		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, k.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
-			ks.Logger.Error(fmt.Sprintf("failed to marshal record"))
+			k.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)
 		}
 
 		// send a record
 		var e error
 		wg.Add(1)
-		ks.client.Produce(ks.ctx, &kgo.Record{Value: raw}, func(r *kgo.Record, err error) {
+		k.client.Produce(k.ctx, &kgo.Record{Value: raw}, func(r *kgo.Record, err error) {
 			defer wg.Done()
 			if err != nil {
 				e = err
@@ -92,18 +91,18 @@ func (ks *KafkaSink) process() error {
 			}
 			count.Add(1)
 			if count.Load()%200 == 0 {
-				ks.Logger.Info(fmt.Sprintf("record sent: %d", count.Load()))
+				k.Logger().Info(fmt.Sprintf("record sent: %d", count.Load()))
 			}
 		})
 		if e != nil {
-			ks.Logger.Error(fmt.Sprintf("error: %s", e.Error()))
+			k.Logger().Error(fmt.Sprintf("error: %s", e.Error()))
 			return errors.WithStack(e)
 		}
 	}
 
 	wg.Wait()
 	if count.Load()%200 != 0 {
-		ks.Logger.Info(fmt.Sprintf("record sent: %d", count.Load()))
+		k.Logger().Info(fmt.Sprintf("record sent: %d", count.Load()))
 	}
 
 	return nil

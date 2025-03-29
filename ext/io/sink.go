@@ -6,34 +6,33 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
 type IOSink struct {
-	*common.Sink
+	*component.CoreSink
 	w io.Writer
 }
 
 var _ flow.Sink = (*IOSink)(nil)
 
-func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSink {
+func NewSink(l *slog.Logger, metadataPrefix string) *IOSink {
 	// create common
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("io")
+	coreSink := component.NewCoreSink(l, "io")
 	s := &IOSink{
-		Sink: commonSink,
-		w:    os.Stdout,
+		CoreSink: coreSink,
+		w:        os.Stdout,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Debug("close func called")
+	coreSink.AddCleanFunc(func() error {
+		s.Logger().Debug("close func called")
 		return nil
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
-	commonSink.RegisterProcess(s.process)
+	coreSink.RegisterProcess(s.process)
 
 	return s
 }
@@ -41,9 +40,9 @@ func NewSink(l *slog.Logger, metadataPrefix string, opts ...common.Option) *IOSi
 func (s *IOSink) process() error {
 	// read from channel
 	for v := range s.Read() {
-		s.Logger.Debug(fmt.Sprintf("read: %s", string(v.([]byte))))
+		s.Logger().Debug(fmt.Sprintf("read: %s", string(v.([]byte))))
 		fmt.Fprintf(s.w, "%s\n", string(v.([]byte)))
-		s.Logger.Debug(fmt.Sprintf("done: %s", string(v.([]byte))))
+		s.Logger().Debug(fmt.Sprintf("done: %s", string(v.([]byte))))
 	}
 	return nil
 }

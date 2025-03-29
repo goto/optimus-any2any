@@ -17,7 +17,7 @@ import (
 )
 
 type PGSink struct {
-	*common.Sink
+	*common.CommonSink
 	ctx context.Context
 
 	conn               *pgx.Conn
@@ -36,8 +36,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	batchSize int, opts ...common.Option) (*PGSink, error) {
 
 	// create common sink
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("pg")
+	commonSink := common.NewCommonSink(l, "pg", metadataPrefix, opts...)
 
 	// create pg connection
 	conn, err := pgx.Connect(ctx, connectionDSN)
@@ -45,8 +44,8 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		return nil, errors.WithStack(err)
 	}
 
-	pgSink := &PGSink{
-		Sink:               commonSink,
+	p := &PGSink{
+		CommonSink:         commonSink,
 		ctx:                ctx,
 		conn:               conn,
 		destinationTableID: destinationTableID,
@@ -63,28 +62,28 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Info(fmt.Sprintf("close pg connection"))
-		return pgSink.conn.Close(ctx)
+		p.Logger().Info(fmt.Sprintf("close pg connection"))
+		return p.conn.Close(ctx)
 	})
 
 	// register sink process
-	commonSink.RegisterProcess(pgSink.process)
+	commonSink.RegisterProcess(p.process)
 
-	return pgSink, nil
+	return p, nil
 }
 
 func (p *PGSink) process() error {
 	for msg := range p.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
-			p.Logger.Error(fmt.Sprintf("invalid message type"))
+			p.Logger().Error(fmt.Sprintf("invalid message type"))
 			return errors.WithStack(errors.New(fmt.Sprintf("invalid message type: %T", msg)))
 		}
-		p.Logger.Debug(fmt.Sprintf("received message: %s", string(b)))
+		p.Logger().Debug(fmt.Sprintf("received message: %s", string(b)))
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			p.Logger.Error(fmt.Sprintf("failed to unmarshal message: %s", string(b)))
+			p.Logger().Error(fmt.Sprintf("failed to unmarshal message: %s", string(b)))
 			return errors.WithStack(err)
 		}
 
@@ -97,7 +96,7 @@ func (p *PGSink) process() error {
 
 		// flush records buffer to file
 		if err := p.Retry(p.flush); err != nil {
-			p.Logger.Error(fmt.Sprintf("failed to flush records"))
+			p.Logger().Error(fmt.Sprintf("failed to flush records"))
 			return errors.WithStack(err)
 		}
 	}
@@ -105,7 +104,7 @@ func (p *PGSink) process() error {
 	// flush remaining records
 	if len(p.records) > 0 {
 		if err := p.Retry(p.flush); err != nil {
-			p.Logger.Error(fmt.Sprintf("failed to flush remaining records"))
+			p.Logger().Error(fmt.Sprintf("failed to flush remaining records"))
 			return errors.WithStack(err)
 		}
 	}
@@ -117,7 +116,7 @@ func (p *PGSink) flush() error {
 	var wg sync.WaitGroup
 	r, w := io.Pipe()
 	defer func() {
-		p.Logger.Debug(fmt.Sprintf("clear records buffer"))
+		p.Logger().Debug(fmt.Sprintf("clear records buffer"))
 		p.records = p.records[:0]
 	}()
 
@@ -126,11 +125,11 @@ func (p *PGSink) flush() error {
 	wg.Add(1)
 	go func(w io.WriteCloser, errChan chan error) {
 		defer func() {
-			p.Logger.Debug(fmt.Sprintf("close pipe writer"))
+			p.Logger().Debug(fmt.Sprintf("close pipe writer"))
 			w.Close()
 			wg.Done()
 		}()
-		if err := extcommon.ToCSV(p.Logger, w, p.records, false); err != nil {
+		if err := extcommon.ToCSV(p.Logger(), w, p.records, false); err != nil {
 			errChan <- errors.WithStack(err)
 			return
 		}
@@ -138,13 +137,13 @@ func (p *PGSink) flush() error {
 
 	// piping the records to pg
 	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
-	p.Logger.Info(fmt.Sprintf("start writing %d records to pg", len(p.records)))
-	p.Logger.Debug(fmt.Sprintf("query: %s", query))
+	p.Logger().Info(fmt.Sprintf("start writing %d records to pg", len(p.records)))
+	p.Logger().Debug(fmt.Sprintf("query: %s", query))
 	t, err := p.conn.PgConn().CopyFrom(p.ctx, r, query)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	p.Logger.Info(fmt.Sprintf("done writing %d records to pg", t.RowsAffected()))
+	p.Logger().Info(fmt.Sprintf("done writing %d records to pg", t.RowsAffected()))
 	wg.Wait()
 
 	// check if there is an error

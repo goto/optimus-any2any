@@ -9,13 +9,14 @@ import (
 	"path/filepath"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // FileSource is a source that reads data from a file.
 type FileSource struct {
-	*common.Source
+	*component.CoreSource
 	files []*os.File
 }
 
@@ -24,8 +25,7 @@ var _ flow.Source = (*FileSource)(nil)
 // NewSource creates a new file common.
 func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, error) {
 	// create commonSource
-	commonSource := common.NewSource(l, opts...)
-	commonSource.SetName("file")
+	coreSource := component.NewCoreSource(l, "file")
 
 	// open file
 	sourceURI, err := url.Parse(uri)
@@ -56,13 +56,13 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 	}
 	// create source
 	fs := &FileSource{
-		Source: commonSource,
-		files:  files,
+		CoreSource: coreSource,
+		files:      files,
 	}
 
 	// add clean func
-	commonSource.AddCleanFunc(func() error {
-		commonSource.Logger.Info(fmt.Sprintf("close files"))
+	coreSource.AddCleanFunc(func() error {
+		fs.Logger().Info(fmt.Sprintf("close files"))
 		for _, f := range files {
 			f.Close()
 		}
@@ -70,7 +70,7 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
-	commonSource.RegisterProcess(fs.process)
+	coreSource.RegisterProcess(fs.process)
 
 	return fs, nil
 }

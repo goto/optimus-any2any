@@ -20,7 +20,7 @@ import (
 )
 
 type RedisSink struct {
-	*common.Sink
+	*common.CommonSink
 	ctx    context.Context
 	client redis.Cmdable
 
@@ -37,8 +37,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	recordKey, recordValue string, batchSize int, opts ...common.Option) (*RedisSink, error) {
 
 	// create common sink
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("redis")
+	commonSink := common.NewCommonSink(l, "redis", metadataPrefix, opts...)
 
 	// parse connectionDSN
 	l.Debug(fmt.Sprintf("connection DSN: %s", connectionDSN))
@@ -86,8 +85,8 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 		return nil, errors.WithStack(err)
 	}
 
-	redisSink := &RedisSink{
-		Sink:                commonSink,
+	s := &RedisSink{
+		CommonSink:          commonSink,
 		ctx:                 ctx,
 		client:              client,
 		recordKeyTemplate:   recordKeyTemplate,
@@ -97,47 +96,47 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Debug(fmt.Sprintf("close record writer"))
+		s.Logger().Debug(fmt.Sprintf("close record writer"))
 		return nil
 	})
 
 	// register sink process
-	commonSink.RegisterProcess(redisSink.process)
+	commonSink.RegisterProcess(s.process)
 
-	return redisSink, nil
+	return s, nil
 }
 
 func (s *RedisSink) process() error {
 	for msg := range s.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
-			s.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
+			s.Logger().Error(fmt.Sprintf("message type assertion error: %T", msg))
 			return fmt.Errorf("message type assertion error: %T", msg)
 		}
-		s.Logger.Debug(fmt.Sprintf("received message: %s", string(b)))
+		s.Logger().Debug(fmt.Sprintf("received message: %s", string(b)))
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			s.Logger.Error(fmt.Sprintf("invalid data format"))
+			s.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
 		recordKey, err := extcommon.Compile(s.recordKeyTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("failed to compile record key"))
+			s.Logger().Error(fmt.Sprintf("failed to compile record key"))
 			return errors.WithStack(err)
 		}
-		s.Logger.Debug(fmt.Sprintf("record key: %s", recordKey))
+		s.Logger().Debug(fmt.Sprintf("record key: %s", recordKey))
 		recordValue, err := extcommon.Compile(s.recordValueTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("failed to compile record value"))
+			s.Logger().Error(fmt.Sprintf("failed to compile record value"))
 			return errors.WithStack(err)
 		}
 
-		s.Logger.Debug(fmt.Sprintf("record value: %s", recordValue))
+		s.Logger().Debug(fmt.Sprintf("record value: %s", recordValue))
 		// flush records
 		if len(s.records) == cap(s.records) {
 			if err := s.Retry(s.flush); err != nil {
-				s.Logger.Error(fmt.Sprintf("failed to set records"))
+				s.Logger().Error(fmt.Sprintf("failed to set records"))
 				return errors.WithStack(err)
 			}
 			s.records = s.records[:0]
@@ -148,7 +147,7 @@ func (s *RedisSink) process() error {
 	// flush remaining records
 	if len(s.records) > 0 {
 		if err := s.Retry(s.flush); err != nil {
-			s.Logger.Error(fmt.Sprintf("failed to set records"))
+			s.Logger().Error(fmt.Sprintf("failed to set records"))
 			return errors.WithStack(err)
 		}
 	}
@@ -156,7 +155,7 @@ func (s *RedisSink) process() error {
 }
 
 func (s *RedisSink) flush() error {
-	s.Logger.Info(fmt.Sprintf("flushing %d records", len(s.records)/2))
+	s.Logger().Info(fmt.Sprintf("flushing %d records", len(s.records)/2))
 	if err := s.client.MSet(s.ctx, s.records...).Err(); err != nil {
 		return err
 	}

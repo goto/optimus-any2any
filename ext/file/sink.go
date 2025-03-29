@@ -15,7 +15,7 @@ import (
 
 // FileSink is a sink that writes data to a file.
 type FileSink struct {
-	*common.Sink
+	*common.CommonSink
 	destinationURITemplate *template.Template
 	fileHandlers           map[string]extcommon.FileHandler
 	fileRecordCounters     map[string]int
@@ -23,8 +23,7 @@ type FileSink struct {
 
 func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// create commonSink
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("file")
+	commonSink := common.NewCommonSink(l, "file", metadataPrefix, opts...)
 
 	// parse destinationURI as template
 	tmpl, err := extcommon.NewTemplate("sink_file_destination_uri", destinationURI)
@@ -33,7 +32,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 	}
 	// create sink
 	fs := &FileSink{
-		Sink:                   commonSink,
+		CommonSink:             commonSink,
 		destinationURITemplate: tmpl,
 		fileHandlers:           make(map[string]extcommon.FileHandler),
 		fileRecordCounters:     make(map[string]int),
@@ -41,7 +40,7 @@ func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts 
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Info("close files")
+		fs.Logger().Info("close files")
 		for _, fh := range fs.fileHandlers {
 			fh.Close()
 		}
@@ -73,19 +72,19 @@ func (fs *FileSink) process() error {
 		}
 		fh, ok := fs.fileHandlers[destinationURI]
 		if !ok {
-			fs.Logger.Debug(fmt.Sprintf("create new file handler: %s", destinationURI))
+			fs.Logger().Debug(fmt.Sprintf("create new file handler: %s", destinationURI))
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
-				fs.Logger.Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
+				fs.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
 				return errors.WithStack(err)
 			}
 			if targetURI.Scheme != "file" {
-				fs.Logger.Error(fmt.Sprintf("invalid scheme: %s", targetURI.Scheme))
+				fs.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetURI.Scheme))
 				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 			}
-			fh, err = NewStdFileHandler(fs.Logger, targetURI.Path)
+			fh, err = NewStdFileHandler(fs.Logger(), targetURI.Path)
 			if err != nil {
-				fs.Logger.Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
+				fs.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			fs.fileHandlers[destinationURI] = fh
@@ -95,23 +94,23 @@ func (fs *FileSink) process() error {
 		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, fs.MetadataPrefix)
 		raw, err = json.Marshal(recordWithoutMetadata)
 		if err != nil {
-			fs.Logger.Error(fmt.Sprintf("failed to marshal record"))
+			fs.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)
 		}
 
-		fs.Logger.Debug(fmt.Sprintf("write %s", string(raw)))
+		fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
 		_, err = fh.Write(append(raw, '\n'))
 		if err != nil {
-			fs.Logger.Error(fmt.Sprintf("failed to write to file"))
+			fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 			return errors.WithStack(err)
 		}
 		recordCounter++
 		fs.fileRecordCounters[destinationURI]++
 		if fs.fileRecordCounters[destinationURI]%logCheckPoint == 0 {
-			fs.Logger.Info(fmt.Sprintf("written %d records to file: %s", fs.fileRecordCounters[destinationURI], destinationURI))
+			fs.Logger().Info(fmt.Sprintf("written %d records to file: %s", fs.fileRecordCounters[destinationURI], destinationURI))
 		}
 	}
-	fs.Logger.Info(fmt.Sprintf("successfully written %d records", recordCounter))
+	fs.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
 
 	return nil
 }

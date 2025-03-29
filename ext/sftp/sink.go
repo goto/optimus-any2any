@@ -19,7 +19,7 @@ import (
 
 // SFTPSink is a sink that writes data to a SFTP server.
 type SFTPSink struct {
-	*common.Sink
+	*common.CommonSink
 	ctx context.Context
 
 	client                 *sftp.Client
@@ -35,8 +35,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	destinationURI string,
 	opts ...common.Option) (*SFTPSink, error) {
 	// create common
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("sftp")
+	commonSink := common.NewCommonSink(l, "sftp", metadataPrefix, opts...)
 
 	// set up SFTP client
 	urlParsed, err := url.Parse(destinationURI)
@@ -60,7 +59,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	}
 
 	s := &SFTPSink{
-		Sink:                   commonSink,
+		CommonSink:             commonSink,
 		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: t,
@@ -69,14 +68,14 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Info(fmt.Sprintf("close client"))
+		s.Logger().Info(fmt.Sprintf("close client"))
 		return s.client.Close()
 	})
 	commonSink.AddCleanFunc(func() error {
 		for _, fh := range s.fileHandlers {
 			fh.Close()
 		}
-		commonSink.Logger.Info("file handlers closed")
+		s.Logger().Info("file handlers closed")
 		return nil
 	})
 	// register process, it will immediately start the process
@@ -90,36 +89,36 @@ func (s *SFTPSink) process() error {
 	for msg := range s.Read() {
 		b, ok := msg.([]byte)
 		if !ok {
-			s.Logger.Error(fmt.Sprintf("message type assertion error: %T", msg))
+			s.Logger().Error(fmt.Sprintf("message type assertion error: %T", msg))
 			return fmt.Errorf("message type assertion error: %T", msg)
 		}
-		s.Logger.Debug(fmt.Sprintf("receive message: %s", string(b)))
+		s.Logger().Debug(fmt.Sprintf("receive message: %s", string(b)))
 
 		var record model.Record
 		if err := json.Unmarshal(b, &record); err != nil {
-			s.Logger.Error(fmt.Sprintf("invalid data format"))
+			s.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
 		destinationURI, err := extcommon.Compile(s.destinationURITemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("failed to compile destination URI"))
+			s.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
 			return errors.WithStack(err)
 		}
-		s.Logger.Debug(fmt.Sprintf("destination URI: %s", destinationURI))
+		s.Logger().Debug(fmt.Sprintf("destination URI: %s", destinationURI))
 		fh, ok := s.fileHandlers[destinationURI]
 		if !ok {
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
-				s.Logger.Error(fmt.Sprintf("failed to parse destination URI"))
+				s.Logger().Error(fmt.Sprintf("failed to parse destination URI"))
 				return errors.WithStack(err)
 			}
 			if targetURI.Scheme != "sftp" {
-				s.Logger.Error(fmt.Sprintf("invalid scheme"))
+				s.Logger().Error(fmt.Sprintf("invalid scheme"))
 				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 			}
 			fh, err = s.client.OpenFile(targetURI.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 			if err != nil {
-				s.Logger.Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
+				s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			s.fileHandlers[destinationURI] = fh
@@ -128,7 +127,7 @@ func (s *SFTPSink) process() error {
 			_, err := fh.Write(append(b, '\n'))
 			return err
 		}); err != nil {
-			s.Logger.Error(fmt.Sprintf("failed to write data"))
+			s.Logger().Error(fmt.Sprintf("failed to write data"))
 			return errors.WithStack(err)
 		}
 	}

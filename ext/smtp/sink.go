@@ -49,7 +49,7 @@ type emailHandler struct {
 }
 
 type SMTPSink struct {
-	*common.Sink
+	*common.CommonSink
 	ctx    context.Context
 	client *SMTPClient
 
@@ -63,8 +63,7 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create common sink
-	commonSink := common.NewSink(l, metadataPrefix, opts...)
-	commonSink.SetName("smtp")
+	commonSink := common.NewCommonSink(l, "smtp", metadataPrefix, opts...)
 
 	// create SMTP client
 	client, err := NewSMTPClient(connectionDSN)
@@ -110,8 +109,8 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	m.body = template.Must(extcommon.NewTemplate("sink_smtp_email_metadata_body", string(body)))
 	m.attachment = template.Must(extcommon.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
 
-	smtpSink := &SMTPSink{
-		Sink:                  commonSink,
+	s := &SMTPSink{
+		CommonSink:            commonSink,
 		ctx:                   ctx,
 		client:                client,
 		emailMetadataTemplate: m,
@@ -120,19 +119,19 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		commonSink.Logger.Info(fmt.Sprintf("close smtp client"))
+		s.Logger().Info(fmt.Sprintf("close smtp client"))
 		return client.Close()
 	})
 	commonSink.AddCleanFunc(func() error {
 		var e error
 
-		for _, eh := range smtpSink.emailHandlers {
+		for _, eh := range s.emailHandlers {
 			for attachment, fh := range eh.fileHandlers {
-				commonSink.Logger.Info("close file handler")
+				s.Logger().Info("close file handler")
 				fh.Close()
 
 				attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
-				commonSink.Logger.Info(fmt.Sprintf("remove tmp attachment file %s", attachmentPath))
+				s.Logger().Info(fmt.Sprintf("remove tmp attachment file %s", attachmentPath))
 				err := os.Remove(attachmentPath)
 				e = errs.Join(e, err)
 			}
@@ -142,24 +141,24 @@ func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
 	})
 
 	// register sink process
-	commonSink.RegisterProcess(smtpSink.process)
+	commonSink.RegisterProcess(s.process)
 
-	return smtpSink, nil
+	return s, nil
 }
 
 func (s *SMTPSink) process() error {
 	for msg := range s.Read() {
-		s.Logger.Debug(fmt.Sprintf("received message"))
+		s.Logger().Debug(fmt.Sprintf("received message"))
 
 		var record model.Record
 		if err := json.Unmarshal(msg.([]byte), &record); err != nil {
-			s.Logger.Error(fmt.Sprintf("unmarshal error: %s", err.Error()))
+			s.Logger().Error(fmt.Sprintf("unmarshal error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 
 		m, err := compileMetadata(s.emailMetadataTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
+			s.Logger().Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 
@@ -175,15 +174,15 @@ func (s *SMTPSink) process() error {
 
 		attachment, err := extcommon.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
+			s.Logger().Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 		fh, ok := eh.fileHandlers[attachment]
 		if !ok {
 			attachmentPath := getAttachmentPath(m, attachment)
-			fh, err = file.NewStdFileHandler(s.Logger, attachmentPath)
+			fh, err = file.NewStdFileHandler(s.Logger(), attachmentPath)
 			if err != nil {
-				s.Logger.Error(fmt.Sprintf("create file handler error: %s", err.Error()))
+				s.Logger().Error(fmt.Sprintf("create file handler error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			eh.fileHandlers[attachment] = fh
@@ -192,12 +191,12 @@ func (s *SMTPSink) process() error {
 		recordWithoutMetadata := extcommon.RecordWithoutMetadata(record, s.MetadataPrefix)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
-			s.Logger.Error(fmt.Sprintf("marshal error: %s", err.Error()))
+			s.Logger().Error(fmt.Sprintf("marshal error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 
 		if _, err = fh.Write(append(raw, '\n')); err != nil {
-			s.Logger.Error(fmt.Sprintf("write error: %s", err.Error()))
+			s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 	}
@@ -216,7 +215,7 @@ func (s *SMTPSink) process() error {
 			attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
 			f, err := os.OpenFile(attachmentPath, os.O_RDONLY, 0644)
 			if err != nil {
-				s.Logger.Error(fmt.Sprintf("open attachment file error: %s", err.Error()))
+				s.Logger().Error(fmt.Sprintf("open attachment file error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 
@@ -226,18 +225,18 @@ func (s *SMTPSink) process() error {
 			case ".json":
 				tmpReader = f
 			case ".csv":
-				tmpReader = extcommon.FromJSONToCSV(s.Logger, f, false) // no skip header by default
+				tmpReader = extcommon.FromJSONToCSV(s.Logger(), f, false) // no skip header by default
 			case ".tsv":
-				tmpReader = extcommon.FromJSONToCSV(s.Logger, f, false, rune('\t'))
+				tmpReader = extcommon.FromJSONToCSV(s.Logger(), f, false, rune('\t'))
 			default:
-				s.Logger.Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
+				s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
 				tmpReader = f
 			}
 
 			attachmentReaders[attachment] = tmpReader
 		}
 
-		s.Logger.Info(fmt.Sprintf("send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
+		s.Logger().Info(fmt.Sprintf("send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
 		if err := s.Retry(func() error {
 			return s.client.SendMail(
 				eh.emailMetadata.from,
@@ -249,7 +248,7 @@ func (s *SMTPSink) process() error {
 				attachmentReaders,
 			)
 		}); err != nil {
-			s.Logger.Error(fmt.Sprintf("send mail error: %s", err.Error()))
+			s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 	}
