@@ -2,24 +2,17 @@ package component
 
 import (
 	"log/slog"
+
+	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
-// CoreSink is a helper struct that supports the sink interface.
-// To comply with the sink interface, it must be declared in tandem with Core.
-// Eg.
-// ```go
-//
-//	type MySink struct {
-//		*component.CoreSink
-//		*component.Core
-//	}
-//
-// ```
-// MySink will be guaranteed to implement the sink interface
+// CoreSink is an implementation of the sink interface.
 type CoreSink struct {
-	Core *Core
+	*Core
 	done chan uint8
 }
+
+var _ flow.Sink = (*CoreSink)(nil)
 
 func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	c := &CoreSink{
@@ -39,11 +32,6 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 		return nil
 	}
 	return c
-}
-
-// Component returns the component type of the sink
-func (c *CoreSink) Component() string {
-	return "sink"
 }
 
 // Read returns the channel to read from

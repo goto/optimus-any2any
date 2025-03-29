@@ -3,23 +3,16 @@ package component
 import (
 	"fmt"
 	"log/slog"
+
+	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
-// CoreSource is a helper struct that supports the source interface.
-// To comply with the source interface, it must be declared in tandem with Core.
-// Eg.
-// ```go
-//
-//	type MySource struct {
-//		*component.CoreSource
-//		*component.Core
-//	}
-//
-// ```
-// MySource will be guaranteed to implement the source interface
+// CoreSource is an implementation of the source interface.
 type CoreSource struct {
-	Core *Core
+	*Core
 }
+
+var _ flow.Source = (*CoreSource)(nil)
 
 // NewCoreSource creates a new CoreSource instance.
 func NewCoreSource(l *slog.Logger, name string) *CoreSource {
@@ -34,11 +27,6 @@ func NewCoreSource(l *slog.Logger, name string) *CoreSource {
 		return nil
 	}
 	return c
-}
-
-// Component returns the component type of the source
-func (c *CoreSource) Component() string {
-	return "source"
 }
 
 // Out returns the channel to read from

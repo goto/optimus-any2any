@@ -23,7 +23,7 @@ func NewCommonSource(l *slog.Logger, name string, opts ...Option) *CommonSource 
 	coreSource := component.NewCoreSource(l, name)
 	c := &CommonSource{
 		CoreSource: coreSource,
-		Common:     NewCommon(coreSource.Core, coreSource.Component()),
+		Common:     NewCommon(coreSource.Core),
 	}
 	for _, opt := range opts {
 		opt(c.Common)
@@ -34,8 +34,6 @@ func NewCommonSource(l *slog.Logger, name string, opts ...Option) *CommonSource 
 // Send sends the given data to the source.
 // This is a wrapper around the CoreSource's Send method.
 func (c *CommonSource) Send(v any) {
-	// TODO: move metric related code to a separate function
-	// capture count of sent data (this is just a sample on how to use metric)
 	sendCount, err := c.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
 	if err != nil {
 		c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))

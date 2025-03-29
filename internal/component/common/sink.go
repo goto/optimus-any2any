@@ -21,7 +21,7 @@ func NewCommonSink(l *slog.Logger, name, metadataPrefix string, opts ...Option) 
 	coreSink := component.NewCoreSink(l, name)
 	c := &CommonSink{
 		CoreSink:       coreSink,
-		Common:         NewCommon(coreSink.Core, coreSink.Component()),
+		Common:         NewCommon(coreSink.Core),
 		MetadataPrefix: metadataPrefix,
 	}
 	for _, opt := range opts {

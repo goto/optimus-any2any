@@ -17,10 +17,10 @@ func SetupLogger(level string) Option {
 	return func(c *Common) {
 		l, err := logger.NewLogger(level)
 		if err != nil {
-			c.Logger().Warn(fmt.Sprintf("failed to set logger %s, use default", err.Error()))
+			c.Core.Logger().Warn(fmt.Sprintf("failed to set logger %s, use default", err.Error()))
 			l = logger.NewDefaultLogger()
 		}
-		c.SetLogger(l)
+		c.Core.SetLogger(l)
 	}
 }
 
@@ -28,7 +28,7 @@ func SetupLogger(level string) Option {
 func SetupBufferSize(bufferSize int) Option {
 	return func(c *Common) {
 		if bufferSize > 0 {
-			c.SetBufferSize(bufferSize)
+			c.Core.SetBufferSize(bufferSize)
 		}
 	}
 }

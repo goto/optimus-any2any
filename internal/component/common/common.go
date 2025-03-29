@@ -10,20 +10,19 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// Common is a common struct for all components
-// Including source and sink
+// Common is an extension of the component.Core struct
 type Common struct {
-	*component.Core
+	Core           *component.Core
 	m              metric.Meter
 	retryMax       int
 	retryBackoffMs int64
 }
 
 // NewCommon creates a new Common struct
-func NewCommon(c *component.Core, component string) *Common {
+func NewCommon(c *component.Core) *Common {
 	return &Common{
 		Core:           c,
-		m:              opentelemetry.GetMeterProvider().Meter(component),
+		m:              opentelemetry.GetMeterProvider().Meter(c.Component()),
 		retryMax:       1,    // default
 		retryBackoffMs: 1000, // default
 	}
@@ -32,14 +31,14 @@ func NewCommon(c *component.Core, component string) *Common {
 
 // SetOtelSDK sets up the OpenTelemetry SDK
 func (c *Common) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
-	c.Logger().Debug(fmt.Sprintf("set otel sdk: %s", otelCollectorGRPCEndpoint))
+	c.Core.Logger().Debug(fmt.Sprintf("set otel sdk: %s", otelCollectorGRPCEndpoint))
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
-		c.Logger().Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
+		c.Core.Logger().Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
 	}
-	c.AddCleanFunc(func() error {
+	c.Core.AddCleanFunc(func() error {
 		if err := shutdownFunc(); err != nil {
-			c.Logger().Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
+			c.Core.Logger().Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
 			return err
 		}
 		return nil
@@ -54,5 +53,5 @@ func (c *Common) SetRetry(retryMax int, retryBackoffMs int64) {
 
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
-	return retry(c.Logger(), c.retryMax, c.retryBackoffMs, f)
+	return retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
 }

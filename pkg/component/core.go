@@ -58,6 +58,16 @@ func (c *Core) SetBufferSize(size int) {
 	}
 }
 
+// Component returns the component type of the core.
+func (c *Core) Component() string {
+	return c.component
+}
+
+// Name returns the name of the core component.
+func (c *Core) Name() string {
+	return c.name
+}
+
 // AddCleanFunc adds a clean function to the component.
 // Clean functions are called when the component is closed
 // whether it is closed gracefully or due to an error.
