@@ -2,7 +2,7 @@
 
 | RFC | Author | Status | Created Date | Updated Date |
 | --- | ------ | ------ | ------------ | ------------ |
-| 005 | [@deryrahman](https://github.com/deryrahman) | Draft | 2025-02-26 | 2025-03-03 |
+| 007 | [@deryrahman](https://github.com/deryrahman) | Accepted | 2025-02-26 | 2025-03-16 |
 
 ## Objective
 Some sink requires metadata from the source to process the data correctly. This metadata is procesed as part of sink dynamic configuration and not part of the data itself. This RFC proposes a way to share metadata between source and sink.
@@ -123,7 +123,6 @@ ENV_STATIC='static value'
 Records that are sent to the sink:
 
 ```json
-json
 {
     "__METADATA__name": "user1",
     "__METADATA__email": "user1@google.com",
