@@ -33,15 +33,6 @@ func SetupLogger(level string) Option {
 	}
 }
 
-// SetupBufferSize sets up the buffer size for the Common struct
-func SetupBufferSize(bufferSize int) Option {
-	return func(c *Common) {
-		if bufferSize > 0 {
-			c.Core.SetBufferSize(bufferSize)
-		}
-	}
-}
-
 // SetupOtelSDK sets up the OpenTelemetry SDK for the Common struct
 func SetupOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes string) Option {
 	return func(c *Common) {

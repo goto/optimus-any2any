@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
-	"github.com/goto/optimus-any2any/ext/file"
+	"github.com/goto/optimus-any2any/internal/component"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
 	"github.com/goto/optimus-any2any/pkg/connector"
+	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
 	"github.com/pkg/errors"
 )
@@ -38,54 +40,36 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 		Close() error
 	}
 
-	sinkCfg, err := config.SinkFile(envs...)
-	if err != nil {
-		return []error{errors.WithStack(err)}
+	if noPipeline {
+		directSourceSink, err := component.GetDirectSourceSink(ctx, l, component.Type(strings.ToUpper(from)), component.Type(strings.ToUpper(to[0])), cfg, envs...)
+		if err != nil {
+			return []error{errors.WithStack(err)}
+		}
+		// run without pipeline
+		p = pipeline.NewNoPipeline(l, directSourceSink)
+	} else {
+		// create source
+		source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
+		if err != nil {
+			return []error{errors.WithStack(err)}
+		}
+		// create sinks (multiple)
+		var sinks []flow.Sink
+		for _, t := range to {
+			sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
+			if err != nil {
+				return []error{errors.WithStack(err)}
+			}
+			sinks = append(sinks, sink)
+		}
+		// get jq query for filtering / transforming data between source and sink
+		jqQuery, err := component.GetJQQuery(l, envs...)
+		if err != nil {
+			return []error{errors.WithStack(err)}
+		}
+		// run with pipeline
+		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
 	}
-	sink, err := file.NewSinkV2(l, sinkCfg.DestinationURI)
-	if err != nil {
-		return []error{errors.WithStack(err)}
-	}
-	sourceCfg, err := config.SourceFile(envs...)
-	if err != nil {
-		return []error{errors.WithStack(err)}
-	}
-	source, err := file.NewSourceV2(l, sourceCfg.SourceURI)
-	if err != nil {
-		return []error{errors.WithStack(err)}
-	}
-
-	p = pipeline.NewSimplePipelineV2(l, source, connector.PassThroughV2(l), sink)
-	// if noPipeline {
-	// 	directSourceSink, err := component.GetDirectSourceSink(ctx, l, component.Type(strings.ToUpper(from)), component.Type(strings.ToUpper(to[0])), cfg, envs...)
-	// 	if err != nil {
-	// 		return []error{errors.WithStack(err)}
-	// 	}
-	// 	// run without pipeline
-	// 	p = pipeline.NewNoPipeline(l, directSourceSink)
-	// } else {
-	// 	// create source
-	// 	source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
-	// 	if err != nil {
-	// 		return []error{errors.WithStack(err)}
-	// 	}
-	// 	// create sinks (multiple)
-	// 	var sinks []flow.Sink
-	// 	for _, t := range to {
-	// 		sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
-	// 		if err != nil {
-	// 			return []error{errors.WithStack(err)}
-	// 		}
-	// 		sinks = append(sinks, sink)
-	// 	}
-	// 	// get jq query for filtering / transforming data between source and sink
-	// 	jqQuery, err := component.GetJQQuery(l, envs...)
-	// 	if err != nil {
-	// 		return []error{errors.WithStack(err)}
-	// 	}
-	// 	// run with pipeline
-	// 	p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
-	// }
 	defer p.Close()
 
 	select {

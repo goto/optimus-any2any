@@ -1,6 +1,11 @@
 package component
 
 import (
+	"bufio"
+	errs "errors"
+	"fmt"
+	"io"
+	"iter"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -9,14 +14,19 @@ import (
 // CoreSink is an implementation of the sink interface.
 type CoreSink struct {
 	*Core
+	w    io.WriteCloser
+	r    io.ReadCloser
 	done chan uint8
 }
 
 var _ flow.Sink = (*CoreSink)(nil)
 
 func NewCoreSink(l *slog.Logger, name string) *CoreSink {
+	r, w := io.Pipe()
 	c := &CoreSink{
 		Core: NewCore(l, "sink", name),
+		w:    w,
+		r:    r,
 		done: make(chan uint8),
 	}
 	// special case for sink to drain the channel after process is done
@@ -24,8 +34,8 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	// this is to prevent the sink from blocking
 	c.Core.postHookProcess = func() error {
 		c.Core.Logger().Debug("skip message")
-		for _, ok := <-c.Read(); ok; _, ok = <-c.Read() {
-			// drain the channel if it still contains messages
+		for _ = range c.Read() {
+			// drain the if it still contains messages
 		}
 		c.Core.Logger().Debug("process done")
 		c.done <- 0
@@ -34,14 +44,39 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	return c
 }
 
-// Read returns the channel to read from
-func (c *CoreSink) Read() <-chan any {
-	return c.Core.c
+// Read returns iterator to read from the sink
+func (c *CoreSink) Read() iter.Seq[any] {
+	sc := bufio.NewScanner(c.r)
+	// return a function that takes a yield function
+	return func(yield func(any) bool) {
+		for sc.Scan() {
+			raw := sc.Bytes()
+			line := make([]byte, len(raw))
+			copy(line, raw)
+			if !yield(line) {
+				break
+			}
+		}
+	}
 }
 
-// In returns the channel to write to
-func (c *CoreSink) In() chan<- any {
-	return c.Core.c
+// In receives messages and writes them to the sink
+func (c *CoreSink) In(v any) {
+	_, err := c.w.Write(append(v.([]byte), '\n'))
+	if err != nil && !errs.Is(err, io.ErrClosedPipe) {
+		c.Core.Logger().Warn(fmt.Sprintf("failed to write to sink: %s", err.Error()))
+	}
+}
+
+// CloseInlet closes the underlying writer
+func (c *CoreSink) CloseInlet() error {
+	return c.w.Close()
+}
+
+// Close closes the sink
+func (c *CoreSink) Close() error {
+	c.w.Close()
+	return c.Core.Close()
 }
 
 // Wait waits for the sink to finish processing

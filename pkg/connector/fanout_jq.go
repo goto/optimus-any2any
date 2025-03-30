@@ -17,7 +17,7 @@ func FanOutWithJQ(l *slog.Logger, query string) flow.ConnectMultiSink {
 			defer func() {
 				l.Debug("connector(fanoutjq): close")
 				for _, inlet := range inlets {
-					close(inlet.In())
+					inlet.CloseInlet()
 				}
 			}()
 			for v := range outlet.Out() {
@@ -35,7 +35,7 @@ func FanOutWithJQ(l *slog.Logger, query string) flow.ConnectMultiSink {
 				}
 				l.Debug(fmt.Sprintf("connector(fanoutjq): output JSON: %s", outputJSON))
 				for _, inlet := range inlets {
-					inlet.In() <- outputJSON
+					inlet.In(outputJSON)
 				}
 				l.Debug("connector(fanoutjq): output JSON sent")
 			}

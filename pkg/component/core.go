@@ -16,16 +16,13 @@ type Registrants interface {
 
 // Setter is an interface that defines the methods
 // that a component must implement to set some internal
-// properties like logger and buffer size.
 type Setter interface {
 	SetLogger(l *slog.Logger)
-	SetBufferSize(size int)
 }
 
 // Core is a struct that implements the Registrants and Setter interfaces.
 type Core struct {
 	*Base
-	c               chan any
 	component       string
 	name            string
 	postHookProcess func() error // this is called after all processes are done
@@ -38,7 +35,6 @@ var _ Setter = (*Core)(nil)
 func NewCore(l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
-		c:               make(chan any),
 		component:       component,
 		name:            name,
 		postHookProcess: func() error { return nil },
@@ -51,13 +47,6 @@ func NewCore(l *slog.Logger, component, name string) *Core {
 func (c *Core) SetLogger(l *slog.Logger) {
 	c.l = l
 	c.l = c.l.WithGroup(c.component).With("name", c.name)
-}
-
-// SetBufferSize sets the buffer size for the channel.
-func (c *Core) SetBufferSize(size int) {
-	if size > 0 {
-		c.c = make(chan any, size)
-	}
 }
 
 // Component returns the component type of the core.

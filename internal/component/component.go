@@ -225,7 +225,6 @@ func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink 
 func getOpts(ctx context.Context, cfg *config.Config) []common.Option {
 	return []common.Option{
 		common.SetupLogger(cfg.LogLevel),
-		common.SetupBufferSize(cfg.BufferSize),
 		common.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
 		common.SetupRetry(cfg.RetryMax, cfg.RetryBackoffMs),
 		common.SetupMetadataPrefix(cfg.MetadataPrefix),
