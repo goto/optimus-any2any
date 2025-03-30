@@ -25,6 +25,7 @@ type Setter interface {
 // Core is a struct that implements the Registrants and Setter interfaces.
 type Core struct {
 	*Base
+	c               chan any
 	component       string
 	name            string
 	postHookProcess func() error // this is called after all processes are done
@@ -37,6 +38,7 @@ var _ Setter = (*Core)(nil)
 func NewCore(l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
+		c:               make(chan any),
 		component:       component,
 		name:            name,
 		postHookProcess: func() error { return nil },

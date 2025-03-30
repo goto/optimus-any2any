@@ -10,7 +10,6 @@ import (
 // It is used as a base for other components.
 type Base struct {
 	l          *slog.Logger
-	c          chan any
 	err        error
 	cleanFuncs []func() error
 }
@@ -19,7 +18,6 @@ type Base struct {
 func NewBase(l *slog.Logger, cleanFuncs ...func() error) *Base {
 	b := &Base{
 		l:          l,
-		c:          make(chan any),
 		err:        nil,
 		cleanFuncs: make([]func() error, 0),
 	}
