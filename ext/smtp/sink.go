@@ -148,11 +148,11 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (s *SMTPSink) process() error {
-	for msg := range s.Read() {
+	for v := range s.Read() {
 		s.Logger().Debug(fmt.Sprintf("received message"))
 
 		var record model.Record
-		if err := json.Unmarshal(msg.([]byte), &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			s.Logger().Error(fmt.Sprintf("unmarshal error: %s", err.Error()))
 			return errors.WithStack(err)
 		}

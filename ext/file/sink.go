@@ -62,12 +62,8 @@ func (fs *FileSink) process() error {
 	logCheckPoint := 1000
 	recordCounter := 0
 	for v := range fs.Read() {
-		raw, ok := v.([]byte)
-		if !ok {
-			return fmt.Errorf("invalid data type")
-		}
 		var record model.Record
-		if err := json.Unmarshal(raw, &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			return errors.WithStack(err)
 		}
 		destinationURI, err := compiler.Compile(fs.destinationURITemplate, model.ToMap(record))
@@ -96,7 +92,7 @@ func (fs *FileSink) process() error {
 		}
 
 		recordWithoutMetadata := fs.RecordWithoutMetadata(record)
-		raw, err = json.Marshal(recordWithoutMetadata)
+		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			fs.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)

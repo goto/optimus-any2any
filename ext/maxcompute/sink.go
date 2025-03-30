@@ -150,22 +150,15 @@ func (mc *MaxcomputeSink) process() error {
 	mc.Logger().Info(fmt.Sprintf("start writing records to table: %s", mc.tableSchema.TableName))
 	mc.Logger().Debug(fmt.Sprintf("record column: %+v", mc.tableSchema.Columns))
 	countRecord := 0
-	for msg := range mc.Read() {
-		b, ok := msg.([]byte)
-		if !ok {
-			err := fmt.Errorf("message type assertion error: %T", msg)
-			mc.Logger().Error(fmt.Sprintf("message type assertion error: %s", err.Error()))
-			return errors.WithStack(err)
-		}
-
+	for v := range mc.Read() {
 		var record model.Record
-		if err := json.Unmarshal(b, &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			mc.Logger().Error(fmt.Sprintf("message unmarshal error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 		record = mc.RecordWithoutMetadata(record)
 
-		mc.Logger().Debug(fmt.Sprintf("message: %s", string(b)))
+		mc.Logger().Debug(fmt.Sprintf("message: %s", string(v)))
 		mcRecord, err := createRecord(mc.Logger(), record, mc.tableSchema)
 		if err != nil {
 			mc.Logger().Error(fmt.Sprintf("record creation error: %s", err.Error()))

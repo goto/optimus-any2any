@@ -73,17 +73,11 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (p *PGSink) process() error {
-	for msg := range p.Read() {
-		b, ok := msg.([]byte)
-		if !ok {
-			p.Logger().Error(fmt.Sprintf("invalid message type"))
-			return errors.WithStack(errors.New(fmt.Sprintf("invalid message type: %T", msg)))
-		}
-		p.Logger().Debug(fmt.Sprintf("received message: %s", string(b)))
-
+	for v := range p.Read() {
+		p.Logger().Debug(fmt.Sprintf("received message: %s", string(v)))
 		var record model.Record
-		if err := json.Unmarshal(b, &record); err != nil {
-			p.Logger().Error(fmt.Sprintf("failed to unmarshal message: %s", string(b)))
+		if err := json.Unmarshal(v, &record); err != nil {
+			p.Logger().Error(fmt.Sprintf("failed to unmarshal message: %s", string(v)))
 			return errors.WithStack(err)
 		}
 

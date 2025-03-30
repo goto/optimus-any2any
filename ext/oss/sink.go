@@ -114,16 +114,10 @@ func (o *OSSSink) process() error {
 		logCheckPoint = o.batchSize
 	}
 
-	for msg := range o.Read() {
-		b, ok := msg.([]byte)
-		if !ok {
-			o.Logger().Error(fmt.Sprintf("message type assertion error: %T", msg))
-			return errors.New(fmt.Sprintf("message type assertion error: %T", msg))
-		}
-		o.Logger().Debug(fmt.Sprintf("received message: %s", string(b)))
-
+	for v := range o.Read() {
+		o.Logger().Debug(fmt.Sprintf("received message: %s", string(v)))
 		var record model.Record
-		if err := json.Unmarshal(b, &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			o.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}

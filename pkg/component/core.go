@@ -2,8 +2,10 @@ package component
 
 import (
 	"fmt"
+	"iter"
 	"log/slog"
 
+	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
@@ -25,6 +27,7 @@ type Setter interface {
 // Core is a struct that implements the Registrants and Setter interfaces.
 type Core struct {
 	*Base
+	c               chan []byte
 	component       string
 	name            string
 	postHookProcess func() error // this is called after all processes are done
@@ -32,11 +35,14 @@ type Core struct {
 
 var _ Registrants = (*Core)(nil)
 var _ Setter = (*Core)(nil)
+var _ flow.Inlet = (*Core)(nil)
+var _ flow.Outlet = (*Core)(nil)
 
 // NewCore creates a new Core instance.
 func NewCore(l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
+		c:               make(chan []byte),
 		component:       component,
 		name:            name,
 		postHookProcess: func() error { return nil },
@@ -54,7 +60,7 @@ func (c *Core) SetLogger(l *slog.Logger) {
 // SetBufferSize sets the buffer size for the channel.
 func (c *Core) SetBufferSize(size int) {
 	if size > 0 {
-		c.c = make(chan any, size)
+		c.c = make(chan []byte, size)
 	}
 }
 
@@ -88,4 +94,26 @@ func (c *Core) RegisterProcess(f func() error) {
 			c.err = errors.WithStack(err)
 		}
 	}()
+}
+
+// In receives a value to the channel.
+func (c *Core) In(v []byte) {
+	c.c <- v
+}
+
+// CloseInlet closes the inlet.
+func (c *Core) CloseInlet() error {
+	close(c.c)
+	return nil
+}
+
+// Out returns iterator for the channel.
+func (c *Core) Out() iter.Seq[[]byte] {
+	return func(yield func([]byte) bool) {
+		for v := range c.c {
+			if !yield(v) {
+				break
+			}
+		}
+	}
 }

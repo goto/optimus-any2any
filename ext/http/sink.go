@@ -102,15 +102,9 @@ func (s *HTTPSink) process() error {
 	// log checkpoint
 	logCheckPoint := 500
 	recordCounter := 0
-	for msg := range s.Read() {
-		b, ok := msg.([]byte)
-		if !ok {
-			s.Logger().Error(fmt.Sprintf("invalid message type: %T", msg))
-			return fmt.Errorf("invalid message type: %T", msg)
-		}
-
+	for v := range s.Read() {
 		var record model.Record
-		if err := json.Unmarshal(b, &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			s.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
@@ -130,7 +124,7 @@ func (s *HTTPSink) process() error {
 		}
 
 		hash := hashMetadata(m)
-		_, ok = s.httpHandlers[hash]
+		_, ok := s.httpHandlers[hash]
 		if !ok {
 			s.httpHandlers[hash] = httpHandler{
 				httpMetadata: m,

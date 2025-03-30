@@ -33,7 +33,7 @@ func NewCommonSource(l *slog.Logger, name string, opts ...Option) *CommonSource 
 
 // Send sends the given data to the source.
 // This is a wrapper around the CoreSource's Send method.
-func (c *CommonSource) Send(v any) {
+func (c *CommonSource) Send(v []byte) {
 	sendCount, err := c.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
 	if err != nil {
 		c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))
@@ -43,7 +43,7 @@ func (c *CommonSource) Send(v any) {
 		c.Logger().Error(fmt.Sprintf("send bytes error: %s", err.Error()))
 	}
 	sendCount.Add(context.Background(), 1)
-	sendBytes.Add(context.Background(), int64(len(v.([]byte))))
+	sendBytes.Add(context.Background(), int64(len(v)))
 
 	c.CoreSource.Send(v)
 }
