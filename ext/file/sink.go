@@ -64,6 +64,7 @@ func (fs *FileSink) process() error {
 	for v := range fs.Read() {
 		var record model.Record
 		if err := json.Unmarshal(v, &record); err != nil {
+			fs.Logger().Error(fmt.Sprintf("failed to unmarshal record: %s", string(v)))
 			return errors.WithStack(err)
 		}
 		destinationURI, err := compiler.Compile(fs.destinationURITemplate, model.ToMap(record))

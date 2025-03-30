@@ -33,6 +33,21 @@ func SetupLogger(level string) Option {
 	}
 }
 
+// SetupBackend sets up the backend for the Common struct
+func SetupBackend(backend string) Option {
+	return func(c *Common) {
+		switch backend {
+		case "channel":
+			c.Core.SetBackend("channel")
+		case "io":
+			c.Core.SetBackend("io")
+		default:
+			c.Core.Logger().Warn(fmt.Sprintf("unsupported backend %s, use default", backend))
+			c.Core.SetBackend("channel")
+		}
+	}
+}
+
 // SetupBufferSize sets up the buffer size for the Common struct
 func SetupBufferSize(bufferSize int) Option {
 	return func(c *Common) {
