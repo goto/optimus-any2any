@@ -2,7 +2,7 @@
 
 | RFC | Author | Status | Created Date | Updated Date |
 | --- | ------ | ------ | ------------ | ------------ |
-| 008 | [@deryrahman](https://github.com/deryrahman) | Draft | 2025-03-30 | 2025-03-30 |
+| 008 | [@deryrahman](https://github.com/deryrahman) | Declined | 2025-03-30 | 2025-03-30 |
 
 ## Objective
 Currently we use channel to transfer data between source and sink. This RFC proposes a way to transfer data without using channel. Channel is considerably slower than direct io transfer. Using channel also leads to unecessary routines that hurts the performance a lot. This RFC proposes a way to transfer data without using channel.
@@ -35,4 +35,15 @@ $ du -h test/in5.txt
 |-----------------------|------------------|----------------|
 | Unbuffered Channel    | 3.38 GB          | 10321 ms       |
 | Buffered Channel (64) | 3.38 GB          | 8885 ms        |
-| Direct IO Transfer    | 389.20 MB        | 4666 ms        |
+| Direct IO Transfer (POC)    | 389.20 MB        | 4666 ms        |
+
+## Implementation Result Summary
+During implementation, we found that the performance is not as good as the POC. The performance is slightly better than using channel, but no significant improvement. The reason for this is that there's some extra processing involved in actual sink and source components that are not captured in the POC. Hence, we decided to not proceed with this RFC.
+
+| Method               | Execution Time |
+|-----------------------|------------------|
+| Unbuffered Channel    | 10841 ms       |
+| Buffered Channel (64) | 10019 ms        |
+| Direct IO Transfer    | 11617 ms        |
+
+Although the performance is not as good as expected, we still believe that this approach is worth exploring in the future. The code is much simpler to understand, and the performance is still better than using channel. We will keep this RFC open for future reference and exploration.
