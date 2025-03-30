@@ -1,23 +1,11 @@
 package component
 
 import (
-	"bufio"
-	errs "errors"
 	"fmt"
-	"io"
-	"iter"
 	"log/slog"
 
-	"github.com/djherbis/buffer"
-	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/klauspost/readahead"
 	"github.com/pkg/errors"
-)
-
-const (
-	backendChannel = "channel"
-	backendIO      = "io"
 )
 
 // Registrants is an interface that defines the methods
@@ -36,14 +24,19 @@ type Setter interface {
 	SetBufferSize(size int)
 }
 
+// backend is an interface that defines Inlet and Outlet methods.
+// It is used as an internal interface to abstract the backend implementation.
+type backend interface {
+	flow.Inlet
+	flow.Outlet
+}
+
 // Core is a struct that implements the Registrants and Setter interfaces.
 type Core struct {
 	*Base
-	backend         string
+	backend
+	backendName     string
 	size            int
-	c               chan []byte    // backend: channel
-	w               io.WriteCloser // backend: io
-	r               io.ReadCloser  // backend: io
 	component       string
 	name            string
 	postHookProcess func() error // this is called after all processes are done
@@ -58,13 +51,13 @@ var _ flow.Outlet = (*Core)(nil)
 func NewCore(l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
-		backend:         backendChannel,
+		backendName:     "channel",
 		size:            0,
 		component:       component,
 		name:            name,
 		postHookProcess: func() error { return nil },
 	}
-	c.initBackend()
+	c.backend = c.newBackend()
 	c.l = c.l.WithGroup(c.component).With("name", c.name)
 	return c
 }
@@ -79,14 +72,14 @@ func (c *Core) SetLogger(l *slog.Logger) {
 func (c *Core) SetBufferSize(size int) {
 	c.l.Info(fmt.Sprintf("set buffer size to %d", size))
 	c.size = size
-	c.initBackend()
+	c.backend = c.newBackend()
 }
 
 // SetBackend sets the backend for the core component.
-func (c *Core) SetBackend(backend string) {
-	c.l.Info(fmt.Sprintf("set backend to %s", backend))
-	c.backend = backend
-	c.initBackend()
+func (c *Core) SetBackend(backendName string) {
+	c.l.Info(fmt.Sprintf("set backend to %s", backendName))
+	c.backendName = backendName
+	c.backend = c.newBackend()
 }
 
 // Component returns the component type of the core.
@@ -121,128 +114,14 @@ func (c *Core) RegisterProcess(f func() error) {
 	}()
 }
 
-// In receives a value to the channel.
-func (c *Core) In(v []byte) {
-	switch c.backend {
-	case backendChannel:
-		c.inChannel(v)
-	case backendIO:
-		c.inIO(v)
+func (c *Core) newBackend() backend {
+	switch c.backendName {
+	case "channel":
+		return newBackendChannel(c.l, c.size)
+	case "io":
+		return newBackendIO(c.l, c.size)
 	default:
-		c.l.Warn(fmt.Sprintf("unknown backend: %s; using channel", c.backend))
-		c.inChannel(v)
+		c.l.Warn(fmt.Sprintf("unknown backend: %s; using channel", c.backendName))
+		return newBackendChannel(c.l, c.size)
 	}
-}
-
-// CloseInlet closes the inlet.
-func (c *Core) CloseInlet() error {
-	switch c.backend {
-	case backendChannel:
-		return c.closeInletChannel()
-	case backendIO:
-		return c.closeInletIO()
-	default:
-		c.l.Warn(fmt.Sprintf("unknown backend: %s; using channel", c.backend))
-		return c.closeInletChannel()
-	}
-}
-
-// Out returns iterator for the channel.
-func (c *Core) Out() iter.Seq[[]byte] {
-	switch c.backend {
-	case backendChannel:
-		return c.outChannel()
-	case backendIO:
-		return c.outIO()
-	default:
-		c.l.Warn(fmt.Sprintf("unknown backend: %s; using channel", c.backend))
-		return c.outChannel()
-	}
-}
-
-func (c *Core) inChannel(v []byte) {
-	c.c <- v
-}
-
-func (c *Core) inIO(v []byte) {
-	_, err := c.w.Write(append(v, '\n'))
-	if err != nil && !errs.Is(err, io.ErrClosedPipe) {
-		c.l.Warn(fmt.Sprintf("failed to write to sink: %s", err.Error()))
-	}
-}
-
-func (c *Core) closeInletChannel() error {
-	close(c.c)
-	return nil
-}
-
-func (c *Core) closeInletIO() error {
-	return c.w.Close()
-}
-
-func (c *Core) outChannel() iter.Seq[[]byte] {
-	return func(yield func([]byte) bool) {
-		for v := range c.c {
-			if !yield(v) {
-				break
-			}
-		}
-	}
-}
-
-func (c *Core) outIO() iter.Seq[[]byte] {
-	sc := bufio.NewScanner(c.r)
-	// return a function that takes a yield function
-	return func(yield func([]byte) bool) {
-		for sc.Scan() {
-			raw := sc.Bytes()
-			line := make([]byte, len(raw))
-			copy(line, raw)
-			if !yield(line) {
-				break
-			}
-		}
-	}
-}
-
-func (c *Core) initBackend() {
-	switch c.backend {
-	case backendChannel:
-		c.initBackendChannel()
-	case backendIO:
-		c.initBackendIO()
-	default:
-		c.l.Warn(fmt.Sprintf("unknown backend: %s; using channel", c.backend))
-		c.initBackendChannel()
-	}
-}
-
-func (c *Core) initBackendChannel() {
-	c.c = make(chan []byte)
-	if c.size > 0 {
-		c.c = make(chan []byte, c.size)
-	}
-	// clear io
-	c.w = nil
-	c.r = nil
-}
-
-func (c *Core) initBackendIO() {
-	buf := buffer.New(32 * 1024) // 32KB buffer
-	rp, w := nio.Pipe(buf)
-
-	size := readahead.DefaultBuffers
-	if c.size > 0 {
-		size = c.size
-	}
-	r, err := readahead.NewReaderSize(rp, size, int(buf.Cap()))
-	if err != nil {
-		c.l.Warn(fmt.Sprintf("error initiate reader %s; use default", err.Error()))
-		r, _ = readahead.NewReaderSize(rp, readahead.DefaultBuffers, int(buf.Cap()))
-	}
-
-	c.w = w
-	c.r = r
-	// clear channel
-	c.c = nil
 }
