@@ -60,7 +60,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSource(l, cfg.MetadataPrefix, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints, opts...)
+		return maxcompute.NewSource(l, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints, opts...)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
@@ -105,21 +105,21 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSink(l, cfg.MetadataPrefix, sinkCfg.Credentials, sinkCfg.ExecutionProject, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, sinkCfg.AllowSchemaMismatch, opts...)
+		return maxcompute.NewSink(l, sinkCfg.Credentials, sinkCfg.ExecutionProject, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, sinkCfg.AllowSchemaMismatch, opts...)
 	case FILE:
 		sinkCfg, err := config.SinkFile(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSink(l, cfg.MetadataPrefix, sinkCfg.DestinationURI, opts...)
+		return file.NewSink(l, sinkCfg.DestinationURI, opts...)
 	case IO:
-		return io.NewSink(l, cfg.MetadataPrefix), nil
+		return io.NewSink(l), nil
 	case OSS:
 		sinkCfg, err := config.SinkOSS(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.Credentials,
+		return oss.NewSink(ctx, l, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.BatchSize, sinkCfg.EnableOverwrite, sinkCfg.SkipHeader, opts...)
 	case SFTP:
@@ -127,7 +127,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return sftp.NewSink(ctx, l, cfg.MetadataPrefix,
+		return sftp.NewSink(ctx, l,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 			sinkCfg.DestinationURI, opts...)
 	case SMTP:
@@ -135,7 +135,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return smtp.NewSink(ctx, l, cfg.MetadataPrefix,
+		return smtp.NewSink(ctx, l,
 			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
 			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, opts...)
 	case PSQL:
@@ -143,14 +143,14 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return postgresql.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript,
+		return postgresql.NewSink(ctx, l, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript,
 			sinkCfg.DestinationTableID, sinkCfg.BatchSize, opts...)
 	case REDIS:
 		sinkCfg, err := config.SinkRedis(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return redis.NewSink(ctx, l, cfg.MetadataPrefix,
+		return redis.NewSink(ctx, l,
 			sinkCfg.ConnectionDSN, sinkCfg.ConnectionTLSCert, sinkCfg.ConnectionTLSCACert, sinkCfg.ConnectionTLSKey,
 			sinkCfg.RecordKey, sinkCfg.RecordValue, sinkCfg.BatchSize, opts...)
 	case HTTP:
@@ -158,7 +158,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return http.NewSink(ctx, l, cfg.MetadataPrefix,
+		return http.NewSink(ctx, l,
 			sinkCfg.Method, sinkCfg.Endpoint, sinkCfg.Headers, sinkCfg.HeadersFile,
 			sinkCfg.Body, sinkCfg.BodyFilePath, sinkCfg.BatchSize, opts...)
 	case KAFKA:
@@ -166,7 +166,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return kafka.NewSink(ctx, l, cfg.MetadataPrefix, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
+		return kafka.NewSink(ctx, l, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }
@@ -228,5 +228,6 @@ func getOpts(ctx context.Context, cfg *config.Config) []common.Option {
 		common.SetupBufferSize(cfg.BufferSize),
 		common.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
 		common.SetupRetry(cfg.RetryMax, cfg.RetryBackoffMs),
+		common.SetupMetadataPrefix(cfg.MetadataPrefix),
 	}
 }

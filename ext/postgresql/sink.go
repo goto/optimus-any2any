@@ -31,12 +31,12 @@ type PGSink struct {
 var _ flow.Sink = (*PGSink)(nil)
 
 // NewSink creates a new PGSink
-func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
+func NewSink(ctx context.Context, l *slog.Logger,
 	connectionDSN, preSQLScript, destinationTableID string,
 	batchSize int, opts ...common.Option) (*PGSink, error) {
 
 	// create common sink
-	commonSink := common.NewCommonSink(l, "pg", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "pg", opts...)
 
 	// create pg connection
 	conn, err := pgx.Connect(ctx, connectionDSN)

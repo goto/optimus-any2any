@@ -28,7 +28,6 @@ type MaxcomputeSource struct {
 	client          *odps.Odps
 	tunnel          *tunnel.Tunnel
 	additionalHints map[string]string
-	metadataPrefix  string
 	preQuery        string
 	queryTemplate   *template.Template
 }
@@ -36,7 +35,7 @@ type MaxcomputeSource struct {
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, opts ...common.Option) (*MaxcomputeSource, error) {
+func NewSource(l *slog.Logger, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, opts ...common.Option) (*MaxcomputeSource, error) {
 	// create commonSource source
 	commonSource := common.NewCommonSource(l, "mc", opts...)
 
@@ -82,7 +81,6 @@ func NewSource(l *slog.Logger, metadataPrefix string, creds string, queryFilePat
 		client:          client,
 		tunnel:          t,
 		additionalHints: hints,
-		metadataPrefix:  metadataPrefix,
 		queryTemplate:   queryTemplate,
 		preQuery:        string(rawPreQuery),
 	}
@@ -119,10 +117,7 @@ func (mc *MaxcomputeSource) process() error {
 			return errors.WithStack(err)
 		}
 		// add prefix for every key
-		preRecordWithPrefix := model.NewRecord()
-		for k := range preRecord.AllFromFront() {
-			preRecordWithPrefix.Set(fmt.Sprintf("%s%s", mc.metadataPrefix, k), preRecord.GetOrDefault(k, nil))
-		}
+		preRecordWithPrefix := mc.RecordWithMetadata(preRecord)
 		mc.Logger().Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
 
 		// compile query

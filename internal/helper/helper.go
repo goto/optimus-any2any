@@ -10,23 +10,10 @@ import (
 	"log/slog"
 	"math"
 	"strconv"
-	"strings"
 
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
-
-// RecordWithoutMetadata returns the record without given metadata prefix.
-func RecordWithoutMetadata(record model.Record, metadataPrefix string) model.Record {
-	recordWithoutMetadata := model.NewRecord()
-	for k, v := range record.AllFromFront() {
-		if strings.HasPrefix(k, metadataPrefix) {
-			continue
-		}
-		recordWithoutMetadata.Set(k, v)
-	}
-	return recordWithoutMetadata
-}
 
 func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	records := make([]model.Record, 0)

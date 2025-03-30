@@ -10,7 +10,6 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -26,9 +25,9 @@ type FileSink struct {
 
 var _ flow.Sink = (*FileSink)(nil)
 
-func NewSink(l *slog.Logger, metadataPrefix string, destinationURI string, opts ...common.Option) (*FileSink, error) {
+func NewSink(l *slog.Logger, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// create commonSink
-	commonSink := common.NewCommonSink(l, "file", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "file", opts...)
 
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
@@ -96,7 +95,7 @@ func (fs *FileSink) process() error {
 			fs.fileRecordCounters[destinationURI] = 0
 		}
 
-		recordWithoutMetadata := helper.RecordWithoutMetadata(record, fs.MetadataPrefix)
+		recordWithoutMetadata := fs.RecordWithoutMetadata(record)
 		raw, err = json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			fs.Logger().Error(fmt.Sprintf("failed to marshal record"))

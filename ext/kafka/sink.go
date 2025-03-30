@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -23,11 +22,11 @@ type KafkaSink struct {
 	client *kgo.Client
 }
 
-func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
+func NewSink(ctx context.Context, l *slog.Logger,
 	bootstrapServers []string, topic string,
 	opts ...common.Option) (*KafkaSink, error) {
 	// create common
-	commonSink := common.NewCommonSink(l, "kafka", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "kafka", opts...)
 
 	// create kafka client
 	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
@@ -73,7 +72,7 @@ func (k *KafkaSink) process() error {
 			k.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
-		recordWithoutMetadata := helper.RecordWithoutMetadata(record, k.MetadataPrefix)
+		recordWithoutMetadata := k.RecordWithoutMetadata(record)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			k.Logger().Error(fmt.Sprintf("failed to marshal record"))

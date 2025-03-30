@@ -32,12 +32,12 @@ type RedisSink struct {
 var _ flow.Sink = (*RedisSink)(nil)
 
 // NewSink creates a new RedisSink
-func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
+func NewSink(ctx context.Context, l *slog.Logger,
 	connectionDSN string, connectionTLSCert, connectionTLSCACert, connectionTLSKey string,
 	recordKey, recordValue string, batchSize int, opts ...common.Option) (*RedisSink, error) {
 
 	// create common sink
-	commonSink := common.NewCommonSink(l, "redis", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "redis", opts...)
 
 	// parse connectionDSN
 	l.Debug(fmt.Sprintf("connection DSN: %s", connectionDSN))

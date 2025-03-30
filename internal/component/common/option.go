@@ -12,6 +12,15 @@ import (
 // It is used to set up the Common struct with different configurations
 type Option func(*Common)
 
+// SetupMetadataPrefix sets up the metadata prefix for the Common struct
+func SetupMetadataPrefix(metadataPrefix string) Option {
+	return func(c *Common) {
+		if metadataPrefix != "" {
+			c.SetMetadataPrefix(metadataPrefix)
+		}
+	}
+}
+
 // SetupLogger sets up the logger for the Common struct
 func SetupLogger(level string) Option {
 	return func(c *Common) {

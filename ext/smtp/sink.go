@@ -59,12 +59,12 @@ type SMTPSink struct {
 }
 
 // NewSink creates a new SMTPSink
-func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
+func NewSink(ctx context.Context, l *slog.Logger,
 	connectionDSN string, from, to, subject, bodyFilePath, attachment string,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create common sink
-	commonSink := common.NewCommonSink(l, "smtp", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "smtp", opts...)
 
 	// create SMTP client
 	client, err := NewSMTPClient(connectionDSN)
@@ -189,7 +189,7 @@ func (s *SMTPSink) process() error {
 			eh.fileHandlers[attachment] = fh
 		}
 
-		recordWithoutMetadata := helper.RecordWithoutMetadata(record, s.MetadataPrefix)
+		recordWithoutMetadata := s.RecordWithoutMetadata(record)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal error: %s", err.Error()))

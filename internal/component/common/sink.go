@@ -11,18 +11,16 @@ import (
 type CommonSink struct {
 	*component.CoreSink
 	*Common
-	MetadataPrefix string
 }
 
 var _ flow.Sink = (*CommonSink)(nil)
 
 // NewCommonSink creates a new CommonSink.
-func NewCommonSink(l *slog.Logger, name, metadataPrefix string, opts ...Option) *CommonSink {
+func NewCommonSink(l *slog.Logger, name string, opts ...Option) *CommonSink {
 	coreSink := component.NewCoreSink(l, name)
 	c := &CommonSink{
-		CoreSink:       coreSink,
-		Common:         NewCommon(coreSink.Core),
-		MetadataPrefix: metadataPrefix,
+		CoreSink: coreSink,
+		Common:   NewCommon(coreSink.Core),
 	}
 	for _, opt := range opts {
 		opt(c.Common)

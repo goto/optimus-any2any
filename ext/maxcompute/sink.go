@@ -11,7 +11,6 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -43,9 +42,9 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, metadataPrefix string, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(l *slog.Logger, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create commonSink sink
-	commonSink := common.NewCommonSink(l, "mc", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "mc", opts...)
 
 	// create client for maxcompute
 	client, err := NewClient(creds)
@@ -164,7 +163,7 @@ func (mc *MaxcomputeSink) process() error {
 			mc.Logger().Error(fmt.Sprintf("message unmarshal error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
-		record = helper.RecordWithoutMetadata(record, mc.MetadataPrefix)
+		record = mc.RecordWithoutMetadata(record)
 
 		mc.Logger().Debug(fmt.Sprintf("message: %s", string(b)))
 		mcRecord, err := createRecord(mc.Logger(), record, mc.tableSchema)

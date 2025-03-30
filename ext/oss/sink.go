@@ -40,13 +40,13 @@ type OSSSink struct {
 var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
-func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
+func NewSink(ctx context.Context, l *slog.Logger,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create common sink
-	commonSink := common.NewCommonSink(l, "oss", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "oss", opts...)
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -191,7 +191,7 @@ func (o *OSSSink) process() error {
 		}
 
 		// record without metadata
-		recordWithoutMetadata := helper.RecordWithoutMetadata(record, o.MetadataPrefix)
+		recordWithoutMetadata := o.RecordWithoutMetadata(record)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to marshal record"))

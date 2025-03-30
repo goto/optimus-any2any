@@ -3,7 +3,9 @@ package common
 import (
 	"context"
 	"fmt"
+	"strings"
 
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	opentelemetry "go.opentelemetry.io/otel"
@@ -16,6 +18,7 @@ type Common struct {
 	m              metric.Meter
 	retryMax       int
 	retryBackoffMs int64
+	metadataPrefix string
 }
 
 // NewCommon creates a new Common struct
@@ -23,8 +26,9 @@ func NewCommon(c *component.Core) *Common {
 	return &Common{
 		Core:           c,
 		m:              opentelemetry.GetMeterProvider().Meter(c.Component()),
-		retryMax:       1,    // default
-		retryBackoffMs: 1000, // default
+		retryMax:       1,              // default
+		retryBackoffMs: 1000,           // default
+		metadataPrefix: "__METADATA__", // default
 	}
 
 }
@@ -51,7 +55,36 @@ func (c *Common) SetRetry(retryMax int, retryBackoffMs int64) {
 	c.retryBackoffMs = retryBackoffMs
 }
 
+// SetMetadataPrefix sets the metadata prefix
+func (c *Common) SetMetadataPrefix(metadataPrefix string) {
+	c.metadataPrefix = metadataPrefix
+}
+
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
 	return retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
+}
+
+// RecordWithMetadata returns a new record without metadata prefix
+func (c *Common) RecordWithoutMetadata(record model.Record) model.Record {
+	recordWithoutMetadata := model.NewRecord()
+	for k, v := range record.AllFromFront() {
+		if strings.HasPrefix(k, c.metadataPrefix) {
+			continue
+		}
+		recordWithoutMetadata.Set(k, v)
+	}
+	return recordWithoutMetadata
+}
+
+// RecordWithMetadata returns a new record with metadata prefix
+func (c *Common) RecordWithMetadata(record model.Record) model.Record {
+	recordWithMetadata := model.NewRecord()
+	for k, v := range record.AllFromFront() {
+		if strings.HasPrefix(k, c.metadataPrefix) {
+			continue
+		}
+		recordWithMetadata.Set(fmt.Sprintf("%s%s", c.metadataPrefix, k), v)
+	}
+	return recordWithMetadata
 }

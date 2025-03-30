@@ -15,7 +15,6 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -51,12 +50,12 @@ type HTTPSink struct {
 
 var _ flow.Sink = (*HTTPSink)(nil)
 
-func NewSink(ctx context.Context, l *slog.Logger, metadataPrefix string,
+func NewSink(ctx context.Context, l *slog.Logger,
 	method, endpoint string, headers map[string]string, headerContent string,
 	body, bodyContent string,
 	batchSize int, opts ...common.Option) (*HTTPSink, error) {
 	// create common
-	commonSink := common.NewCommonSink(l, "http", metadataPrefix, opts...)
+	commonSink := common.NewCommonSink(l, "http", opts...)
 
 	// prepare template
 	m := httpMetadataTemplate{}
@@ -123,7 +122,7 @@ func (s *HTTPSink) process() error {
 		}
 
 		// remove metadata prefix
-		record = helper.RecordWithoutMetadata(record, s.MetadataPrefix)
+		record = s.RecordWithoutMetadata(record)
 		raw, err := json.Marshal(record)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal record error"))

@@ -17,9 +17,9 @@ type IOSink struct {
 
 var _ flow.Sink = (*IOSink)(nil)
 
-func NewSink(l *slog.Logger, metadataPrefix string) *IOSink {
+func NewSink(l *slog.Logger) *IOSink {
 	// create common
-	commonSink := common.NewCommonSink(l, "io", metadataPrefix)
+	commonSink := common.NewCommonSink(l, "io")
 	s := &IOSink{
 		CommonSink: commonSink,
 		w:          os.Stdout,
