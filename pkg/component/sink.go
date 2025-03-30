@@ -8,7 +8,10 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/djherbis/buffer"
+	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/klauspost/readahead"
 )
 
 // CoreSink is an implementation of the sink interface.
@@ -22,7 +25,13 @@ type CoreSink struct {
 var _ flow.Sink = (*CoreSink)(nil)
 
 func NewCoreSink(l *slog.Logger, name string) *CoreSink {
-	r, w := io.Pipe()
+	buf := buffer.New(readahead.DefaultBufferSize) // 32KB In memory Buffer
+	rp, w := nio.Pipe(buf)
+	r, err := readahead.NewReaderSize(rp, 64, readahead.DefaultBufferSize)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create readahead reader: %s", err.Error()))
+	}
+
 	c := &CoreSink{
 		Core: NewCore(l, "sink", name),
 		w:    w,

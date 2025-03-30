@@ -8,7 +8,10 @@ import (
 	"iter"
 	"log/slog"
 
+	"github.com/djherbis/buffer"
+	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/klauspost/readahead"
 )
 
 // CoreSource is an implementation of the source interface.
@@ -22,7 +25,13 @@ var _ flow.Source = (*CoreSource)(nil)
 
 // NewCoreSource creates a new CoreSource instance.
 func NewCoreSource(l *slog.Logger, name string) *CoreSource {
-	r, w := io.Pipe()
+	buf := buffer.New(readahead.DefaultBufferSize) // 32KB In memory Buffer
+	rp, w := nio.Pipe(buf)
+	r, err := readahead.NewReaderSize(rp, 64, readahead.DefaultBufferSize)
+	if err != nil {
+		panic(fmt.Sprintf("failed to create readahead reader: %s", err.Error()))
+	}
+
 	c := &CoreSource{
 		Core: NewCore(l, "source", name),
 		r:    r,
