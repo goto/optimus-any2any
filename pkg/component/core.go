@@ -77,12 +77,14 @@ func (c *Core) SetLogger(l *slog.Logger) {
 
 // SetBufferSize sets the buffer size for the channel.
 func (c *Core) SetBufferSize(size int) {
+	c.l.Info(fmt.Sprintf("set buffer size to %d", size))
 	c.size = size
 	c.initBackend()
 }
 
 // SetBackend sets the backend for the core component.
 func (c *Core) SetBackend(backend string) {
+	c.l.Info(fmt.Sprintf("set backend to %s", backend))
 	c.backend = backend
 	c.initBackend()
 }
@@ -226,17 +228,17 @@ func (c *Core) initBackendChannel() {
 }
 
 func (c *Core) initBackendIO() {
-	buf := buffer.New(readahead.DefaultBufferSize)
+	buf := buffer.New(32 * 1024) // 32KB buffer
 	rp, w := nio.Pipe(buf)
 
-	r := readahead.NewReader(rp)
+	size := readahead.DefaultBuffers
 	if c.size > 0 {
-		reader, err := readahead.NewReaderSize(rp, c.size, readahead.DefaultBufferSize)
-		if err != nil {
-			c.l.Warn(fmt.Sprintf("failed to set buffer size; %s; use default", err.Error()))
-		} else {
-			r = reader
-		}
+		size = c.size
+	}
+	r, err := readahead.NewReaderSize(rp, size, int(buf.Cap()))
+	if err != nil {
+		c.l.Warn(fmt.Sprintf("error initiate reader %s; use default", err.Error()))
+		r, _ = readahead.NewReaderSize(rp, readahead.DefaultBuffers, int(buf.Cap()))
 	}
 
 	c.w = w

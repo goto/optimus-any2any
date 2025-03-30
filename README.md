@@ -152,6 +152,7 @@ It applies when sink and source are in the same environment. For example, transf
 | Configuration | Description |
 |---|---|
 | LOG_LEVEL | Log level for the application. (default: INFO) |
+| BACKEND | Backend to be used, CHANNEL / IO (default: CHANNEL) |
 | OTEL_COLLECTOR_GRPC_ENDPOINT | OpenTelemetry collector gRPC endpoint. |
 | OTEL_ATTRIBUTES | OpenTelemetry attributes for tracing. key=value with comma separated. |
 | BUFFER_SIZE | Buffer size for the data transfer. (default: 0 / no buffer) |
