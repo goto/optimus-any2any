@@ -17,25 +17,19 @@ func FanOutWithJQ(l *slog.Logger, query string) flow.ConnectMultiSink {
 			defer func() {
 				l.Debug("connector(fanoutjq): close")
 				for _, inlet := range inlets {
-					close(inlet.In())
+					inlet.CloseInlet()
 				}
 			}()
 			for v := range outlet.Out() {
-				b, ok := v.([]byte)
-				if !ok {
-					l.Error(fmt.Sprintf("connector(fanoutjq): message type assertion error: %T", v))
-					continue
-				}
-
 				// Transform the input JSON using the given jq query
-				outputJSON, err := JQBinaryTransformation(l, query, b)
+				outputJSON, err := JQBinaryTransformation(l, query, v)
 				if err != nil {
 					l.Error(fmt.Sprintf("connector(fanoutjq): failed to transform JSON: %v", err))
 					continue
 				}
 				l.Debug(fmt.Sprintf("connector(fanoutjq): output JSON: %s", outputJSON))
 				for _, inlet := range inlets {
-					inlet.In() <- outputJSON
+					inlet.In(outputJSON)
 				}
 				l.Debug("connector(fanoutjq): output JSON sent")
 			}

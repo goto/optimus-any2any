@@ -1,13 +1,16 @@
 package flow
 
+import "iter"
+
 // Inlet is an interface for a component that can receive data.
 type Inlet interface {
-	In() chan<- any
+	In([]byte)
+	CloseInlet() error
 }
 
 // Outlet is an interface for a component that can send data.
 type Outlet interface {
-	Out() <-chan any
+	Out() iter.Seq[[]byte]
 }
 
 // Source is an interface for source components.

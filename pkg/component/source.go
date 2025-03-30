@@ -29,12 +29,7 @@ func NewCoreSource(l *slog.Logger, name string) *CoreSource {
 	return c
 }
 
-// Out returns the channel to read from
-func (c *CoreSource) Out() <-chan any {
-	return c.Core.c
-}
-
 // Send sends a value to the channel
-func (c *CoreSource) Send(v any) {
-	c.Core.c <- v
+func (c *CoreSource) Send(v []byte) {
+	c.In(v)
 }

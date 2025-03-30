@@ -61,14 +61,8 @@ func (k *KafkaSink) process() error {
 	// read from channel
 	k.Logger().Info(fmt.Sprintf("start reading from source"))
 	for v := range k.Read() {
-		raw, ok := v.([]byte)
-		if !ok {
-			k.Logger().Error(fmt.Sprintf("invalid data format"))
-			return fmt.Errorf("invalid data format")
-		}
-
 		var record model.Record
-		if err := json.Unmarshal(raw, &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			k.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}

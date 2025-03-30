@@ -1,6 +1,7 @@
 package component
 
 import (
+	"iter"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -24,8 +25,8 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	// this is to prevent the sink from blocking
 	c.Core.postHookProcess = func() error {
 		c.Core.Logger().Debug("skip message")
-		for _, ok := <-c.Read(); ok; _, ok = <-c.Read() {
-			// drain the channel if it still contains messages
+		for range c.Read() {
+			// drain the channel
 		}
 		c.Core.Logger().Debug("process done")
 		c.done <- 0
@@ -35,13 +36,8 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 }
 
 // Read returns the channel to read from
-func (c *CoreSink) Read() <-chan any {
-	return c.Core.c
-}
-
-// In returns the channel to write to
-func (c *CoreSink) In() chan<- any {
-	return c.Core.c
+func (c *CoreSink) Read() iter.Seq[[]byte] {
+	return c.Out()
 }
 
 // Wait waits for the sink to finish processing

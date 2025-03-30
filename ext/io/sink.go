@@ -40,9 +40,9 @@ func NewSink(l *slog.Logger) *IOSink {
 func (s *IOSink) process() error {
 	// read from channel
 	for v := range s.Read() {
-		s.Logger().Debug(fmt.Sprintf("read: %s", string(v.([]byte))))
-		fmt.Fprintf(s.w, "%s\n", string(v.([]byte)))
-		s.Logger().Debug(fmt.Sprintf("done: %s", string(v.([]byte))))
+		s.Logger().Debug(fmt.Sprintf("read: %s", string(v)))
+		fmt.Fprintf(s.w, "%s\n", string(v))
+		s.Logger().Debug(fmt.Sprintf("done: %s", string(v)))
 	}
 	return nil
 }

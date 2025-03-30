@@ -16,24 +16,18 @@ func PassThroughWithJQ(l *slog.Logger, query string) flow.Connect {
 		go func() {
 			defer func() {
 				l.Debug("connector(passthroughjq): close")
-				close(inlet.In())
+				inlet.CloseInlet()
 			}()
 
 			for v := range outlet.Out() {
-				b, ok := v.([]byte)
-				if !ok {
-					l.Error(fmt.Sprintf("connector(passthroughjq): message type assertion error: %T", v))
-					continue
-				}
-
 				// Transform the input JSON using the given jq query
-				outputJSON, err := JQBinaryTransformation(l, query, b)
+				outputJSON, err := JQBinaryTransformation(l, query, v)
 				if err != nil {
 					l.Error(fmt.Sprintf("connector(passthroughjq): failed to transform JSON: %v", err))
 					continue
 				}
 				l.Debug(fmt.Sprintf("connector(passthroughjq): output JSON: %s", outputJSON))
-				inlet.In() <- outputJSON
+				inlet.In(outputJSON)
 				l.Debug("connector(passthroughjq): output JSON sent")
 			}
 		}()

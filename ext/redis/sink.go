@@ -107,16 +107,11 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (s *RedisSink) process() error {
-	for msg := range s.Read() {
-		b, ok := msg.([]byte)
-		if !ok {
-			s.Logger().Error(fmt.Sprintf("message type assertion error: %T", msg))
-			return fmt.Errorf("message type assertion error: %T", msg)
-		}
-		s.Logger().Debug(fmt.Sprintf("received message: %s", string(b)))
+	for v := range s.Read() {
+		s.Logger().Debug(fmt.Sprintf("received message: %s", string(v)))
 
 		var record model.Record
-		if err := json.Unmarshal(b, &record); err != nil {
+		if err := json.Unmarshal(v, &record); err != nil {
 			s.Logger().Error(fmt.Sprintf("invalid data format"))
 			return errors.WithStack(err)
 		}
