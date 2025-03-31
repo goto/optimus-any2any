@@ -2,7 +2,6 @@ package component
 
 import (
 	"fmt"
-	"iter"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -21,13 +20,23 @@ type Registrants interface {
 // properties like logger and buffer size.
 type Setter interface {
 	SetLogger(l *slog.Logger)
+	SetBackend(backend string)
 	SetBufferSize(size int)
+}
+
+// backend is an interface that defines Inlet and Outlet methods.
+// It is used as an internal interface to abstract the backend implementation.
+type backend interface {
+	flow.Inlet
+	flow.Outlet
 }
 
 // Core is a struct that implements the Registrants and Setter interfaces.
 type Core struct {
 	*Base
-	c               chan []byte
+	backend
+	backendName     string
+	size            int
 	component       string
 	name            string
 	postHookProcess func() error // this is called after all processes are done
@@ -42,11 +51,13 @@ var _ flow.Outlet = (*Core)(nil)
 func NewCore(l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
-		c:               make(chan []byte),
+		backendName:     "channel",
+		size:            0,
 		component:       component,
 		name:            name,
 		postHookProcess: func() error { return nil },
 	}
+	c.backend = c.newBackend()
 	c.l = c.l.WithGroup(c.component).With("name", c.name)
 	return c
 }
@@ -59,9 +70,16 @@ func (c *Core) SetLogger(l *slog.Logger) {
 
 // SetBufferSize sets the buffer size for the channel.
 func (c *Core) SetBufferSize(size int) {
-	if size > 0 {
-		c.c = make(chan []byte, size)
-	}
+	c.l.Info(fmt.Sprintf("set buffer size to %d", size))
+	c.size = size
+	c.backend = c.newBackend()
+}
+
+// SetBackend sets the backend for the core component.
+func (c *Core) SetBackend(backendName string) {
+	c.l.Info(fmt.Sprintf("set backend to %s", backendName))
+	c.backendName = backendName
+	c.backend = c.newBackend()
 }
 
 // Component returns the component type of the core.
@@ -96,24 +114,14 @@ func (c *Core) RegisterProcess(f func() error) {
 	}()
 }
 
-// In receives a value to the channel.
-func (c *Core) In(v []byte) {
-	c.c <- v
-}
-
-// CloseInlet closes the inlet.
-func (c *Core) CloseInlet() error {
-	close(c.c)
-	return nil
-}
-
-// Out returns iterator for the channel.
-func (c *Core) Out() iter.Seq[[]byte] {
-	return func(yield func([]byte) bool) {
-		for v := range c.c {
-			if !yield(v) {
-				break
-			}
-		}
+func (c *Core) newBackend() backend {
+	switch c.backendName {
+	case "channel":
+		return newBackendChannel(c.l, c.size)
+	case "io":
+		return newBackendIO(c.l, c.size)
+	default:
+		c.l.Warn(fmt.Sprintf("unknown backend: %s; using channel", c.backendName))
+		return newBackendChannel(c.l, c.size)
 	}
 }

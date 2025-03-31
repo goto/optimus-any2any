@@ -2,7 +2,7 @@
 
 | RFC | Author | Status | Created Date | Updated Date |
 | --- | ------ | ------ | ------------ | ------------ |
-| 008 | [@deryrahman](https://github.com/deryrahman) | Declined | 2025-03-30 | 2025-03-30 |
+| 008 | [@deryrahman](https://github.com/deryrahman) | Experimented | 2025-03-30 | 2025-03-30 |
 
 ## Objective
 Currently we use channel to transfer data between source and sink. This RFC proposes a way to transfer data without using channel. Channel is considerably slower than direct io transfer. Using channel also leads to unecessary routines that hurts the performance a lot. This RFC proposes a way to transfer data without using channel.
@@ -47,3 +47,14 @@ During implementation, we found that the performance is not as good as the POC. 
 | Direct IO Transfer    | 11617 ms        |
 
 Although the performance is not as good as expected, we still believe that this approach is worth exploring in the future. The code is much simpler to understand, and the performance is still better than using channel. We will keep this RFC open for future reference and exploration.
+
+## Update 31 March 2025
+After further investigation, we found that the performance issue is due to the way we are using io.Pipe. The io.Pipe by nature is blocking, and it can cause performance issues if not used properly. We need to make sure that the source and sink are using the io.Pipe in a non-blocking way. This can be done by using goroutines to read or write to the io.Pipe concurrently. There're 2 library that we can use to achieve this; [readahead](https://github.com/klauspost/readahead/) and [nio](https://github.com/djherbis/nio). Former is used to read data concurrently, and latter is used to make buffered io.Pipe. Here's the result.
+
+| Method               | Execution Time |
+|-----------------------|------------------|
+| Unbuffered Channel    | 11705 ms       |
+| Buffered Channel (64) | 8495 ms        |
+| Direct IO Transfer    | 7319 ms        |
+
+Although only 15% improvement, we believe that this is a good start. We segregated the implementation so that it's easy to define underlaying backend implementation in the future.

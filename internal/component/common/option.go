@@ -33,6 +33,13 @@ func SetupLogger(level string) Option {
 	}
 }
 
+// SetupBackend sets up the backend for the Common struct
+func SetupBackend(backend string) Option {
+	return func(c *Common) {
+		c.Core.SetBackend(strings.ToLower(backend))
+	}
+}
+
 // SetupBufferSize sets up the buffer size for the Common struct
 func SetupBufferSize(bufferSize int) Option {
 	return func(c *Common) {

@@ -22,9 +22,8 @@ func NewCoreSource(l *slog.Logger, name string) *CoreSource {
 	// special case for source to close the channel
 	// after all processes are done
 	c.Core.postHookProcess = func() error {
-		close(c.Core.c)
-		c.Core.l.Debug(fmt.Sprintf("close success"))
-		return nil
+		c.Core.l.Debug(fmt.Sprintf("close inlet"))
+		return c.Core.CloseInlet()
 	}
 	return c
 }
