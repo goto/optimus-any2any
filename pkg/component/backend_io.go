@@ -13,7 +13,6 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/klauspost/readahead"
 )
 
 type backendIO struct {
@@ -30,19 +29,9 @@ func newBackendIO(l *slog.Logger, size int) *backendIO {
 	if size > 0 {
 		bufSize = size * 1024
 	}
-	if size <= 0 {
-		size = readahead.DefaultBuffers
-	} else {
-		size = nearestMSBSqrt(size)
-	}
 
 	buf := buffer.New(int64(bufSize))
-	rp, w := nio.Pipe(buf)
-	r, err := readahead.NewReaderSize(rp, size, bufSize)
-	if err != nil {
-		l.Warn(fmt.Sprintf("error initiate reader %s; use default", err.Error()))
-		r, _ = readahead.NewReaderSize(rp, readahead.DefaultBuffers, int(buf.Cap()))
-	}
+	r, w := nio.Pipe(buf)
 
 	b := &backendIO{
 		l: l,

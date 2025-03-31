@@ -12,7 +12,6 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/klauspost/readahead"
 	"github.com/pkg/errors"
 )
 
@@ -23,11 +22,7 @@ const (
 
 func execJQ(_ *slog.Logger, query string, input []byte) ([]byte, error) {
 	buf := buffer.New(16 * 1024) // 16KB buffer
-	rp, w := nio.Pipe(buf)
-	r, err := readahead.NewReaderSize(rp, readahead.DefaultBuffers, int(buf.Cap()))
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+	r, w := nio.Pipe(buf)
 
 	cmd := exec.Command("jq", "-c", query)
 
@@ -139,7 +134,7 @@ func processBatch(l *slog.Logger, query string, batchData []byte, inlet flow.Inl
 	}
 
 	// split the result by newlines and send each record
-	sc := bufio.NewScanner(readahead.NewReader(bytes.NewReader(outputJSON)))
+	sc := bufio.NewScanner(bytes.NewReader(outputJSON))
 	sc.Split(bufio.ScanLines)
 	for sc.Scan() {
 		raw := sc.Bytes()
