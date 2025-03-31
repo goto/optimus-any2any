@@ -1,7 +1,6 @@
 package maxcompute
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -150,15 +148,12 @@ func (mc *MaxcomputeSink) process() error {
 	mc.Logger().Info(fmt.Sprintf("start writing records to table: %s", mc.tableSchema.TableName))
 	mc.Logger().Debug(fmt.Sprintf("record column: %+v", mc.tableSchema.Columns))
 	countRecord := 0
-	for v := range mc.Read() {
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			mc.Logger().Error(fmt.Sprintf("message unmarshal error: %s", err.Error()))
+	for record, err := range mc.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 		record = mc.RecordWithoutMetadata(record)
 
-		mc.Logger().Debug(fmt.Sprintf("message: %s", string(v)))
 		mcRecord, err := createRecord(mc.Logger(), record, mc.tableSchema)
 		if err != nil {
 			mc.Logger().Error(fmt.Sprintf("record creation error: %s", err.Error()))

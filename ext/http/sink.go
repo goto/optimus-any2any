@@ -102,10 +102,8 @@ func (s *HTTPSink) process() error {
 	// log checkpoint
 	logCheckPoint := 500
 	recordCounter := 0
-	for v := range s.Read() {
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			s.Logger().Error(fmt.Sprintf("invalid data format"))
+	for record, err := range s.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 

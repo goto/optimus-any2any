@@ -61,9 +61,8 @@ func NewSink(l *slog.Logger, destinationURI string, opts ...common.Option) (*Fil
 func (fs *FileSink) process() error {
 	logCheckPoint := 1000
 	recordCounter := 0
-	for v := range fs.Read() {
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
+	for record, err := range fs.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 		destinationURI, err := compiler.Compile(fs.destinationURITemplate, model.ToMap(record))

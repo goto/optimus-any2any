@@ -87,12 +87,8 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (s *SFTPSink) process() error {
-	for v := range s.Read() {
-		s.Logger().Debug(fmt.Sprintf("receive message: %s", string(v)))
-
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			s.Logger().Error(fmt.Sprintf("invalid data format"))
+	for record, err := range s.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 		destinationURI, err := compiler.Compile(s.destinationURITemplate, model.ToMap(record))
@@ -119,8 +115,13 @@ func (s *SFTPSink) process() error {
 			}
 			s.fileHandlers[destinationURI] = fh
 		}
+		raw, err := json.Marshal(record)
+		if err != nil {
+			s.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			return errors.WithStack(err)
+		}
 		if err := s.Retry(func() error {
-			_, err := fh.Write(append(v, '\n'))
+			_, err := fh.Write(append(raw, '\n'))
 			return err
 		}); err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to write data"))

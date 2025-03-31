@@ -106,7 +106,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 func (o *OSSSink) process() error {
 	var destinationURI string
-	var err error
 
 	logCheckPoint := 1000
 	recordCounter := 0
@@ -114,11 +113,8 @@ func (o *OSSSink) process() error {
 		logCheckPoint = o.batchSize
 	}
 
-	for v := range o.Read() {
-		o.Logger().Debug(fmt.Sprintf("received message: %s", string(v)))
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			o.Logger().Error(fmt.Sprintf("invalid data format"))
+	for record, err := range o.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 		destinationURI, err = compiler.Compile(o.destinationURITemplate, model.ToMap(record))

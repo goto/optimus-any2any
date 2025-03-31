@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -73,11 +72,8 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (p *PGSink) process() error {
-	for v := range p.Read() {
-		p.Logger().Debug(fmt.Sprintf("received message: %s", string(v)))
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			p.Logger().Error(fmt.Sprintf("failed to unmarshal message: %s", string(v)))
+	for record, err := range p.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 

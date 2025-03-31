@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -60,10 +59,8 @@ func (k *KafkaSink) process() error {
 	)
 	// read from channel
 	k.Logger().Info(fmt.Sprintf("start reading from source"))
-	for v := range k.Read() {
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			k.Logger().Error(fmt.Sprintf("invalid data format"))
+	for record, err := range k.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 		recordWithoutMetadata := k.RecordWithoutMetadata(record)

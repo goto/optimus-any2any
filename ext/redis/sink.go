@@ -3,7 +3,6 @@ package redis
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -107,12 +106,8 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (s *RedisSink) process() error {
-	for v := range s.Read() {
-		s.Logger().Debug(fmt.Sprintf("received message: %s", string(v)))
-
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			s.Logger().Error(fmt.Sprintf("invalid data format"))
+	for record, err := range s.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 		recordKey, err := compiler.Compile(s.recordKeyTemplate, model.ToMap(record))

@@ -13,7 +13,7 @@ import (
 )
 
 func JQBinaryTransformation(l *slog.Logger, query string, input []byte) ([]byte, error) {
-	buf := buffer.New(32 * 1024) // 32KB buffer
+	buf := buffer.New(16 * 1024) // 16KB buffer
 	rp, w := nio.Pipe(buf)
 	r, err := readahead.NewReaderSize(rp, readahead.DefaultBuffers, int(buf.Cap()))
 	if err != nil {
