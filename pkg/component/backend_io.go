@@ -7,8 +7,6 @@ import (
 	"io"
 	"iter"
 	"log/slog"
-	"math"
-	"math/bits"
 
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
@@ -66,12 +64,4 @@ func (b *backendIO) In(v []byte) {
 
 func (b *backendIO) CloseInlet() error {
 	return b.w.Close()
-}
-
-func nearestMSBSqrt(n int) int {
-	if n <= 0 {
-		return 0
-	}
-	sqrtN := int(math.Sqrt(float64(n)))
-	return 1 << (bits.Len32(uint32(sqrtN)) - 1)
 }
