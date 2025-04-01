@@ -2,13 +2,14 @@ package sftp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/url"
 	"os"
 	"text/template"
+
+	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"

@@ -1,6 +1,7 @@
 package file
 
 import (
+	"bufio"
 	"io"
 	"log/slog"
 	"os"
@@ -8,6 +9,23 @@ import (
 
 	"github.com/pkg/errors"
 )
+
+type BufferedWriter struct {
+	*bufio.Writer
+	io.Closer
+}
+
+// NewBufferedWriter creates a new buffered writer.
+func NewBufferedWriter(w io.WriteCloser) *BufferedWriter {
+	return &BufferedWriter{
+		Writer: bufio.NewWriterSize(w, 32*1024),
+		Closer: w,
+	}
+}
+
+func (b *BufferedWriter) Close() error {
+	return b.Writer.Flush()
+}
 
 // NewStdFileHandler creates a new file handler.
 func NewStdFileHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
@@ -21,5 +39,5 @@ func NewStdFileHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return f, nil
+	return NewBufferedWriter(f), nil
 }

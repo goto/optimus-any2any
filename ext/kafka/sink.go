@@ -2,11 +2,12 @@ package kafka
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
+
+	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"

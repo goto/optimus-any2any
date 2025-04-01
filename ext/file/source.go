@@ -3,11 +3,14 @@ package file
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
 
+	"github.com/djherbis/buffer"
+	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -16,7 +19,7 @@ import (
 // FileSource is a source that reads data from a file.
 type FileSource struct {
 	*common.CommonSource
-	files []*os.File
+	files []io.ReadCloser
 }
 
 var _ flow.Source = (*FileSource)(nil)
@@ -34,6 +37,7 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 	if sourceURI.Scheme != "file" {
 		return nil, fmt.Errorf("invalid scheme: %s", sourceURI.Scheme)
 	}
+
 	f, err := os.Open(sourceURI.Path)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -43,15 +47,18 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 		return nil, errors.WithStack(err)
 	}
 	// prepare files
-	var files []*os.File
+	var files []io.ReadCloser
 	if fileStat.IsDir() {
 		// read all files in the directory recursively
-		files, err = readFiles(sourceURI.Path)
+		ff, err := readFiles(sourceURI.Path)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		for _, f := range ff {
+			files = append(files, nio.NewReader(f, buffer.New(32*1024)))
+		}
 	} else {
-		files = []*os.File{f}
+		files = append(files, nio.NewReader(f, buffer.New(32*1024)))
 	}
 	// create source
 	fs := &FileSource{

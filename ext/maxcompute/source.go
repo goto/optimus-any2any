@@ -2,13 +2,16 @@ package maxcompute
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"strings"
 	"text/template"
+
+	"github.com/djherbis/buffer"
+	"github.com/djherbis/nio/v3"
+	"github.com/goccy/go-json"
 
 	"maps"
 
@@ -165,7 +168,8 @@ func (mc *MaxcomputeSource) process() error {
 
 func (mc *MaxcomputeSource) getRecordReader(query string) (io.ReadCloser, error) {
 	var e error
-	r, w := io.Pipe()
+	buf := buffer.New(32 * 1024)
+	r, w := nio.Pipe(buf)
 	go func(w io.WriteCloser) {
 		defer w.Close()
 		if query == "" {

@@ -21,7 +21,7 @@ const (
 )
 
 func execJQ(_ *slog.Logger, query string, input []byte) ([]byte, error) {
-	buf := buffer.New(16 * 1024) // 16KB buffer
+	buf := buffer.New(32 * 1024)
 	r, w := nio.Pipe(buf)
 
 	cmd := exec.Command("jq", "-c", query)

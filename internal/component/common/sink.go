@@ -1,10 +1,11 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"iter"
 	"log/slog"
+
+	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/component"

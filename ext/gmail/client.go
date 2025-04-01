@@ -2,9 +2,10 @@ package gmail
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"

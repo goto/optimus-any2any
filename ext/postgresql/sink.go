@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/djherbis/buffer"
+	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -104,7 +106,8 @@ func (p *PGSink) process() error {
 // flush writes records buffer to file
 func (p *PGSink) flush() error {
 	var wg sync.WaitGroup
-	r, w := io.Pipe()
+	buf := buffer.New(32 * 1024)
+	r, w := nio.Pipe(buf)
 	defer func() {
 		p.Logger().Debug(fmt.Sprintf("clear records buffer"))
 		p.records = p.records[:0]

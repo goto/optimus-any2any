@@ -1,10 +1,11 @@
 package compiler
 
 import (
-	"encoding/json"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/google/uuid"
 )

@@ -1,10 +1,11 @@
 package salesforce
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
+
+	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"

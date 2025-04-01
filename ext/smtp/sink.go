@@ -3,7 +3,6 @@ package smtp
 import (
 	"context"
 	"crypto/md5"
-	"encoding/json"
 	errs "errors"
 	"fmt"
 	"io"
@@ -12,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+
+	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"

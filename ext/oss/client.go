@@ -1,7 +1,7 @@
 package oss
 
 import (
-	"encoding/json"
+	"github.com/goccy/go-json"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"

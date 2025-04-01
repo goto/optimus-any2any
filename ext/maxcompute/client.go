@@ -1,7 +1,7 @@
 package maxcompute
 
 import (
-	"encoding/json"
+	"github.com/goccy/go-json"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/pkg/errors"

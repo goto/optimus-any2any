@@ -4,12 +4,15 @@ package helper
 import (
 	"bufio"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"math"
 	"strconv"
+
+	"github.com/djherbis/buffer"
+	"github.com/djherbis/nio/v3"
+	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
@@ -36,7 +39,8 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 		records = append(records, record)
 	}
 
-	r, w := io.Pipe()
+	buf := buffer.New(32 * 1024)
+	r, w := nio.Pipe(buf)
 	go func(w io.WriteCloser) {
 		defer w.Close()
 		if err := ToCSV(l, w, records, skipHeader, delimiter...); err != nil {
@@ -52,7 +56,8 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 		csvReader.Comma = delimiter[0]
 	}
 
-	r, w := io.Pipe()
+	buf := buffer.New(32 * 1024)
+	r, w := nio.Pipe(buf)
 	go func(w io.WriteCloser) {
 		defer w.Close()
 
