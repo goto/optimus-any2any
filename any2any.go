@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -28,6 +31,15 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 	l, err := logger.NewLogger(cfg.LogLevel)
 	if err != nil {
 		return []error{errors.WithStack(err)}
+	}
+
+	if cfg.EnablePprof {
+		go func() {
+			l.Info("starting pprof server on :6060")
+			if err := http.ListenAndServe(":6060", nil); err != nil {
+				l.Error(fmt.Sprintf("failed to start pprof server: %s", err.Error()))
+			}
+		}()
 	}
 
 	// graceful shutdown

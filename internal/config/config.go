@@ -10,6 +10,7 @@ type Config struct {
 	MetadataPrefix            string `env:"METADATA_PREFIX" envDefault:"__METADATA__"`
 	RetryMax                  int    `env:"RETRY_MAX" envDefault:"3"`
 	RetryBackoffMs            int64  `env:"RETRY_BACKOFF_MS" envDefault:"1000"`
+	EnablePprof               bool   `env:"ENABLE_PPROF" envDefault:"false"`
 }
 
 // NewConfig parses the environment variables and returns the common configuration.
