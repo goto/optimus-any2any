@@ -43,7 +43,7 @@ func NewOSS2MC(ctx context.Context, l *slog.Logger, cfg *config.OSS2MCConfig) (f
 
 	oss2mc := &OSS2MC{
 		logger:           l,
-		client:           client,
+		client:           client.Odps,
 		query:            query,
 		logViewRetention: cfg.LogViewRetentionInDays * 24,
 		cleanFuncs:       []func(){},

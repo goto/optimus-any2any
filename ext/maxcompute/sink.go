@@ -59,13 +59,13 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 	if loadMethod == LOAD_METHOD_REPLACE {
 		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
 		l.Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
-		if err := createTempTable(l, client, tableID, tableIDDestination, 1); err != nil {
+		if err := createTempTable(l, client.Odps, tableID, tableIDDestination, 1); err != nil {
 			return nil, errors.WithStack(err)
 		}
 		l.Info(fmt.Sprintf("temporary table created: %s", tableID))
 	}
 
-	destination, err := getTable(l, client, tableID)
+	destination, err := getTable(l, client.Odps, tableID)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -113,7 +113,7 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 	mc := &MaxcomputeSink{
 		CommonSink:         commonSink,
 		tableSchema:        destination.Schema(),
-		client:             client,
+		client:             client.Odps,
 		loadMethod:         loadMethod,
 		tableIDTransition:  tableID,
 		tableIDDestination: tableIDDestination,
@@ -133,7 +133,7 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			mc.Logger().Info(fmt.Sprintf("load method is replace, deleting temporary table: %s", mc.tableIDTransition))
 			return mc.Retry(func() error {
-				return dropTable(mc.Logger(), client, mc.tableIDTransition)
+				return dropTable(mc.Logger(), client.Odps, mc.tableIDTransition)
 			})
 		}
 		return nil

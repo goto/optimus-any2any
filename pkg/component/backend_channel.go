@@ -37,6 +37,10 @@ func (b *backendChannel) Out() iter.Seq[[]byte] {
 }
 
 func (b *backendChannel) In(v []byte) {
+	if v == nil {
+		// skip
+		return
+	}
 	b.c <- v
 }
 

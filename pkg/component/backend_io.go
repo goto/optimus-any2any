@@ -56,6 +56,10 @@ func (b *backendIO) Out() iter.Seq[[]byte] {
 }
 
 func (b *backendIO) In(v []byte) {
+	if v == nil {
+		// skip
+		return
+	}
 	_, err := b.w.Write(append(v, '\n'))
 	if err != nil && !errs.Is(err, io.ErrClosedPipe) {
 		b.l.Warn(fmt.Sprintf("failed to write to sink: %s", err.Error()))

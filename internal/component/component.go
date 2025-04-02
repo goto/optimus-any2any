@@ -63,7 +63,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSource(l, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints, opts...)
+		return maxcompute.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
