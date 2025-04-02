@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -12,23 +11,23 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // FileSource is a source that reads data from a file.
 type FileSource struct {
-	*common.CommonSource
-	files []io.ReadCloser
+	flow.Source
+	component.Getter
+	component.Sender
+	Readers []io.ReadCloser
 }
 
 var _ flow.Source = (*FileSource)(nil)
 
 // NewSource creates a new file common.
-func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, error) {
-	// create commonSource
-	commonSource := common.NewCommonSource(l, "file", opts...)
-
+func NewSource(commonSource *common.CommonSource, uri string) (*FileSource, error) {
 	// open file
 	sourceURI, err := url.Parse(uri)
 	if err != nil {
@@ -62,8 +61,10 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 	}
 	// create source
 	fs := &FileSource{
-		CommonSource: commonSource,
-		files:        files,
+		Source:  commonSource,
+		Getter:  commonSource,
+		Sender:  commonSource,
+		Readers: files,
 	}
 
 	// add clean func
@@ -76,15 +77,15 @@ func NewSource(l *slog.Logger, uri string, opts ...common.Option) (*FileSource, 
 	})
 	// register process, it will immediately start the process
 	// in a separate goroutine
-	commonSource.RegisterProcess(fs.process)
+	commonSource.RegisterProcess(fs.Process)
 
 	return fs, nil
 }
 
-// process reads data from the file and sends it to the channel.
-func (fs *FileSource) process() error {
+// Process reads data from the file and sends it to the channel.
+func (fs *FileSource) Process() error {
 	// read files
-	for _, f := range fs.files {
+	for _, f := range fs.Readers {
 		sc := bufio.NewScanner(f)
 		for sc.Scan() {
 			// read line

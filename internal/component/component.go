@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/goto/optimus-any2any/ext/direct"
 	"github.com/goto/optimus-any2any/ext/file"
@@ -52,6 +53,8 @@ const (
 func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
+	// create commonSource
+	commonSource := common.NewCommonSource(l, strings.ToLower(string(source)), opts...)
 
 	// create source based on type
 	switch source {
@@ -66,7 +69,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSource(l, sourceCfg.SourceURI, opts...)
+		return file.NewSource(commonSource, sourceCfg.SourceURI)
 	case SF:
 		sourceCfg, err := config.SourceSalesforce(envs...)
 		if err != nil {
@@ -97,6 +100,8 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
+	// create commonSink
+	commonSink := common.NewCommonSink(l, strings.ToLower(string(sink)), opts...)
 
 	// create sink based on type
 	switch sink {
@@ -111,7 +116,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSink(l, sinkCfg.DestinationURI, opts...)
+		return file.NewSink(commonSink, sinkCfg.DestinationURI, opts...)
 	case IO:
 		return io.NewSink(l), nil
 	case OSS:
