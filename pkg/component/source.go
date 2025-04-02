@@ -7,12 +7,18 @@ import (
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
+// Sender is an interface that defines a method to send data to a source.
+type Sender interface {
+	Send(v []byte)
+}
+
 // CoreSource is an implementation of the source interface.
 type CoreSource struct {
 	*Core
 }
 
 var _ flow.Source = (*CoreSource)(nil)
+var _ Sender = (*CoreSource)(nil)
 
 // NewCoreSource creates a new CoreSource instance.
 func NewCoreSource(l *slog.Logger, name string) *CoreSource {
@@ -28,7 +34,7 @@ func NewCoreSource(l *slog.Logger, name string) *CoreSource {
 	return c
 }
 
-// Send sends a value to the channel
+// Send sends the given data to the source.
 func (c *CoreSource) Send(v []byte) {
-	c.In(v)
+	c.Core.In(v)
 }

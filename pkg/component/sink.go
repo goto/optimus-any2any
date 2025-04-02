@@ -7,6 +7,11 @@ import (
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
+// Reader is an interface that defines a method to read data inside a sink.
+type Reader interface {
+	Read() iter.Seq[[]byte]
+}
+
 // CoreSink is an implementation of the sink interface.
 type CoreSink struct {
 	*Core
@@ -14,6 +19,7 @@ type CoreSink struct {
 }
 
 var _ flow.Sink = (*CoreSink)(nil)
+var _ Reader = (*CoreSink)(nil)
 
 func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	c := &CoreSink{
@@ -25,7 +31,7 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	// this is to prevent the sink from blocking
 	c.Core.postHookProcess = func() error {
 		c.Core.Logger().Debug("skip message")
-		for range c.Read() {
+		for range c.Out() {
 			// drain the channel
 		}
 		c.Core.Logger().Debug("process done")
@@ -35,9 +41,9 @@ func NewCoreSink(l *slog.Logger, name string) *CoreSink {
 	return c
 }
 
-// Read returns the channel to read from
+// Read reads the data from the sink.
 func (c *CoreSink) Read() iter.Seq[[]byte] {
-	return c.Out()
+	return c.Core.Out()
 }
 
 // Wait waits for the sink to finish processing

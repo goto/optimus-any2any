@@ -24,6 +24,15 @@ type Setter interface {
 	SetBufferSize(size int)
 }
 
+// Getter is an interface that defines the methods
+// that a component must implement to get some internal
+// properties like logger, component type and name.
+type Getter interface {
+	Logger() *slog.Logger
+	Component() string
+	Name() string
+}
+
 // backend is an interface that defines Inlet and Outlet methods.
 // It is used as an internal interface to abstract the backend implementation.
 type backend interface {
