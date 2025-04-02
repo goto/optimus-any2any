@@ -24,9 +24,9 @@ type PGSink struct {
 	conn               *pgx.Conn
 	destinationTableID string
 
-	batchSize         int            // internal use
-	records           []model.Record // internal use
-	fileRecordCounter int            // internal use
+	batchSize         int             // internal use
+	records           []*model.Record // internal use
+	fileRecordCounter int             // internal use
 }
 
 var _ flow.Sink = (*PGSink)(nil)
@@ -51,7 +51,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 		conn:               conn,
 		destinationTableID: destinationTableID,
 		batchSize:          512,
-		records:            make([]model.Record, 0, batchSize),
+		records:            make([]*model.Record, 0, batchSize),
 		fileRecordCounter:  0,
 	}
 

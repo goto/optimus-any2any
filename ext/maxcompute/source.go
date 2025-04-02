@@ -120,7 +120,7 @@ func (mc *MaxcomputeSource) process() error {
 			return errors.WithStack(err)
 		}
 		// add prefix for every key
-		preRecordWithPrefix := mc.RecordWithMetadata(preRecord)
+		preRecordWithPrefix := mc.RecordWithMetadata(&preRecord)
 		mc.Logger().Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
 
 		// compile query

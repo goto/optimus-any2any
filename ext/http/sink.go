@@ -220,7 +220,7 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 	return nil
 }
 
-func compileMetadata(m httpMetadataTemplate, record model.Record) (httpMetadata, error) {
+func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata, error) {
 	metadata := httpMetadata{}
 
 	if m.method != nil {

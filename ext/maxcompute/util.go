@@ -234,7 +234,7 @@ func getTable(l *slog.Logger, client *odps.Odps, tableID string) (*odps.Table, e
 	return table, nil
 }
 
-func fromRecord(l *slog.Logger, record data.Record, schema tableschema.TableSchema) (model.Record, error) {
+func fromRecord(l *slog.Logger, record data.Record, schema tableschema.TableSchema) (*model.Record, error) {
 	m := model.NewRecord()
 	if record.Len() != len(schema.Columns) {
 		return m, errors.WithStack(fmt.Errorf("record length does not match schema column length"))
@@ -406,7 +406,7 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 	}
 }
 
-func lowerCaseMapKeys(m model.Record) model.Record {
+func lowerCaseMapKeys(m *model.Record) *model.Record {
 	result := model.NewRecord()
 	for k, v := range m.AllFromFront() {
 		result.Set(strings.ToLower(k), v)
@@ -414,7 +414,7 @@ func lowerCaseMapKeys(m model.Record) model.Record {
 	return result
 }
 
-func createRecord(l *slog.Logger, record model.Record, schema tableschema.TableSchema) (data.Record, error) {
+func createRecord(l *slog.Logger, record *model.Record, schema tableschema.TableSchema) (data.Record, error) {
 	raw := lowerCaseMapKeys(record)
 	result := []data.Data{}
 	var errResult error = nil

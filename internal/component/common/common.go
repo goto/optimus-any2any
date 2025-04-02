@@ -18,8 +18,8 @@ import (
 // by adding or removing metadata prefixes.
 // It is used to handle records in a consistent way across different components.
 type RecordHelper interface {
-	RecordWithoutMetadata(record model.Record) model.Record
-	RecordWithMetadata(record model.Record) model.Record
+	RecordWithoutMetadata(record *model.Record) *model.Record
+	RecordWithMetadata(record *model.Record) *model.Record
 }
 
 // Retrier is an interface that defines a method to retry a function
@@ -86,7 +86,7 @@ func (c *Common) Retry(f func() error) error {
 }
 
 // RecordWithMetadata returns a new record without metadata prefix
-func (c *Common) RecordWithoutMetadata(record model.Record) model.Record {
+func (c *Common) RecordWithoutMetadata(record *model.Record) *model.Record {
 	recordWithoutMetadata := model.NewRecord()
 	for k, v := range record.AllFromFront() {
 		if strings.HasPrefix(k, c.metadataPrefix) {
@@ -98,7 +98,7 @@ func (c *Common) RecordWithoutMetadata(record model.Record) model.Record {
 }
 
 // RecordWithMetadata returns a new record with metadata prefix
-func (c *Common) RecordWithMetadata(record model.Record) model.Record {
+func (c *Common) RecordWithMetadata(record *model.Record) *model.Record {
 	recordWithMetadata := model.NewRecord()
 	for k, v := range record.AllFromFront() {
 		if strings.HasPrefix(k, c.metadataPrefix) {
