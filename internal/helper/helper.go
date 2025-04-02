@@ -19,7 +19,7 @@ import (
 )
 
 func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
-	records := make([]model.Record, 0)
+	records := make([]*model.Record, 0)
 	sc := bufio.NewScanner(reader)
 	hasError := false
 	for sc.Scan() {
@@ -36,7 +36,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 			continue
 		}
 
-		records = append(records, record)
+		records = append(records, &record)
 	}
 
 	buf := buffer.New(32 * 1024)
@@ -104,7 +104,7 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 }
 
 // ToCSV converts the records to CSV.
-func ToCSV(l *slog.Logger, w io.Writer, records []model.Record, skipHeader bool, delimiter ...rune) error {
+func ToCSV(l *slog.Logger, w io.Writer, records []*model.Record, skipHeader bool, delimiter ...rune) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -158,7 +158,7 @@ func ToCSV(l *slog.Logger, w io.Writer, records []model.Record, skipHeader bool,
 	return nil
 }
 
-func convertRecordToMapString(record model.Record) (model.Record, error) {
+func convertRecordToMapString(record *model.Record) (*model.Record, error) {
 	recordString := model.NewRecord()
 	for k, v := range record.AllFromFront() {
 		val, err := convertValueToString(v)
