@@ -23,7 +23,7 @@ var _ flow.Inlet = (*backendIO)(nil)
 var _ flow.Outlet = (*backendIO)(nil)
 
 func newBackendIO(l *slog.Logger, size int) *backendIO {
-	bufSize := 16 * 1024
+	bufSize := 32 * 1024
 	if size > 0 {
 		bufSize = size * 1024
 	}

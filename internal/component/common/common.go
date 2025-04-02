@@ -3,7 +3,9 @@ package common
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/internal/otel"
@@ -11,6 +13,21 @@ import (
 	opentelemetry "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// RecordHelper is an interface that defines methods to manipulate records
+// by adding or removing metadata prefixes.
+// It is used to handle records in a consistent way across different components.
+type RecordHelper interface {
+	RecordWithoutMetadata(record model.Record) model.Record
+	RecordWithMetadata(record model.Record) model.Record
+}
+
+// Retrier is an interface that defines a method to retry a function
+// a given number of times with a backoff strategy.
+// It is used to handle transient errors in a consistent way across different components.
+type Retrier interface {
+	Retry(func() error) error
+}
 
 // Common is an extension of the component.Core struct
 type Common struct {
@@ -20,6 +37,9 @@ type Common struct {
 	retryBackoffMs int64
 	metadataPrefix string
 }
+
+var _ Retrier = (*Common)(nil)
+var _ RecordHelper = (*Common)(nil)
 
 // NewCommon creates a new Common struct
 func NewCommon(c *component.Core) *Common {
@@ -87,4 +107,22 @@ func (c *Common) RecordWithMetadata(record model.Record) model.Record {
 		recordWithMetadata.Set(fmt.Sprintf("%s%s", c.metadataPrefix, k), v)
 	}
 	return recordWithMetadata
+}
+
+func retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) error {
+	var err error
+	sleepTime := int64(1)
+
+	for i := range retryMax {
+		err = f()
+		if err == nil {
+			return nil
+		}
+
+		l.Warn(fmt.Sprintf("retry: %d, error: %v", i, err))
+		sleepTime *= 1 << i
+		time.Sleep(time.Duration(sleepTime*retryBackoffMs) * time.Second)
+	}
+
+	return err
 }

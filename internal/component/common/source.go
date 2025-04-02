@@ -10,6 +10,11 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// Sender is an interface that defines a method to send data to a source.
+type Sender interface {
+	Send(v []byte)
+}
+
 // CommonSource is a common source that implements the flow.Source interface.
 type CommonSource struct {
 	*component.CoreSource
@@ -17,6 +22,7 @@ type CommonSource struct {
 }
 
 var _ flow.Source = (*CommonSource)(nil)
+var _ Sender = (*CommonSource)(nil)
 
 // NewCommonSource creates a new CommonSource.
 func NewCommonSource(l *slog.Logger, name string, opts ...Option) *CommonSource {
@@ -45,5 +51,5 @@ func (c *CommonSource) Send(v []byte) {
 	sendCount.Add(context.Background(), 1)
 	sendBytes.Add(context.Background(), int64(len(v)))
 
-	c.CoreSource.Send(v)
+	c.Common.Core.In(v)
 }

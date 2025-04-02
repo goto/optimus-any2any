@@ -27,8 +27,3 @@ func NewCoreSource(l *slog.Logger, name string) *CoreSource {
 	}
 	return c
 }
-
-// Send sends a value to the channel
-func (c *CoreSource) Send(v []byte) {
-	c.In(v)
-}
