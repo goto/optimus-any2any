@@ -12,8 +12,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/goccy/go-json"
-
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -35,7 +33,7 @@ type httpMetadata struct {
 
 type httpHandler struct {
 	httpMetadata httpMetadata
-	records      []string
+	records      []*model.Record
 }
 
 type HTTPSink struct {
@@ -116,45 +114,39 @@ func (s *HTTPSink) process() error {
 
 		// remove metadata prefix
 		record = s.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(record)
-		if err != nil {
-			s.Logger().Error(fmt.Sprintf("marshal record error"))
-			return errors.WithStack(err)
-		}
-
+		// initialize http handler
 		hash := hashMetadata(m)
 		_, ok := s.httpHandlers[hash]
 		if !ok {
 			s.httpHandlers[hash] = httpHandler{
 				httpMetadata: m,
-				records:      make([]string, 0, s.batchSize),
+				records:      make([]*model.Record, 0, s.batchSize),
 			}
 		}
 
 		// flush if batch size is reached
 		// batch size is 1 means no batching
 		if len(s.httpHandlers[hash].records) >= s.batchSize {
-			if err := s.flush(m, s.httpHandlers[hash].records); err != nil {
+			err := s.Retry(func() error {
+				return s.flush(m, s.httpHandlers[hash].records)
+			})
+			if err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to send data to %s; %s", m.endpoint, err.Error()))
 				return errors.WithStack(err)
 			}
 			hh := s.httpHandlers[hash]
-			hh.records = make([]string, 0, s.batchSize)
+			hh.records = make([]*model.Record, 0, s.batchSize)
 			s.httpHandlers[hash] = hh
-
-			if s.batchSize > 1 {
-				s.Logger().Info(fmt.Sprintf("successfully send %d records %s %s", s.batchSize, m.method, m.endpoint))
-			}
 		}
 
 		// append record to the handler
 		hh := s.httpHandlers[hash]
-		hh.records = append(hh.records, string(raw))
+		hh.records = append(hh.records, record)
 		s.httpHandlers[hash] = hh
 		recordCounter++
 
 		if s.batchSize == 1 && recordCounter%logCheckPoint == 0 {
-			s.Logger().Info(fmt.Sprintf("successfully send %d records", recordCounter))
+			s.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))
 		}
 	}
 
@@ -170,27 +162,25 @@ func (s *HTTPSink) process() error {
 			s.Logger().Error(fmt.Sprintf("failed to send data to %s; %s", hh.httpMetadata.endpoint, err.Error()))
 			return errors.WithStack(err)
 		}
-
-		if s.batchSize > 1 {
-			s.Logger().Info(fmt.Sprintf("successfully send %d records %s %s", s.batchSize, hh.httpMetadata.method, hh.httpMetadata.endpoint))
-		}
 	}
 
-	if s.batchSize == 1 && recordCounter%logCheckPoint != 0 {
-		s.Logger().Info(fmt.Sprintf("successfully send %d records", recordCounter))
-	}
+	s.Logger().Info(fmt.Sprintf("successfully sent %d records in total", recordCounter))
+
 	return nil
 }
 
-func (s *HTTPSink) flush(m httpMetadata, records []string) error {
-	var raw interface{}
-	if s.batchSize == 1 {
-		raw = records[0]
-	} else {
-		raw = records
-	}
+func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
+	var recordCount int
+	var body string
+	var err error
 	// prefix metadata will not be used in the body content template
-	body, err := compiler.Compile(s.bodyContentTemplate, raw)
+	if s.batchSize == 1 {
+		recordCount = 1
+		body, err = compiler.Compile(s.bodyContentTemplate, records[0])
+	} else {
+		recordCount = len(records)
+		body, err = compiler.Compile(s.bodyContentTemplate, records)
+	}
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -215,6 +205,10 @@ func (s *HTTPSink) flush(m httpMetadata, records []string) error {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	if s.batchSize > 1 {
+		s.Logger().Info(fmt.Sprintf("successfully sent %d records in batch to %s", recordCount, m.endpoint))
 	}
 
 	return nil
