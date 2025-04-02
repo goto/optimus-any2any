@@ -1,4 +1,4 @@
-package file
+package io
 
 import (
 	"bufio"
@@ -12,23 +12,22 @@ import (
 
 type BufferedWriter struct {
 	*bufio.Writer
-	io.Closer
 }
 
 // NewBufferedWriter creates a new buffered writer.
-func NewBufferedWriter(w io.WriteCloser) *BufferedWriter {
+func NewBufferedWriter(w io.Writer) *BufferedWriter {
 	return &BufferedWriter{
 		Writer: bufio.NewWriterSize(w, 32*1024),
-		Closer: w,
 	}
 }
 
+// Close flushes remaining data and closes the writer.
 func (b *BufferedWriter) Close() error {
 	return b.Writer.Flush()
 }
 
-// NewStdFileHandler creates a new file handler.
-func NewStdFileHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
+// NewWriteHandler creates a new write handler.
+func NewWriteHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
