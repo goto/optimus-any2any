@@ -20,7 +20,7 @@ import (
 type FileSource struct {
 	flow.Source
 	component.Getter
-	component.Sender
+	common.Sender
 	Readers []io.ReadCloser
 }
 
