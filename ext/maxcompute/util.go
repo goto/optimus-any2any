@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goccy/go-json"
-
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/data"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/datatype"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
+	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
