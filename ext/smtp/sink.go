@@ -13,10 +13,10 @@ import (
 	"text/template"
 
 	"github.com/goccy/go-json"
-	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/helper"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
@@ -181,7 +181,7 @@ func (s *SMTPSink) process() error {
 		fh, ok := eh.fileHandlers[attachment]
 		if !ok {
 			attachmentPath := getAttachmentPath(m, attachment)
-			fh, err = file.NewStdFileHandler(s.Logger(), attachmentPath)
+			fh, err = xio.NewWriteHandler(s.Logger(), attachmentPath)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("create file handler error: %s", err.Error()))
 				return errors.WithStack(err)

@@ -15,10 +15,10 @@ import (
 	"github.com/goccy/go-json"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
-	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/helper"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -146,7 +146,7 @@ func (o *OSSSink) process() error {
 		fh, ok := o.fileHandlers[tmpPath]
 		if !ok {
 			// create new tmp file handler
-			fh, err = file.NewStdFileHandler(o.Logger(), tmpPath)
+			fh, err = xio.NewWriteHandler(o.Logger(), tmpPath)
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to create tmp file handler: %s", err.Error()))
 				return errors.WithStack(err)
