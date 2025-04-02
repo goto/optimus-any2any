@@ -13,7 +13,6 @@ import (
 	"text/template"
 
 	"github.com/goccy/go-json"
-
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
