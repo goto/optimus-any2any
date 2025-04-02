@@ -13,19 +13,21 @@ import (
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // MaxcomputeSource is the source component for MaxCompute.
 type MaxcomputeSource struct {
-	*common.CommonSource
+	flow.Source
+	component.Getter
+	common.Sender
+	common.RecordHelper
 
-	Client          *Client
-	tunnel          *tunnel.Tunnel
-	additionalHints map[string]string
-	preQuery        string
-	queryTemplate   *template.Template
+	Client        *Client
+	PreQuery      string
+	QueryTemplate *template.Template
 }
 
 var _ flow.Source = (*MaxcomputeSource)(nil)
@@ -82,12 +84,13 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 	}
 
 	mc := &MaxcomputeSource{
-		CommonSource:    commonSource,
-		Client:          client,
-		tunnel:          t,
-		additionalHints: hints,
-		queryTemplate:   queryTemplate,
-		preQuery:        string(rawPreQuery),
+		Source:        commonSource,
+		Getter:        commonSource,
+		Sender:        commonSource,
+		RecordHelper:  commonSource,
+		Client:        client,
+		QueryTemplate: queryTemplate,
+		PreQuery:      string(rawPreQuery),
 	}
 
 	// add clean function
@@ -104,7 +107,7 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 // process is the process function for MaxcomputeSource.
 func (mc *MaxcomputeSource) Process() error {
 	// create pre-record reader
-	preRecordReader, err := mc.Client.QueryReader(mc.preQuery)
+	preRecordReader, err := mc.Client.QueryReader(mc.PreQuery)
 	if err != nil {
 		mc.Logger().Error(fmt.Sprintf("failed to get pre-record reader"))
 		return errors.WithStack(err)
@@ -120,7 +123,7 @@ func (mc *MaxcomputeSource) Process() error {
 		mc.Logger().Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
 
 		// compile query
-		query, err := compiler.Compile(mc.queryTemplate, model.ToMap(preRecordWithPrefix))
+		query, err := compiler.Compile(mc.QueryTemplate, model.ToMap(preRecordWithPrefix))
 		if err != nil {
 			mc.Logger().Error(fmt.Sprintf("failed to compile query"))
 			return errors.WithStack(err)
