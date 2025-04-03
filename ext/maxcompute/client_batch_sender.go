@@ -22,7 +22,7 @@ type recordWriterPool struct {
 	schema           tableschema.TableSchema
 	counter          atomic.Uint32
 	batchSizeInBytes int64
-	m                []sync.RWMutex
+	mutexes          []sync.Mutex
 	recordWriters    []*tunnel.RecordProtocWriter
 	closers          []io.Closer
 	blockIds         []int
@@ -34,7 +34,7 @@ func newRecordWriterPool(l *slog.Logger, session *tunnel.UploadSession, batchSiz
 		session:          session,
 		schema:           session.Schema(),
 		batchSizeInBytes: batchSizeInBytes,
-		m:                make([]sync.RWMutex, concurrency),
+		mutexes:          make([]sync.Mutex, concurrency),
 		recordWriters:    make([]*tunnel.RecordProtocWriter, concurrency),
 		closers:          make([]io.Closer, concurrency),
 		blockIds:         make([]int, concurrency),
@@ -61,20 +61,19 @@ func (p *recordWriterPool) send(record *model.Record) error {
 
 	// select record writer based on round robin fashion
 	i := p.counter.Add(1) % uint32(len(p.recordWriters))
-	p.m[i].Lock()
-	defer p.m[i].Unlock()
-	recordWriter := p.recordWriters[i]
+	p.mutexes[i].Lock()
+	defer p.mutexes[i].Unlock()
 
 	// create new recordWriter if bytes count hits batch size limit
-	if recordWriter.BytesCount() >= p.batchSizeInBytes {
+	if p.recordWriters[i].BytesCount() >= p.batchSizeInBytes {
 		rw, err := p.newRecordWriter(i)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		recordWriter = rw
+		p.recordWriters[i] = rw
 	}
 
-	if err := recordWriter.Write(mcRecord); err != nil {
+	if err := p.recordWriters[i].Write(mcRecord); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
@@ -100,7 +99,7 @@ func (p *recordWriterPool) newRecordWriter(i uint32) (*tunnel.RecordProtocWriter
 func (p *recordWriterPool) close() error {
 	var e error
 	for _, closer := range p.closers {
-		if err := closer.Close(); err != nil && !strings.Contains(err.Error(), "try to close a closed RecordProtocWriter") {
+		if err := closer.Close(); err != nil {
 			e = errs.Join(e, err)
 		}
 	}
@@ -120,6 +119,7 @@ type mcBatchRecordSender struct {
 	l    *slog.Logger
 	wp   *recordWriterPool
 	sem  chan uint8 // semaphore for concurrency control
+	wg   sync.WaitGroup
 	err  error
 	errM sync.Mutex
 }
@@ -150,32 +150,34 @@ func (s *mcBatchRecordSender) SendRecord(record *model.Record) error {
 	}
 
 	s.sem <- 0 // acquire semaphore lock
-	recordToBeProcessed := record.Copy()
+	s.wg.Add(1)
 	go func(recordToBeProcessed *model.Record) {
 		defer func() {
 			<-s.sem // release semaphore lock
+			s.wg.Done()
 		}()
 		if err := s.wp.send(recordToBeProcessed); err != nil {
 			s.errM.Lock()
 			s.err = errors.WithStack(err)
 			s.errM.Unlock()
 		}
-	}(recordToBeProcessed)
+	}(record.Copy())
 
-	return nil
+	return s.err
 }
 
 func (s *mcBatchRecordSender) Close() error {
+	s.wg.Wait() // wait for all goroutines to finish
 	if err := s.wp.close(); err != nil {
 		s.errM.Lock()
 		s.err = errors.WithStack(err)
 		s.errM.Unlock()
 		return err
 	}
-	return s.Commit()
+	return s.commit()
 }
 
-func (s *mcBatchRecordSender) Commit() error {
+func (s *mcBatchRecordSender) commit() error {
 	if s.err != nil {
 		// no commit if error exist
 		return s.err

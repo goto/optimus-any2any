@@ -121,7 +121,7 @@ func retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) e
 
 		l.Warn(fmt.Sprintf("retry: %d, error: %v", i, err))
 		sleepTime *= 1 << i
-		time.Sleep(time.Duration(sleepTime*retryBackoffMs) * time.Second)
+		time.Sleep(time.Duration(sleepTime*retryBackoffMs) * time.Millisecond)
 	}
 
 	return err
