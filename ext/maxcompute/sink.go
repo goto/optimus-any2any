@@ -15,6 +15,8 @@ import (
 const (
 	LOAD_METHOD_APPEND  = "APPEND" // default
 	LOAD_METHOD_REPLACE = "REPLACE"
+	UPLOAD_MODE_STREAM  = "STREAM" // default
+	UPLOAD_MODE_REGULAR = "REGULAR"
 )
 
 type MaxcomputeSink struct {
@@ -31,7 +33,7 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(commonSink *common.CommonSink, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, concurrency int, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(commonSink *common.CommonSink, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, batchSizeInMB int, concurrency int, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {
@@ -70,7 +72,7 @@ func NewSink(commonSink *common.CommonSink, creds string, executionProject strin
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return newStreamRecordSender(commonSink.Logger(), session)
+		return newStreamRecordSender(commonSink.Logger(), session, batchSizeInMB)
 	}
 
 	client.BatchWriter = func(tableID string) (*mcBatchRecordSender, error) {
@@ -85,7 +87,7 @@ func NewSink(commonSink *common.CommonSink, creds string, executionProject strin
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return newBatchRecordSender(commonSink.Logger(), session, concurrency)
+		return newBatchRecordSender(commonSink.Logger(), session, batchSizeInMB, concurrency)
 	}
 
 	mc := &MaxcomputeSink{
@@ -124,12 +126,12 @@ func (mc *MaxcomputeSink) process() error {
 	var sender common.RecordSender
 	var closer io.Closer
 	var err error
-	if mc.uploadMode == "STREAM" {
+	if mc.uploadMode == UPLOAD_MODE_STREAM {
 		streamWriter, e := mc.Client.StreamWriter(mc.tableIDTransition)
 		sender = streamWriter
 		closer = streamWriter
 		err = e
-	} else if mc.uploadMode == "REGULAR" {
+	} else if mc.uploadMode == UPLOAD_MODE_REGULAR {
 		batchWriter, e := mc.Client.BatchWriter(mc.tableIDTransition)
 		sender = batchWriter
 		closer = batchWriter

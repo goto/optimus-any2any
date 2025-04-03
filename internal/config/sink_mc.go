@@ -7,6 +7,7 @@ type SinkMCConfig struct {
 	LoadMethod          string `env:"MC__LOAD_METHOD" envDefault:"APPEND"`
 	UploadMode          string `env:"MC__UPLOAD_MODE" envDefault:"STREAM"`
 	Concurrency         int    `env:"MC__CONCURRENCY" envDefault:"1"`
+	BatchSizeInMB       int    `env:"MC__BATCH_SIZE_IN_MB" envDefault:"64"`
 	ExecutionProject    string `env:"MC__EXECUTION_PROJECT"`
 	AllowSchemaMismatch bool   `env:"MC__ALLOW_SCHEMA_MISMATCH" envDefault:"false"`
 }

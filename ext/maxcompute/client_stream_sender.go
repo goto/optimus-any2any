@@ -11,22 +11,24 @@ import (
 )
 
 type mcStreamRecordSender struct {
-	l             *slog.Logger
-	session       *tunnel.StreamUploadSession
-	packWriter    *tunnel.RecordPackStreamWriter
-	recordCounter int
-	err           error
+	l                *slog.Logger
+	session          *tunnel.StreamUploadSession
+	packWriter       *tunnel.RecordPackStreamWriter
+	batchSizeInBytes int64
+	recordCounter    int
+	err              error
 }
 
 var _ common.RecordSender = (*mcStreamRecordSender)(nil)
 
-func newStreamRecordSender(l *slog.Logger, session *tunnel.StreamUploadSession) (*mcStreamRecordSender, error) {
+func newStreamRecordSender(l *slog.Logger, session *tunnel.StreamUploadSession, batchSizeInMB int) (*mcStreamRecordSender, error) {
 	s := &mcStreamRecordSender{
-		l:             l,
-		session:       session,
-		packWriter:    session.OpenRecordPackWriter(),
-		recordCounter: 0,
-		err:           nil,
+		l:                l,
+		session:          session,
+		packWriter:       session.OpenRecordPackWriter(),
+		batchSizeInBytes: int64(batchSizeInMB) * (1 << 20), // MB to bytes
+		recordCounter:    0,
+		err:              nil,
 	}
 	return s, nil
 }
@@ -44,7 +46,7 @@ func (s *mcStreamRecordSender) SendRecord(record *model.Record) error {
 		return s.errStack(err)
 	}
 	s.recordCounter++
-	if s.packWriter.DataSize() > 1<<19 { // flush every ~512KB
+	if s.packWriter.DataSize() > s.batchSizeInBytes {
 		if err := s.flush(); err != nil {
 			return s.errStack(err)
 		}
@@ -65,7 +67,6 @@ func (s *mcStreamRecordSender) errStack(err error) error {
 }
 
 func (s *mcStreamRecordSender) flush() error {
-	s.l.Info(fmt.Sprintf("write %d records", s.recordCounter))
 	traceId, recordCount, bytesSend, err := s.packWriter.Flush()
 	if err != nil {
 		return errors.WithStack(err)

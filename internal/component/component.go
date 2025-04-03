@@ -110,7 +110,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSink(commonSink, sinkCfg.Credentials, sinkCfg.ExecutionProject, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, sinkCfg.Concurrency, sinkCfg.AllowSchemaMismatch, opts...)
+		return maxcompute.NewSink(commonSink, sinkCfg.Credentials, sinkCfg.ExecutionProject, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, sinkCfg.BatchSizeInMB, sinkCfg.Concurrency, sinkCfg.AllowSchemaMismatch, opts...)
 	case FILE:
 		sinkCfg, err := config.SinkFile(envs...)
 		if err != nil {

@@ -9,17 +9,22 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
+const (
+	// ref: https://www.alibabacloud.com/help/en/maxcompute/user-guide/faq-about-tunnel-commands
+	maxBatchSizeInMB = 100   // max batch size in MB
+	minBatchSizeInMB = 64    // min batch size in MB
+	maxBlockId       = 20000 // max block id
+)
+
 type recordWriterPool struct {
 	l                *slog.Logger
 	session          *tunnel.UploadSession
-	schema           tableschema.TableSchema
 	counter          atomic.Uint32
 	batchSizeInBytes int64
 	mutexes          []sync.Mutex
@@ -32,7 +37,6 @@ func newRecordWriterPool(l *slog.Logger, session *tunnel.UploadSession, batchSiz
 	wp := &recordWriterPool{
 		l:                l,
 		session:          session,
-		schema:           session.Schema(),
 		batchSizeInBytes: batchSizeInBytes,
 		mutexes:          make([]sync.Mutex, concurrency),
 		recordWriters:    make([]*tunnel.RecordProtocWriter, concurrency),
@@ -54,7 +58,7 @@ func newRecordWriterPool(l *slog.Logger, session *tunnel.UploadSession, batchSiz
 
 func (p *recordWriterPool) send(record *model.Record) error {
 	// convert record to odps record
-	mcRecord, err := createRecord(p.l, record, p.schema)
+	mcRecord, err := createRecord(p.l, record, p.session.Schema())
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -80,19 +84,22 @@ func (p *recordWriterPool) send(record *model.Record) error {
 }
 
 func (p *recordWriterPool) newRecordWriter(i uint32) (*tunnel.RecordProtocWriter, error) {
-	p.l.Info(fmt.Sprintf("create new record writer %d", i))
-
+	// create new record writer
 	blockId := len(p.blockIds)
+	if blockId >= maxBlockId {
+		return nil, fmt.Errorf("max block id %d reached", maxBlockId)
+	}
 	rw, err := p.session.OpenRecordWriter(blockId)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	p.l.Info(fmt.Sprintf("created new record writer with blockId %d", blockId))
 
+	// update record writer pool
 	p.recordWriters[i] = rw
 	p.blockIds = append(p.blockIds, blockId)
 	p.closers = append(p.closers, rw)
 
-	p.l.Info(fmt.Sprintf("done create new record writer %d", i))
 	return rw, nil
 }
 
@@ -126,9 +133,13 @@ type mcBatchRecordSender struct {
 
 var _ common.RecordSender = (*mcBatchRecordSender)(nil)
 
-func newBatchRecordSender(l *slog.Logger, session *tunnel.UploadSession, concurrency int) (*mcBatchRecordSender, error) {
-	// ref: https://www.alibabacloud.com/help/en/maxcompute/user-guide/faq-about-tunnel-commands
-	batchSizeInBytes := int64(64 * (1 << 20)) // 64MB per block, recommendation 64MB - 100GB
+func newBatchRecordSender(l *slog.Logger, session *tunnel.UploadSession, batchSizeInMB int, concurrency int) (*mcBatchRecordSender, error) {
+	if batchSizeInMB < 64 || batchSizeInMB > 100000 { // should be in range 64MB to 100GB
+		l.Warn(fmt.Sprintf("batch size %dMB is not in range 64MB to 100GB, using default value 64MB", batchSizeInMB))
+		batchSizeInMB = 64
+	}
+	batchSizeInBytes := int64(batchSizeInMB * (1 << 20))
+
 	wp, err := newRecordWriterPool(l, session, batchSizeInBytes, concurrency)
 	if err != nil {
 		return nil, err
