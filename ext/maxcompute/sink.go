@@ -2,12 +2,10 @@ package maxcompute
 
 import (
 	"fmt"
-	"log/slog"
+	"io"
 	"strings"
 	"time"
 
-	"github.com/aliyun/aliyun-odps-go-sdk/odps"
-	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -22,16 +20,9 @@ const (
 type MaxcomputeSink struct {
 	*common.CommonSink
 
-	tableSchema tableschema.TableSchema
-	uploadMode  string
-	// for stream mode
-	sessionStream *tunnel.StreamUploadSession
-	packWriter    *tunnel.RecordPackStreamWriter
-	// for regular mode
-	sessionRegular *tunnel.UploadSession
-	recordWriter   *tunnel.RecordProtocWriter
+	Client     *Client
+	uploadMode string
 
-	client             *odps.Odps
 	loadMethod         string
 	tableIDTransition  string
 	tableIDDestination string
@@ -40,10 +31,7 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(l *slog.Logger, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
-	// create commonSink sink
-	commonSink := common.NewCommonSink(l, "mc", opts...)
-
+func NewSink(commonSink *common.CommonSink, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, concurrency int, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {
@@ -52,22 +40,17 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 	if executionProject != "" {
 		client.SetDefaultProjectName(executionProject)
 	}
-	l.Info(fmt.Sprintf("client created, execution project: %s", client.DefaultProject().Name()))
+	commonSink.Logger().Info(fmt.Sprintf("client created, execution project: %s", client.DefaultProject().Name()))
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
 	if loadMethod == LOAD_METHOD_REPLACE {
 		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
-		l.Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
-		if err := createTempTable(l, client.Odps, tableID, tableIDDestination, 1); err != nil {
+		commonSink.Logger().Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
+		if err := createTempTable(commonSink.Logger(), client.Odps, tableID, tableIDDestination, 1); err != nil {
 			return nil, errors.WithStack(err)
 		}
-		l.Info(fmt.Sprintf("temporary table created: %s", tableID))
-	}
-
-	destination, err := getTable(l, client.Odps, tableID)
-	if err != nil {
-		return nil, errors.WithStack(err)
+		commonSink.Logger().Info(fmt.Sprintf("temporary table created: %s", tableID))
 	}
 
 	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
@@ -75,14 +58,11 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 		return nil, errors.WithStack(err)
 	}
 
-	// create session based on upload mode
-	var (
-		sessionStream  *tunnel.StreamUploadSession
-		sessionRegular *tunnel.UploadSession
-		packWriter     *tunnel.RecordPackStreamWriter
-		recordWriter   *tunnel.RecordProtocWriter
-	)
-	if uploadMode == "STREAM" {
+	client.StreamWriter = func(tableID string) (*mcStreamRecordSender, error) {
+		destination, err := getTable(commonSink.Logger(), client.Odps, tableID)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 		session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
@@ -90,9 +70,14 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		sessionStream = session
-		packWriter = session.OpenRecordPackWriter()
-	} else if uploadMode == "REGULAR" {
+		return newStreamRecordSender(commonSink.Logger(), session)
+	}
+
+	client.BatchWriter = func(tableID string) (*mcBatchRecordSender, error) {
+		destination, err := getTable(commonSink.Logger(), client.Odps, tableID)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
 		session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(),
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
 			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
@@ -100,30 +85,16 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		sessionRegular = session
-		rw, err := session.OpenRecordWriter(0) // TODO: use proper block id
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		recordWriter = rw
-	} else {
-		return nil, errors.New(fmt.Sprintf("invalid upload mode: %s", uploadMode))
+		return newBatchRecordSender(commonSink.Logger(), session, concurrency)
 	}
 
 	mc := &MaxcomputeSink{
 		CommonSink:         commonSink,
-		tableSchema:        destination.Schema(),
-		client:             client.Odps,
+		Client:             client,
 		loadMethod:         loadMethod,
 		tableIDTransition:  tableID,
 		tableIDDestination: tableIDDestination,
 		uploadMode:         uploadMode,
-		// for stream mode
-		sessionStream: sessionStream,
-		packWriter:    packWriter,
-		// for regular mode
-		sessionRegular: sessionRegular,
-		recordWriter:   recordWriter,
 	}
 
 	// add clean func
@@ -145,43 +116,47 @@ func NewSink(l *slog.Logger, creds string, executionProject string, tableID stri
 }
 
 func (mc *MaxcomputeSink) process() error {
-	mc.Logger().Info(fmt.Sprintf("start writing records to table: %s", mc.tableSchema.TableName))
-	mc.Logger().Debug(fmt.Sprintf("record column: %+v", mc.tableSchema.Columns))
+	mc.Logger().Info(fmt.Sprintf("start writing records to table: %s", mc.tableIDTransition))
+	logCheckpoint := 100
 	countRecord := 0
+
+	// prepare record sender
+	var sender common.RecordSender
+	var closer io.Closer
+	var err error
+	if mc.uploadMode == "STREAM" {
+		streamWriter, e := mc.Client.StreamWriter(mc.tableIDTransition)
+		sender = streamWriter
+		closer = streamWriter
+		err = e
+	} else if mc.uploadMode == "REGULAR" {
+		batchWriter, e := mc.Client.BatchWriter(mc.tableIDTransition)
+		sender = batchWriter
+		closer = batchWriter
+		err = e
+	} else {
+		err = fmt.Errorf("not supported upload mode %s", mc.uploadMode)
+	}
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// read record and send via specific sender
 	for record, err := range mc.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		record = mc.RecordWithoutMetadata(record)
 
-		mcRecord, err := createRecord(mc.Logger(), record, mc.tableSchema)
-		if err != nil {
-			mc.Logger().Error(fmt.Sprintf("record creation error: %s", err.Error()))
+		if err := mc.Retry(func() error {
+			return sender.SendRecord(record)
+		}); err != nil {
 			return errors.WithStack(err)
 		}
-		mc.Logger().Debug(fmt.Sprintf("record: %v", mcRecord))
-
 		countRecord++
-		if mc.uploadMode == "STREAM" {
-			if err := mc.packWriter.Append(mcRecord); err != nil {
-				mc.Logger().Error(fmt.Sprintf("record write error: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-			if mc.packWriter.DataSize() > 524288 { // flush every ~512KB
-				mc.Logger().Info(fmt.Sprintf("write %d records", countRecord))
-				if err := mc.Retry(mc.flush); err != nil {
-					mc.Logger().Error(fmt.Sprintf("record flush error: %s", err.Error()))
-					return errors.WithStack(err)
-				}
-			}
-		} else if mc.uploadMode == "REGULAR" {
-			if err := mc.recordWriter.Write(mcRecord); err != nil {
-				mc.Logger().Error(fmt.Sprintf("record write error: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-			if countRecord%100 == 0 {
-				mc.Logger().Info(fmt.Sprintf("write %d records", countRecord))
-			}
+
+		if countRecord%logCheckpoint == 0 {
+			mc.Logger().Info(fmt.Sprintf("send %d records", countRecord))
 		}
 	}
 
@@ -189,42 +164,19 @@ func (mc *MaxcomputeSink) process() error {
 		mc.Logger().Info(fmt.Sprintf("write %d records", countRecord))
 	}
 
-	if mc.uploadMode == "STREAM" {
-		// flush remaining records
-		if err := mc.Retry(mc.flush); err != nil {
-			mc.Logger().Error(fmt.Sprintf("record flush error: %s", err.Error()))
-			return errors.WithStack(err)
-		}
-	} else if mc.uploadMode == "REGULAR" {
-		if err := mc.recordWriter.Close(); err != nil {
-			mc.Logger().Error(fmt.Sprintf("record writer close error: %s", err.Error()))
-			return errors.WithStack(err)
-		}
-		err := mc.Retry(func() error {
-			return mc.sessionRegular.Commit([]int{0})
-		})
-		if err != nil {
-			mc.Logger().Error(fmt.Sprintf("session commit error: %s", err.Error()))
-			return errors.WithStack(err)
-		}
+	if err := closer.Close(); err != nil {
+		return errors.WithStack(err)
 	}
 
 	if mc.loadMethod == LOAD_METHOD_REPLACE {
 		mc.Logger().Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
-		if err := insertOverwrite(mc.Logger(), mc.client, mc.tableIDDestination, mc.tableIDTransition); err != nil {
+		if err := mc.Retry(func() error {
+			return insertOverwrite(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
+		}); err != nil {
 			mc.Logger().Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 		mc.Logger().Info(fmt.Sprintf("load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
 	}
-	return nil
-}
-
-func (mc *MaxcomputeSink) flush() error {
-	traceId, recordCount, bytesSend, err := mc.packWriter.Flush()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	mc.Logger().Debug(fmt.Sprintf("flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
 	return nil
 }

@@ -102,6 +102,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
 | | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
+| | MC__CONCURRENCY | Concurrency number for REGULAR upload mode. (default: 1) |
 | | MC__ALLOW_SCHEMA_MISMATCH | Allow schema mismatch. (default: false) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | IO | - | - |
