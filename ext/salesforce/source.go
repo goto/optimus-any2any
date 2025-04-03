@@ -5,9 +5,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/goccy/go-json"
-
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/simpleforce/simpleforce"
@@ -77,13 +76,11 @@ func (sf *SalesforceSource) process() error {
 		}
 		sf.Logger().Info(fmt.Sprintf("fetched %d records", len(currentResult.Records)))
 		for _, v := range currentResult.Records {
-			record := map[string]interface{}(v)
-			raw, err := json.Marshal(record)
-			if err != nil {
-				sf.Logger().Error(fmt.Sprintf("failed to marshal record: %s", err.Error()))
+			record := model.NewRecordFromMap(map[string]interface{}(v))
+			if err := sf.SendRecord(record); err != nil {
+				sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			sf.Send(raw)
 		}
 		result = currentResult
 	}

@@ -5,8 +5,6 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/goccy/go-json"
-
 	"maps"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
@@ -22,7 +20,7 @@ import (
 type MaxcomputeSource struct {
 	flow.Source
 	component.Getter
-	common.Sender
+	common.RecordSender
 	common.RecordHelper
 
 	Client        *Client
@@ -86,7 +84,7 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 	mc := &MaxcomputeSource{
 		Source:        commonSource,
 		Getter:        commonSource,
-		Sender:        commonSource,
+		RecordSender:  commonSource,
 		RecordHelper:  commonSource,
 		Client:        client,
 		QueryTemplate: queryTemplate,
@@ -148,12 +146,10 @@ func (mc *MaxcomputeSource) Process() error {
 				}
 			}
 
-			raw, err := json.Marshal(record)
-			if err != nil {
-				mc.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			if err := mc.SendRecord(record); err != nil {
+				mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			mc.Send(raw)
 		}
 	}
 	return nil

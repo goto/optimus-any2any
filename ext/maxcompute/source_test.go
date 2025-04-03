@@ -1,7 +1,6 @@
 package maxcompute_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -137,13 +136,12 @@ func TestSourceProcess(t *testing.T) {
 		preRecordWithMetadata.Set("__METADATA__field", "value")
 		mockRecordHelper := &mocks.RecordHelper{}
 		mockRecordHelper.On("RecordWithMetadata", preRecord).Return(preRecordWithMetadata)
-		// create mockSender
+		// create mockRecordSender
 		recordToBeSend := model.NewRecord()
 		recordToBeSend.Set("name", "hello")
 		recordToBeSend.Set("__METADATA__field", "value")
-		raw, _ := json.Marshal(recordToBeSend)
-		mockSender := &mocks.Sender{}
-		mockSender.On("Send", raw)
+		mockRecordSender := &mocks.RecordSender{}
+		mockRecordSender.On("SendRecord", recordToBeSend).Return(nil)
 		// create mc client
 		client := &maxcompute.Client{
 			QueryReader: func(query string) (common.RecordReader, error) {
@@ -158,7 +156,7 @@ func TestSourceProcess(t *testing.T) {
 		mc := &maxcompute.MaxcomputeSource{
 			Client:        client,
 			Getter:        mockGetter,
-			Sender:        mockSender,
+			RecordSender:  mockRecordSender,
 			RecordHelper:  mockRecordHelper,
 			PreQuery:      "select * from table_pre",
 			QueryTemplate: template.Must(template.New("empty").Parse("select * from table")),

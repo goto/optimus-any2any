@@ -5,14 +5,22 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/goccy/go-json"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/metric"
 )
 
 // Sender is an interface that defines a method to send data to a source.
 type Sender interface {
 	Send(v []byte)
+}
+
+// RecordWriter is an interface that defines a method to write records.
+type RecordSender interface {
+	SendRecord(*model.Record) error
 }
 
 // CommonSource is a common source that implements the flow.Source interface.
@@ -23,6 +31,7 @@ type CommonSource struct {
 
 var _ flow.Source = (*CommonSource)(nil)
 var _ Sender = (*CommonSource)(nil)
+var _ RecordSender = (*CommonSource)(nil)
 
 // NewCommonSource creates a new CommonSource.
 func NewCommonSource(l *slog.Logger, name string, opts ...Option) *CommonSource {
@@ -52,4 +61,18 @@ func (c *CommonSource) Send(v []byte) {
 	sendBytes.Add(context.Background(), int64(len(v)))
 
 	c.Common.Core.In(v)
+}
+
+// SendRecord sends a record to the source.
+// It marshals the record into JSON format and then sends it using the Send method.
+func (c *CommonSource) SendRecord(record *model.Record) error {
+	if record == nil {
+		return nil
+	}
+	raw, err := json.Marshal(record)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.Send(raw)
+	return nil
 }
