@@ -17,9 +17,9 @@ import (
 
 const (
 	// ref: https://www.alibabacloud.com/help/en/maxcompute/user-guide/faq-about-tunnel-commands
-	maxBatchSizeInMB = 100   // max batch size in MB
-	minBatchSizeInMB = 64    // min batch size in MB
-	maxBlockId       = 20000 // max block id
+	maxBatchSizeInMB = 100 * (1 << 10) // max batch size in MB
+	minBatchSizeInMB = 1 << 6          // min batch size in MB
+	maxBlockId       = 20000           // max block id
 )
 
 type recordWriterPool struct {
@@ -134,7 +134,7 @@ type mcBatchRecordSender struct {
 var _ common.RecordSender = (*mcBatchRecordSender)(nil)
 
 func newBatchRecordSender(l *slog.Logger, session *tunnel.UploadSession, batchSizeInMB int, concurrency int) (*mcBatchRecordSender, error) {
-	if batchSizeInMB < 64 || batchSizeInMB > 100000 { // should be in range 64MB to 100GB
+	if batchSizeInMB < minBatchSizeInMB || batchSizeInMB > maxBatchSizeInMB { // should be in range 64MB to 100GB
 		l.Warn(fmt.Sprintf("batch size %dMB is not in range 64MB to 100GB, using default value 64MB", batchSizeInMB))
 		batchSizeInMB = 64
 	}
