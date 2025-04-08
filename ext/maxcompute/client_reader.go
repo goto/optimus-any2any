@@ -16,11 +16,12 @@ import (
 )
 
 type mcRecordReader struct {
-	l               *slog.Logger
-	client          *odps.Odps
-	tunnel          *tunnel.Tunnel
-	query           string
-	additionalHints map[string]string
+	l                      *slog.Logger
+	client                 *odps.Odps
+	tunnel                 *tunnel.Tunnel
+	query                  string
+	additionalHints        map[string]string
+	logViewRetentionInDays int
 }
 
 var _ common.RecordReader = (*mcRecordReader)(nil)
@@ -39,6 +40,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		}
 		// run query
 		r.l.Info(fmt.Sprintf("running query:\n%s", r.query))
+		r.l.Info(fmt.Sprintf("executiong the query"))
 		instance, err := r.client.ExecSQl(r.query, hints)
 		if err != nil {
 			r.l.Error(fmt.Sprintf("failed to run query: %s", r.query))
@@ -46,8 +48,18 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			return
 		}
 
+		// generate log view
+		url, err := odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
+		if err != nil {
+			r.l.Error(fmt.Sprintf("failed to generate log view"))
+			yield(nil, errors.WithStack(err))
+			return
+		}
+		r.l.Info(fmt.Sprintf("log view url: %s", url))
+
 		// wait for query to finish
 		r.l.Info(fmt.Sprintf("waiting for query to finish"))
+		r.l.Info(fmt.Sprintf("taskId: %s", instance.Id()))
 		if err := instance.WaitForSuccess(); err != nil {
 			r.l.Error(fmt.Sprintf("query failed"))
 			yield(nil, errors.WithStack(err))

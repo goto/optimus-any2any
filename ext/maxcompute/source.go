@@ -31,7 +31,7 @@ type MaxcomputeSource struct {
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string) (*MaxcomputeSource, error) {
+func NewSource(commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int) (*MaxcomputeSource, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {
@@ -72,11 +72,12 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 	// query reader
 	client.QueryReader = func(query string) (common.RecordReader, error) {
 		mcRecordReader := &mcRecordReader{
-			l:               commonSource.Logger(),
-			client:          client.Odps,
-			tunnel:          t,
-			query:           query,
-			additionalHints: hints,
+			l:                      commonSource.Logger(),
+			client:                 client.Odps,
+			tunnel:                 t,
+			query:                  query,
+			additionalHints:        hints,
+			logViewRetentionInDays: logViewRetentionInDays,
 		}
 		return mcRecordReader, nil
 	}
