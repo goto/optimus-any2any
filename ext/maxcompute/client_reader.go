@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"maps"
 	"strings"
-	"sync/atomic"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
@@ -25,7 +24,7 @@ type mcRecordReader struct {
 	l                      *slog.Logger
 	client                 *odps.Odps
 	tunnel                 *tunnel.Tunnel
-	readerId               atomic.Uint32
+	readerId               string
 	query                  string
 	additionalHints        map[string]string
 	logViewRetentionInDays int
@@ -35,7 +34,6 @@ type mcRecordReader struct {
 var _ RecordReaderCloser = (*mcRecordReader)(nil)
 
 func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
-	id := r.readerId.Add(1)
 	// prepare hints
 	hints := map[string]string{}
 	maps.Copy(hints, r.additionalHints)
@@ -48,8 +46,8 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			return
 		}
 		// run query
-		r.l.Info(fmt.Sprintf("reader id: %d, running query:\n%s", id, r.query))
-		r.l.Info(fmt.Sprintf("reader id: %d, execution the query", id))
+		r.l.Info(fmt.Sprintf("readerId(%s): running query:\n%s", r.readerId, r.query))
+		r.l.Info(fmt.Sprintf("readerId(%s): execution the query", r.readerId))
 		instance, err := r.client.ExecSQl(r.query, hints)
 		if err != nil {
 			r.l.Error(fmt.Sprintf("failed to run query: %s", r.query))
@@ -61,39 +59,39 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		// generate log view
 		url, err := odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
 		if err != nil {
-			r.l.Error(fmt.Sprintf("reader id: %d, failed to generate log view", id))
+			r.l.Error(fmt.Sprintf("readerId(%s): failed to generate log view", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
 		}
-		r.l.Info(fmt.Sprintf("reader id: %d, log view url: %s", id, url))
+		r.l.Info(fmt.Sprintf("readerId(%s): log view url: %s", r.readerId, url))
 
 		// wait for query to finish
-		r.l.Info(fmt.Sprintf("reader id: %d, waiting for query to finish", id))
-		r.l.Info(fmt.Sprintf("reader id: %d, taskId: %s", id, instance.Id()))
+		r.l.Info(fmt.Sprintf("readerId(%s): waiting for query to finish", r.readerId))
+		r.l.Info(fmt.Sprintf("readerId(%s): taskId: %s", r.readerId, instance.Id()))
 		if err := instance.WaitForSuccess(); err != nil {
-			r.l.Error(fmt.Sprintf("reader id: %d, query failed", id))
+			r.l.Error(fmt.Sprintf("readerId(%s): query failed", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
 		}
 
 		// create session for reading records
-		r.l.Info(fmt.Sprintf("reader id: %d, creating session for reading records", id))
+		r.l.Info(fmt.Sprintf("readerId(%s): creating session for reading records", r.readerId))
 		session, err := r.tunnel.CreateInstanceResultDownloadSession(r.client.DefaultProjectName(), instance.Id())
 		if err != nil {
-			r.l.Error(fmt.Sprintf("reader id: %d, failed to create session for reading records", id))
+			r.l.Error(fmt.Sprintf("readerId(%s): failed to create session for reading records", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
 		}
 
 		recordCount := session.RecordCount()
-		r.l.Info(fmt.Sprintf("reader id: %d, record count: %d", id, recordCount))
+		r.l.Info(fmt.Sprintf("readerId(%s): record count: %d", r.readerId, recordCount))
 		// read records
 		i := 0
 		step := 1000 // batch size for reading records
 		for i < recordCount {
 			reader, err := session.OpenRecordReader(i, step, 0, nil)
 			if err != nil {
-				r.l.Error(fmt.Sprintf("reader id: %d, failed to open record reader", id))
+				r.l.Error(fmt.Sprintf("readerId(%s): failed to open record reader", r.readerId))
 				yield(nil, errors.WithStack(err))
 				return
 			}
@@ -106,16 +104,16 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 					if errors.Is(err, io.EOF) {
 						break
 					}
-					r.l.Error(fmt.Sprintf("reader id: %d, failed to read record", id))
+					r.l.Error(fmt.Sprintf("readerId(%s): failed to read record", r.readerId))
 					yield(nil, errors.WithStack(err))
 					return
 				}
 
 				// process record
-				r.l.Debug(fmt.Sprintf("reader id: %d, record: %s", id, record))
+				r.l.Debug(fmt.Sprintf("readerId(%s): record: %s", r.readerId, record))
 				v, err := fromRecord(r.l, record, session.Schema())
 				if err != nil {
-					r.l.Error(fmt.Sprintf("reader id: %d, failed to process record", id))
+					r.l.Error(fmt.Sprintf("readerId(%s): failed to process record", r.readerId))
 					yield(nil, errors.WithStack(err))
 					return
 				}
@@ -125,7 +123,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 				}
 			}
 			i += count
-			r.l.Info(fmt.Sprintf("reader id: %d, send %d records", id, count))
+			r.l.Info(fmt.Sprintf("readerId(%s): send %d records", r.readerId, count))
 		}
 	}
 }

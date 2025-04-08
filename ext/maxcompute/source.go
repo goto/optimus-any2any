@@ -75,15 +75,22 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 	maps.Copy(hints, additionalHints)
 
 	// query reader
+	readerId := 0
 	client.QueryReader = func(query string) (RecordReaderCloser, error) {
+		readerIdName := fmt.Sprintf("reader-%d", readerId)
+		if readerId == 0 {
+			readerIdName = "prereader"
+		}
 		mcRecordReader := &mcRecordReader{
 			l:                      commonSource.Logger(),
 			client:                 client.Odps,
+			readerId:               readerIdName,
 			tunnel:                 t,
 			query:                  query,
 			additionalHints:        hints,
 			logViewRetentionInDays: logViewRetentionInDays,
 		}
+		readerId++
 		return mcRecordReader, nil
 	}
 
