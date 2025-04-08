@@ -31,6 +31,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 		if err := json.Unmarshal(line, &record); err != nil {
 			if !hasError {
 				l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
+				l.Error(fmt.Sprintf("record: %s", string(line)))
 				hasError = true
 			}
 			continue
