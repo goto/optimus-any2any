@@ -238,6 +238,15 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	// flush tmp file first by closing the writer
+	fh, ok := o.fileHandlers[tmpPath]
+	if !ok {
+		return errors.New(fmt.Sprintf("tmp file handler not found: %s", tmpPath))
+	}
+	if err := fh.Close(); err != nil {
+		return errors.WithStack(err)
+	}
+	// open tmp file for reading
 	f, err := os.OpenFile(tmpPath, os.O_RDONLY, 0644)
 	if err != nil {
 		return errors.WithStack(err)

@@ -211,7 +211,12 @@ func (s *SMTPSink) process() error {
 			}
 		}()
 
-		for attachment := range eh.fileHandlers {
+		for attachment, fh := range eh.fileHandlers {
+			// close file handler first
+			if err := fh.Close(); err != nil {
+				s.Logger().Error(fmt.Sprintf("close file handler error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
 			// open attachment file from tmp folder
 			attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
 			f, err := os.OpenFile(attachmentPath, os.O_RDONLY, 0644)

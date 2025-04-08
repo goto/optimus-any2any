@@ -118,6 +118,13 @@ func (fs *FileSink) Process() error {
 			fs.Logger().Info(fmt.Sprintf("written %d records to file: %s", fs.FileRecordCounters[destinationURI], destinationURI))
 		}
 	}
+	// close all file handlers
+	for _, fh := range fs.WriteHandlers {
+		if err := fh.Close(); err != nil {
+			fs.Logger().Error(fmt.Sprintf("failed to close file handler: %s", err.Error()))
+			return errors.WithStack(err)
+		}
+	}
 	fs.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
 
 	return nil
