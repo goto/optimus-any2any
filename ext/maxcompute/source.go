@@ -1,8 +1,11 @@
 package maxcompute
 
 import (
+	errs "errors"
 	"fmt"
+	"io"
 	"os"
+	"sync"
 	"text/template"
 
 	"maps"
@@ -26,6 +29,8 @@ type MaxcomputeSource struct {
 	Client        *Client
 	PreQuery      string
 	QueryTemplate *template.Template
+
+	closers []io.Closer
 }
 
 var _ flow.Source = (*MaxcomputeSource)(nil)
@@ -70,7 +75,7 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 	maps.Copy(hints, additionalHints)
 
 	// query reader
-	client.QueryReader = func(query string) (common.RecordReader, error) {
+	client.QueryReader = func(query string) (RecordReaderCloser, error) {
 		mcRecordReader := &mcRecordReader{
 			l:                      commonSource.Logger(),
 			client:                 client.Odps,
@@ -90,12 +95,20 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 		Client:        client,
 		QueryTemplate: queryTemplate,
 		PreQuery:      string(rawPreQuery),
+		closers:       []io.Closer{},
 	}
 
 	// add clean function
 	commonSource.AddCleanFunc(func() error {
 		mc.Logger().Debug(fmt.Sprintf("cleaning up"))
-		return nil
+		var e error
+		for _, closer := range mc.closers {
+			if err := closer.Close(); err != nil {
+				mc.Logger().Error(fmt.Sprintf("failed to close closer: %s", err.Error()))
+				e = errs.Join(e, errors.WithStack(err))
+			}
+		}
+		return e
 	})
 
 	commonSource.RegisterProcess(mc.Process)
@@ -105,12 +118,19 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 
 // process is the process function for MaxcomputeSource.
 func (mc *MaxcomputeSource) Process() error {
+	var e error
+	var wg sync.WaitGroup
+	sem := make(chan uint8, 4) // concurrency control
+	errM := sync.Mutex{}
+	defer close(sem)
+
 	// create pre-record reader
 	preRecordReader, err := mc.Client.QueryReader(mc.PreQuery)
 	if err != nil {
 		mc.Logger().Error(fmt.Sprintf("failed to get pre-record reader"))
 		return errors.WithStack(err)
 	}
+	mc.closers = append(mc.closers, preRecordReader)
 
 	for preRecord, err := range preRecordReader.ReadRecord() {
 		if err != nil {
@@ -129,29 +149,46 @@ func (mc *MaxcomputeSource) Process() error {
 		}
 
 		// create record reader
-		recordReader, err := mc.Client.QueryReader(query)
+		r, err := mc.Client.QueryReader(query)
 		if err != nil {
 			mc.Logger().Error(fmt.Sprintf("failed to get record reader"))
 			return errors.WithStack(err)
 		}
+		mc.closers = append(mc.closers, r)
 
-		for record, err := range recordReader.ReadRecord() {
-			if err != nil {
-				return errors.WithStack(err)
-			}
+		sem <- 0 // acquire semaphore lock
+		wg.Add(1)
+		go func(recordReader common.RecordReader) {
+			defer func() {
+				<-sem // release semaphore lock
+				wg.Done()
+			}()
+			for record, err := range recordReader.ReadRecord() {
+				if err != nil {
+					errM.Lock()
+					e = errors.WithStack(err)
+					errM.Unlock()
+					return
+				}
 
-			// merge with pre-record
-			for k := range preRecordWithPrefix.AllFromFront() {
-				if _, ok := record.Get(k); !ok {
-					record.Set(k, preRecordWithPrefix.GetOrDefault(k, nil))
+				// merge with pre-record
+				for k := range preRecordWithPrefix.AllFromFront() {
+					if _, ok := record.Get(k); !ok {
+						record.Set(k, preRecordWithPrefix.GetOrDefault(k, nil))
+					}
+				}
+
+				if err := mc.SendRecord(record); err != nil {
+					mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
+					errM.Lock()
+					e = errors.WithStack(err)
+					errM.Unlock()
+					return
 				}
 			}
-
-			if err := mc.SendRecord(record); err != nil {
-				mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-		}
+		}(r)
 	}
-	return nil
+
+	wg.Wait() // wait for all goroutines to finish
+	return e
 }

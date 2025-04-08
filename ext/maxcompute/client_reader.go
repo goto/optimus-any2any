@@ -15,6 +15,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+type RecordReaderCloser interface {
+	common.RecordReader
+	io.Closer
+}
+
 type mcRecordReader struct {
 	l                      *slog.Logger
 	client                 *odps.Odps
@@ -22,9 +27,10 @@ type mcRecordReader struct {
 	query                  string
 	additionalHints        map[string]string
 	logViewRetentionInDays int
+	instance               *odps.Instance
 }
 
-var _ common.RecordReader = (*mcRecordReader)(nil)
+var _ RecordReaderCloser = (*mcRecordReader)(nil)
 
 func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	// prepare hints
@@ -47,6 +53,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			yield(nil, errors.WithStack(err))
 			return
 		}
+		r.instance = instance
 
 		// generate log view
 		url, err := odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
@@ -118,4 +125,22 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			r.l.Info(fmt.Sprintf("send %d records", count))
 		}
 	}
+}
+
+func (r *mcRecordReader) Close() error {
+	if r.instance == nil {
+		return nil
+	}
+	if err := r.instance.Load(); err != nil {
+		r.l.Error(fmt.Sprintf("failed to load instance %s: %s", r.instance.Id(), err.Error()))
+		return errors.WithStack(err)
+	}
+	if r.instance.Status() == odps.InstanceTerminated { // instance is terminated, no need to terminate again
+		return nil
+	}
+	if err := r.instance.Terminate(); err != nil {
+		r.l.Error(fmt.Sprintf("failed to terminate instance %s: %s", r.instance.Id(), err.Error()))
+		return errors.WithStack(err)
+	}
+	return nil
 }

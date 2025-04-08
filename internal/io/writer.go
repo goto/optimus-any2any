@@ -27,6 +27,7 @@ func (b *BufferedWriter) Close() error {
 }
 
 // NewWriteHandler creates a new write handler.
+// Close must be called after use to flush remaining data.
 func NewWriteHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {

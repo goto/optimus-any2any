@@ -9,7 +9,6 @@ import (
 
 	"github.com/GitRowin/orderedmapjson"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
-	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/mocks"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +22,7 @@ func TestSourceProcess(t *testing.T) {
 		mockGetter.On("Logger").Return(slog.Default())
 		// create mc client
 		client := &maxcompute.Client{
-			QueryReader: func(query string) (common.RecordReader, error) {
+			QueryReader: func(query string) (maxcompute.RecordReaderCloser, error) {
 				return nil, fmt.Errorf("query reader is not initialized")
 			},
 		}
@@ -44,17 +43,17 @@ func TestSourceProcess(t *testing.T) {
 		// create mockGetter
 		mockGetter := &mocks.Getter{}
 		mockGetter.On("Logger").Return(slog.Default())
-		// create mockPreRecordReader
-		mockPreRecordReader := mocks.NewRecordReader(t)
+		// create mockPreRecordReaderCloser
+		mockPreRecordReaderCloser := mocks.NewRecordReaderCloser(t)
 		var seq2 iter.Seq2[*orderedmapjson.AnyOrderedMap, error]
 		seq2 = func(yield func(*orderedmapjson.AnyOrderedMap, error) bool) {
 			yield(nil, fmt.Errorf("error read record"))
 		}
-		mockPreRecordReader.On("ReadRecord").Return(seq2)
+		mockPreRecordReaderCloser.On("ReadRecord").Return(seq2)
 		// create mc client
 		client := &maxcompute.Client{
-			QueryReader: func(query string) (common.RecordReader, error) {
-				return mockPreRecordReader, nil
+			QueryReader: func(query string) (maxcompute.RecordReaderCloser, error) {
+				return mockPreRecordReaderCloser, nil
 			},
 		}
 
@@ -74,15 +73,15 @@ func TestSourceProcess(t *testing.T) {
 		// create mockGetter
 		mockGetter := &mocks.Getter{}
 		mockGetter.On("Logger").Return(slog.Default())
-		// create mockRecordReader
+		// create mockRecordReaderCloser
 		preRecord := model.NewRecord()
 		preRecord.Set("field", "\x07") // \a character
-		mockPreRecordReader := mocks.NewRecordReader(t)
+		mockPreRecordReaderCloser := mocks.NewRecordReaderCloser(t)
 		var seq2 iter.Seq2[*orderedmapjson.AnyOrderedMap, error]
 		seq2 = func(yield func(*orderedmapjson.AnyOrderedMap, error) bool) {
 			yield(preRecord, nil)
 		}
-		mockPreRecordReader.On("ReadRecord").Return(seq2)
+		mockPreRecordReaderCloser.On("ReadRecord").Return(seq2)
 		// create mockRecordHelper
 		preRecordWithMetadata := model.NewRecord()
 		preRecordWithMetadata.Set("__METADATA__field", "\x07") // \a character
@@ -90,8 +89,8 @@ func TestSourceProcess(t *testing.T) {
 		mockRecordHelper.On("RecordWithMetadata", preRecord).Return(preRecordWithMetadata)
 		// create mc client
 		client := &maxcompute.Client{
-			QueryReader: func(query string) (common.RecordReader, error) {
-				return mockPreRecordReader, nil
+			QueryReader: func(query string) (maxcompute.RecordReaderCloser, error) {
+				return mockPreRecordReaderCloser, nil
 			},
 		}
 
@@ -114,23 +113,23 @@ func TestSourceProcess(t *testing.T) {
 		// create mockGetter
 		mockGetter := &mocks.Getter{}
 		mockGetter.On("Logger").Return(slog.Default())
-		// create mockRecordReader
+		// create mockRecordReaderCloser
 		preRecord := model.NewRecord()
 		preRecord.Set("field", "value")
-		mockPreRecordReader := mocks.NewRecordReader(t)
+		mockPreRecordReaderCloser := mocks.NewRecordReaderCloser(t)
 		var seq2 iter.Seq2[*orderedmapjson.AnyOrderedMap, error]
 		seq2 = func(yield func(*orderedmapjson.AnyOrderedMap, error) bool) {
 			yield(preRecord, nil)
 		}
-		mockPreRecordReader.On("ReadRecord").Return(seq2)
+		mockPreRecordReaderCloser.On("ReadRecord").Return(seq2)
 		record := model.NewRecord()
 		record.Set("name", "hello")
-		mockRecordReader := mocks.NewRecordReader(t)
+		mockRecordReaderCloser := mocks.NewRecordReaderCloser(t)
 		var seq2Record iter.Seq2[*orderedmapjson.AnyOrderedMap, error]
 		seq2Record = func(yield func(*orderedmapjson.AnyOrderedMap, error) bool) {
 			yield(record, nil)
 		}
-		mockRecordReader.On("ReadRecord").Return(seq2Record)
+		mockRecordReaderCloser.On("ReadRecord").Return(seq2Record)
 		// create mockRecordHelper
 		preRecordWithMetadata := model.NewRecord()
 		preRecordWithMetadata.Set("__METADATA__field", "value")
@@ -144,11 +143,11 @@ func TestSourceProcess(t *testing.T) {
 		mockRecordSender.On("SendRecord", recordToBeSend).Return(nil)
 		// create mc client
 		client := &maxcompute.Client{
-			QueryReader: func(query string) (common.RecordReader, error) {
+			QueryReader: func(query string) (maxcompute.RecordReaderCloser, error) {
 				if query == "select * from table" {
-					return mockRecordReader, nil
+					return mockRecordReaderCloser, nil
 				}
-				return mockPreRecordReader, nil
+				return mockPreRecordReaderCloser, nil
 			},
 		}
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/goccy/go-json"
-	"github.com/goto/optimus-any2any/internal/component/common"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/pkg/errors"
@@ -13,7 +12,7 @@ import (
 // Client maxcompute for reading records
 type Client struct {
 	*odps.Odps
-	QueryReader  func(query string) (common.RecordReader, error)
+	QueryReader  func(query string) (RecordReaderCloser, error)
 	StreamWriter func(tableID string) (*mcStreamRecordSender, error)
 	BatchWriter  func(tableID string) (*mcBatchRecordSender, error)
 }
@@ -49,7 +48,7 @@ func NewClient(rawCreds string) (*Client, error) {
 
 	client := &Client{
 		Odps: cfg.GenOdps(),
-		QueryReader: func(query string) (common.RecordReader, error) {
+		QueryReader: func(query string) (RecordReaderCloser, error) {
 			return nil, fmt.Errorf("query reader needs to be initialized")
 		},
 		StreamWriter: func(tableID string) (*mcStreamRecordSender, error) {
