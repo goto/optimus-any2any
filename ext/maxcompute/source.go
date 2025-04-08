@@ -149,16 +149,16 @@ func (mc *MaxcomputeSource) Process() error {
 		}
 
 		// create record reader
-		r, err := mc.Client.QueryReader(query)
+		recordReader, err := mc.Client.QueryReader(query)
 		if err != nil {
 			mc.Logger().Error(fmt.Sprintf("failed to get record reader"))
 			return errors.WithStack(err)
 		}
-		mc.closers = append(mc.closers, r)
+		mc.closers = append(mc.closers, recordReader)
 
 		sem <- 0 // acquire semaphore lock
 		wg.Add(1)
-		go func(recordReader common.RecordReader) {
+		go func(recordReader common.RecordReader, preRecordWithPrefix *model.Record) {
 			defer func() {
 				<-sem // release semaphore lock
 				wg.Done()
@@ -186,7 +186,7 @@ func (mc *MaxcomputeSource) Process() error {
 					return
 				}
 			}
-		}(r)
+		}(recordReader, preRecordWithPrefix)
 	}
 
 	wg.Wait() // wait for all goroutines to finish
