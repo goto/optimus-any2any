@@ -5,16 +5,18 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"sync"
+	"os"
 
-	"github.com/djherbis/buffer"
-	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/helper"
-	"github.com/goto/optimus-any2any/internal/model"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
+)
+
+const (
+	tmpFile = "/tmp/pg_sink.tmp.json"
 )
 
 type PGSink struct {
@@ -24,9 +26,9 @@ type PGSink struct {
 	conn               *pgx.Conn
 	destinationTableID string
 
-	batchSize         int             // internal use
-	records           []*model.Record // internal use
-	fileRecordCounter int             // internal use
+	batchSize         int            // internal use
+	writerTmpHandler  io.WriteCloser // internal use
+	fileRecordCounter int            // internal use
 }
 
 var _ flow.Sink = (*PGSink)(nil)
@@ -51,7 +53,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 		conn:               conn,
 		destinationTableID: destinationTableID,
 		batchSize:          512,
-		records:            make([]*model.Record, 0, batchSize),
+		writerTmpHandler:   nil,
 		fileRecordCounter:  0,
 	}
 
@@ -74,15 +76,22 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (p *PGSink) process() error {
-	for record, err := range p.ReadRecord() {
+	for v := range p.Read() {
+		if p.writerTmpHandler == nil {
+			// create tmp file handler
+			f, err := xio.NewWriteHandler(p.Logger(), tmpFile)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			p.writerTmpHandler = f
+		}
+		_, err := p.writerTmpHandler.Write(append(v, '\n'))
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		p.records = append(p.records, record)
 		p.fileRecordCounter++
-
-		if len(p.records) < p.batchSize {
+		if p.fileRecordCounter < p.batchSize {
 			continue
 		}
 
@@ -94,7 +103,7 @@ func (p *PGSink) process() error {
 	}
 
 	// flush remaining records
-	if len(p.records) > 0 {
+	if p.fileRecordCounter > 0 {
 		if err := p.Retry(p.flush); err != nil {
 			p.Logger().Error(fmt.Sprintf("failed to flush remaining records"))
 			return errors.WithStack(err)
@@ -105,46 +114,39 @@ func (p *PGSink) process() error {
 
 // flush writes records buffer to file
 func (p *PGSink) flush() error {
-	var wg sync.WaitGroup
-	buf := buffer.New(32 * 1024)
-	r, w := nio.Pipe(buf)
+	// close the writer first
+	if err := p.writerTmpHandler.Close(); err != nil {
+		p.Logger().Error(fmt.Sprintf("failed to close writer"))
+		return errors.WithStack(err)
+	}
 	defer func() {
 		p.Logger().Debug(fmt.Sprintf("clear records buffer"))
-		p.records = p.records[:0]
-	}()
-
-	// converting to csv
-	errChan := make(chan error)
-	wg.Add(1)
-	go func(w io.WriteCloser, errChan chan error) {
-		defer func() {
-			p.Logger().Debug(fmt.Sprintf("close pipe writer"))
-			w.Close()
-			wg.Done()
-		}()
-		if err := helper.ToCSV(p.Logger(), w, p.records, false); err != nil {
-			errChan <- errors.WithStack(err)
+		p.writerTmpHandler = nil
+		p.fileRecordCounter = 0
+		if err := os.Remove(tmpFile); err != nil {
+			p.Logger().Error(fmt.Sprintf("failed to remove tmp file"))
 			return
 		}
-	}(w, errChan)
+	}()
+
+	// read from the tmp file
+	f, err := os.OpenFile(tmpFile, os.O_RDONLY, 0644)
+	if err != nil {
+		p.Logger().Error(fmt.Sprintf("failed to open tmp file"))
+		return errors.WithStack(err)
+	}
+
+	r := helper.FromJSONToCSV(p.Logger(), f, false) // no skip header by default
 
 	// piping the records to pg
 	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
-	p.Logger().Info(fmt.Sprintf("start writing %d records to pg", len(p.records)))
+	p.Logger().Info(fmt.Sprintf("start writing %d records to pg", p.fileRecordCounter))
 	p.Logger().Debug(fmt.Sprintf("query: %s", query))
 	t, err := p.conn.PgConn().CopyFrom(p.ctx, r, query)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	p.Logger().Info(fmt.Sprintf("done writing %d records to pg", t.RowsAffected()))
-	wg.Wait()
-
-	// check if there is an error
-	select {
-	case err := <-errChan:
-		return errors.WithStack(err)
-	default:
-	}
 
 	return nil
 }

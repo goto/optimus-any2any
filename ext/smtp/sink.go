@@ -148,16 +148,12 @@ func NewSink(ctx context.Context, l *slog.Logger,
 }
 
 func (s *SMTPSink) process() error {
-	for v := range s.Read() {
-		s.Logger().Debug(fmt.Sprintf("received message"))
-
-		var record model.Record
-		if err := json.Unmarshal(v, &record); err != nil {
-			s.Logger().Error(fmt.Sprintf("unmarshal error: %s", err.Error()))
+	for record, err := range s.ReadRecord() {
+		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		m, err := compileMetadata(s.emailMetadataTemplate, model.ToMap(&record))
+		m, err := compileMetadata(s.emailMetadataTemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
 			return errors.WithStack(err)
@@ -173,7 +169,7 @@ func (s *SMTPSink) process() error {
 			eh = s.emailHandlers[hash]
 		}
 
-		attachment, err := compiler.Compile(s.emailMetadataTemplate.attachment, model.ToMap(&record))
+		attachment, err := compiler.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
 			return errors.WithStack(err)
@@ -189,7 +185,7 @@ func (s *SMTPSink) process() error {
 			eh.fileHandlers[attachment] = fh
 		}
 
-		recordWithoutMetadata := s.RecordWithoutMetadata(&record)
+		recordWithoutMetadata := s.RecordWithoutMetadata(record)
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal error: %s", err.Error()))

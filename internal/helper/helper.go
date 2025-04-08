@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"math"
 	"strconv"
@@ -14,43 +15,24 @@ import (
 	"github.com/djherbis/nio/v3"
 	"github.com/goccy/go-json"
 
+	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
-func FromJSONToCSV(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
-	records := make([]*model.Record, 0)
-	sc := bufio.NewScanner(reader)
-	hasError := false
-	for sc.Scan() {
-		raw := sc.Bytes()
-		line := make([]byte, len(raw))
-		copy(line, raw)
-
-		var record model.Record
-		if err := json.Unmarshal(line, &record); err != nil {
-			if !hasError {
-				l.Error(fmt.Sprintf("failed to unmarshal json: %v", err))
-				hasError = true
-			}
-			continue
-		}
-
-		records = append(records, &record)
-	}
-
+func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	buf := buffer.New(32 * 1024)
 	r, w := nio.Pipe(buf)
 	go func(w io.WriteCloser) {
 		defer w.Close()
-		if err := ToCSV(l, w, records, skipHeader, delimiter...); err != nil {
+		if err := ToCSV(l, w, reader, skipHeader, delimiter...); err != nil {
 			l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
 		}
 	}(w)
 	return r
 }
 
-func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter ...rune) io.ReadCloser {
+func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	csvReader := csv.NewReader(reader)
 	if len(delimiter) > 0 {
 		csvReader.Comma = delimiter[0]
@@ -103,14 +85,42 @@ func FromCSVToJSON(l *slog.Logger, reader io.Reader, skipHeader bool, delimiter 
 	return r
 }
 
-// ToCSV converts the records to CSV.
-func ToCSV(l *slog.Logger, w io.Writer, records []*model.Record, skipHeader bool, delimiter ...rune) error {
-	if len(records) == 0 {
-		return nil
+type recordReadSeeker struct {
+	r io.ReadSeeker
+}
+
+var _ common.RecordReader = (*recordReadSeeker)(nil)
+
+func (r *recordReadSeeker) ReadRecord() iter.Seq2[*model.Record, error] {
+	return func(yield func(*model.Record, error) bool) {
+		sc := bufio.NewScanner(r.r)
+		for sc.Scan() {
+			raw := sc.Bytes()
+			line := make([]byte, len(raw))
+			copy(line, raw)
+
+			var record model.Record
+			if err := json.Unmarshal(line, &record); err != nil {
+				yield(nil, errors.WithStack(err))
+				break
+			}
+
+			if !yield(&record, nil) {
+				break
+			}
+		}
 	}
+}
+
+// ToCSV converts the records to CSV.
+func ToCSV(l *slog.Logger, w io.Writer, r io.ReadSeeker, skipHeader bool, delimiter ...rune) error {
+	reader := &recordReadSeeker{r: r}
 	// get the header
 	headerMap := model.NewRecord()
-	for _, record := range records {
+	for record, err := range reader.ReadRecord() {
+		if err != nil {
+			return errors.WithStack(err)
+		}
 		for k := range record.AllFromFront() {
 			headerMap.Set(k, true)
 		}
@@ -133,8 +143,16 @@ func ToCSV(l *slog.Logger, w io.Writer, records []*model.Record, skipHeader bool
 		}
 	}
 
+	// reset the reader
+	_, err := reader.r.Seek(0, io.SeekStart)
+	if err != nil {
+		return errors.WithStack(err)
+	}
 	// convert the records to string
-	for _, record := range records {
+	for record, err := range reader.ReadRecord() {
+		if err != nil {
+			return errors.WithStack(err)
+		}
 		mapString, err := convertRecordToMapString(record)
 		if err != nil {
 			return errors.WithStack(err)
