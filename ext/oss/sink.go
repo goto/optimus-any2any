@@ -125,14 +125,6 @@ func (o *OSSSink) process() error {
 		}
 
 		if o.batchSize > 0 {
-			// flush previous batch
-			if recordCounter%o.batchSize == 0 && recordCounter > 0 {
-				prevDestinationURI := getDestinationURIByBatch(destinationURI, recordCounter-1, o.batchSize)
-				if err := o.flush(prevDestinationURI, o.ossHandlers[prevDestinationURI]); err != nil {
-					o.Logger().Error(fmt.Sprintf("failed to flush records: %s", err.Error()))
-					return errors.WithStack(err)
-				}
-			}
 			// use uri with batch size for its suffix if batch size is set
 			destinationURI = getDestinationURIByBatch(destinationURI, recordCounter, o.batchSize)
 		}
@@ -208,9 +200,11 @@ func (o *OSSSink) process() error {
 	}
 
 	// flush remaining records
-	if err := o.flush(destinationURI, o.ossHandlers[destinationURI]); err != nil {
-		o.Logger().Error(fmt.Sprintf("failed to flush records: %s", err.Error()))
-		return errors.WithStack(err)
+	for destinationURI, oh := range o.ossHandlers {
+		if err := o.flush(destinationURI, oh); err != nil {
+			o.Logger().Error(fmt.Sprintf("failed to flush records: %s", err.Error()))
+			return errors.WithStack(err)
+		}
 	}
 
 	o.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
