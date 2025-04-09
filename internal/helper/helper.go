@@ -37,6 +37,10 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 	if err := ToCSV(l, f, reader, skipHeader, delimiter...); err != nil {
 		l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
 	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		l.Error(fmt.Sprintf("failed to reset seek: %v", err))
+		return reader
+	}
 	return f
 }
 
