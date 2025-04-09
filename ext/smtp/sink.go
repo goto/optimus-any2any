@@ -200,12 +200,7 @@ func (s *SMTPSink) process() error {
 
 	// send email
 	for _, eh := range s.emailHandlers {
-		attachmentReaders := map[string]io.ReadCloser{}
-		defer func() {
-			for _, r := range attachmentReaders {
-				r.Close()
-			}
-		}()
+		attachmentReaders := map[string]io.Reader{}
 
 		for attachment, fh := range eh.fileHandlers {
 			// close file handler first
@@ -222,7 +217,7 @@ func (s *SMTPSink) process() error {
 			}
 
 			// convert attachment file to desired format if necessary
-			var tmpReader io.ReadCloser
+			var tmpReader io.Reader
 			switch filepath.Ext(attachment) {
 			case ".json":
 				tmpReader = f

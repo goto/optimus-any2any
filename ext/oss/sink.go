@@ -248,7 +248,7 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	defer f.Close()
 
 	// convert to appropriate format if necessary
-	var tmpReader io.ReadCloser
+	var tmpReader io.Reader
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		tmpReader = f

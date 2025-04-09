@@ -9,30 +9,38 @@ import (
 	"iter"
 	"log/slog"
 	"math"
+	"os"
 	"strconv"
 
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goccy/go-json"
+	"github.com/google/uuid"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
-func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.ReadCloser {
-	buf := buffer.New(32 * 1024)
-	r, w := nio.Pipe(buf)
-	go func(w io.WriteCloser) {
-		defer w.Close()
-		if err := ToCSV(l, w, reader, skipHeader, delimiter...); err != nil {
-			l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
-		}
-	}(w)
-	return r
+func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.Reader {
+	id, err := uuid.NewV7()
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to generate uuid: %v, skip converting", err))
+		return reader
+	}
+	f, err := os.OpenFile(fmt.Sprintf("/tmp/%s.csv", id), os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to open file: %v, skip converting", err))
+		return reader
+	}
+	l.Info(fmt.Sprintf("converting json to csv to tmp file: %s", f.Name()))
+	if err := ToCSV(l, f, reader, skipHeader, delimiter...); err != nil {
+		l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
+	}
+	return f
 }
 
-func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.ReadCloser {
+func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.Reader {
 	csvReader := csv.NewReader(reader)
 	if len(delimiter) > 0 {
 		csvReader.Comma = delimiter[0]
