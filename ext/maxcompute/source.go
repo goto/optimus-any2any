@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync"
 	"text/template"
 
 	"maps"
@@ -26,11 +25,13 @@ type MaxcomputeSource struct {
 	component.Getter
 	common.RecordSender
 	common.RecordHelper
+	common.ConcurrentLimiter
 
 	Client        *Client
 	PreQuery      string
 	QueryTemplate *template.Template
 
+	ctx      context.Context
 	closers  []io.Closer
 	cancelFn context.CancelFunc
 }
@@ -104,15 +105,17 @@ func NewSource(ctx context.Context, commonSource *common.CommonSource, creds str
 	}
 
 	mc := &MaxcomputeSource{
-		Source:        commonSource,
-		Getter:        commonSource,
-		RecordSender:  commonSource,
-		RecordHelper:  commonSource,
-		Client:        client,
-		QueryTemplate: queryTemplate,
-		PreQuery:      string(rawPreQuery),
-		closers:       []io.Closer{},
-		cancelFn:      cancelFn,
+		Source:            commonSource,
+		Getter:            commonSource,
+		RecordSender:      commonSource,
+		RecordHelper:      commonSource,
+		ConcurrentLimiter: commonSource,
+		Client:            client,
+		QueryTemplate:     queryTemplate,
+		PreQuery:          string(rawPreQuery),
+		closers:           []io.Closer{},
+		cancelFn:          cancelFn,
+		ctx:               ctx,
 	}
 
 	// add clean function
@@ -135,12 +138,6 @@ func NewSource(ctx context.Context, commonSource *common.CommonSource, creds str
 
 // process is the process function for MaxcomputeSource.
 func (mc *MaxcomputeSource) Process() error {
-	var e error
-	var wg sync.WaitGroup
-	sem := make(chan uint8, 4) // concurrency control
-	errM := sync.Mutex{}
-	defer close(sem)
-
 	// create pre-record reader
 	preRecordReader, err := mc.Client.QueryReader(mc.PreQuery)
 	if err != nil {
@@ -149,6 +146,8 @@ func (mc *MaxcomputeSource) Process() error {
 	}
 	mc.closers = append(mc.closers, preRecordReader)
 
+	// record reader tasks
+	recordReaderTasks := []func() error{}
 	for preRecord, err := range preRecordReader.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
@@ -173,45 +172,27 @@ func (mc *MaxcomputeSource) Process() error {
 		}
 		mc.closers = append(mc.closers, recordReader)
 
-		sem <- 0 // acquire semaphore lock
-		wg.Add(1)
-		go func(recordReader common.RecordReader, preRecordWithPrefix *model.Record) {
-			defer func() {
-				<-sem // release semaphore lock
-				wg.Done()
-			}()
+		preRecordWithPrefixCopy := preRecordWithPrefix.Copy()
+		recordReaderTasks = append(recordReaderTasks, func() error {
 			for record, err := range recordReader.ReadRecord() {
 				if err != nil {
-					if e == nil {
-						errM.Lock()
-						e = errors.WithStack(err)
-						errM.Unlock()
-					}
-					mc.cancelFn()
-					return
+					return err
 				}
 
 				// merge with pre-record
-				for k := range preRecordWithPrefix.AllFromFront() {
+				for k := range preRecordWithPrefixCopy.AllFromFront() {
 					if _, ok := record.Get(k); !ok {
-						record.Set(k, preRecordWithPrefix.GetOrDefault(k, nil))
+						record.Set(k, preRecordWithPrefixCopy.GetOrDefault(k, nil))
 					}
 				}
 
 				if err := mc.SendRecord(record); err != nil {
 					mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-					if e == nil {
-						errM.Lock()
-						e = errors.WithStack(err)
-						errM.Unlock()
-					}
-					mc.cancelFn()
-					return
+					return err
 				}
 			}
-		}(recordReader, preRecordWithPrefix.Copy())
+			return nil
+		})
 	}
-
-	wg.Wait() // wait for all goroutines to finish
-	return e
+	return mc.ConcurrentLimiter.ConcurrentTasks(mc.ctx, 4, recordReaderTasks)
 }

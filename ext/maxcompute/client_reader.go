@@ -175,14 +175,14 @@ func (r *mcRecordReader) Close() error {
 		return errors.WithStack(err)
 	}
 	if r.instance.Status() == odps.InstanceTerminated { // instance is terminated, no need to terminate again
-		r.l.Info(fmt.Sprintf("reader(%s): instance terminated", r.readerId))
+		r.l.Info(fmt.Sprintf("reader(%s): instance %s terminated", r.readerId, r.instance.Id()))
 		return nil
 	}
-	r.l.Info(fmt.Sprintf("reader(%s): trying to terminate instance", r.readerId))
+	r.l.Info(fmt.Sprintf("reader(%s): trying to terminate instance %s", r.readerId, r.instance.Id()))
 	if err := r.retryFunc(r.instance.Terminate); err != nil {
 		r.l.Error(fmt.Sprintf("failed to terminate instance %s: %s", r.instance.Id(), err.Error()))
 		return errors.WithStack(err)
 	}
-	r.l.Info(fmt.Sprintf("reader(%s): instance terminated", r.readerId))
+	r.l.Info(fmt.Sprintf("reader(%s): instance %s terminated", r.readerId, r.instance.Id()))
 	return nil
 }

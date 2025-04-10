@@ -199,12 +199,15 @@ func (o *OSSSink) process() error {
 		return nil
 	}
 
-	// flush remaining records
-	for destinationURI, oh := range o.ossHandlers {
-		if err := o.flush(destinationURI, oh); err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to flush records: %s", err.Error()))
-			return errors.WithStack(err)
-		}
+	// flush remaining records concurrently
+	funcs := []func() error{}
+	for uri := range o.ossHandlers {
+		funcs = append(funcs, func() error {
+			return o.flush(uri, o.ossHandlers[uri])
+		})
+	}
+	if err := o.ConcurrentTasks(o.ctx, 4, funcs); err != nil {
+		return errors.WithStack(err)
 	}
 
 	o.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))

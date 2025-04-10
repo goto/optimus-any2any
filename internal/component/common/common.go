@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/goto/optimus-any2any/internal/model"
@@ -29,6 +30,11 @@ type Retrier interface {
 	Retry(func() error) error
 }
 
+// ConcurrentLimiter is an interface that defines a method to limit the number of concurrent tasks.
+type ConcurrentLimiter interface {
+	ConcurrentTasks(context.Context, int, []func() error) error
+}
+
 // Common is an extension of the component.Core struct
 type Common struct {
 	Core           *component.Core
@@ -38,6 +44,7 @@ type Common struct {
 	metadataPrefix string
 }
 
+var _ ConcurrentLimiter = (*Common)(nil)
 var _ Retrier = (*Common)(nil)
 var _ RecordHelper = (*Common)(nil)
 
@@ -85,6 +92,11 @@ func (c *Common) Retry(f func() error) error {
 	return retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
 }
 
+// ConcurrentTasks runs the given functions concurrently with a limit
+func (c *Common) ConcurrentTasks(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
+	return concurrentTask(ctx, concurrencyLimit, funcs)
+}
+
 // RecordWithMetadata returns a new record without metadata prefix
 func (c *Common) RecordWithoutMetadata(record *model.Record) *model.Record {
 	recordWithoutMetadata := model.NewRecord()
@@ -125,4 +137,52 @@ func retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) e
 	}
 
 	return err
+}
+
+// concurrentTask runs N tasks concurrently with a limit, cancels on first error or context cancel.
+func concurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	sem := make(chan struct{}, concurrencyLimit)
+	errCh := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	for _, fn := range funcs {
+		select {
+		case <-ctx.Done():
+			break
+		default:
+		}
+
+		wg.Add(1)
+		go func(f func() error) {
+			defer wg.Done()
+
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+
+			// run the task
+			if err := f(); err != nil {
+				select {
+				case errCh <- err:
+					cancel() // cancel all other tasks
+				default:
+				}
+			}
+		}(fn)
+	}
+
+	wg.Wait()
+
+	select {
+	case err := <-errCh:
+		return err
+	default:
+		return nil
+	}
 }
