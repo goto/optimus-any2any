@@ -96,11 +96,6 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			return
 		}
 
-		if r.readerId == "reader-7" {
-			yield(nil, errors.New("test error"))
-			return
-		}
-
 		recordCount := session.RecordCount()
 		r.l.Info(fmt.Sprintf("reader(%s): record count: %d", r.readerId, recordCount))
 		// read records
