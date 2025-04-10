@@ -1,9 +1,7 @@
 package kafka
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"sync/atomic"
 
@@ -18,15 +16,12 @@ import (
 type KafkaSink struct {
 	*common.CommonSink
 
-	ctx    context.Context
 	client *kgo.Client
 }
 
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	bootstrapServers []string, topic string,
 	opts ...common.Option) (*KafkaSink, error) {
-	// create common
-	commonSink := common.NewCommonSink(l, "kafka", opts...)
 
 	// create kafka client
 	client, err := kgo.NewClient(kgo.SeedBrokers(bootstrapServers...), kgo.DefaultProduceTopic(topic), kgo.ProducerBatchCompression(kgo.NoCompression()))
@@ -36,7 +31,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	k := &KafkaSink{
 		CommonSink: commonSink,
-		ctx:        ctx,
 		client:     client,
 	}
 
@@ -74,7 +68,7 @@ func (k *KafkaSink) process() error {
 		// send a record
 		var e error
 		wg.Add(1)
-		k.client.Produce(k.ctx, &kgo.Record{Value: raw}, func(r *kgo.Record, err error) {
+		k.client.Produce(k.Context(), &kgo.Record{Value: raw}, func(r *kgo.Record, err error) {
 			defer wg.Done()
 			if err != nil {
 				e = err

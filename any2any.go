@@ -61,14 +61,14 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 		p = pipeline.NewNoPipeline(l, directSourceSink)
 	} else {
 		// create source
-		source, err := component.GetSource(ctx, l, component.Type(strings.ToUpper(from)), cfg, envs...)
+		source, err := component.GetSource(ctx, cancelFn, l, component.Type(strings.ToUpper(from)), cfg, envs...)
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
 		// create sinks (multiple)
 		var sinks []flow.Sink
 		for _, t := range to {
-			sink, err := component.GetSink(ctx, l, component.Type(strings.ToUpper(t)), cfg, envs...)
+			sink, err := component.GetSink(ctx, cancelFn, l, component.Type(strings.ToUpper(t)), cfg, envs...)
 			if err != nil {
 				return []error{errors.WithStack(err)}
 			}
@@ -87,10 +87,11 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 	select {
 	// run pipeline until done
 	case <-p.Run():
+		// if run is completed, it's less likely to return an error
+		// but it's better to return them anyway
 		return p.Errs()
 	// or until context is cancelled
 	case <-ctx.Done():
+		return p.Errs()
 	}
-
-	return nil
 }

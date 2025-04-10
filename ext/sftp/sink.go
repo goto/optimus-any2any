@@ -1,10 +1,8 @@
 package sftp
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"os"
 	"text/template"
@@ -22,7 +20,6 @@ import (
 // SFTPSink is a sink that writes data to a SFTP server.
 type SFTPSink struct {
 	*common.CommonSink
-	ctx context.Context
 
 	client                 *sftp.Client
 	destinationURITemplate *template.Template
@@ -32,12 +29,10 @@ type SFTPSink struct {
 var _ flow.Sink = (*SFTPSink)(nil)
 
 // NewSink creates a new SFTPSink.
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	privateKey, hostFingerprint string,
 	destinationURI string,
 	opts ...common.Option) (*SFTPSink, error) {
-	// create common
-	commonSink := common.NewCommonSink(l, "sftp", opts...)
 
 	// set up SFTP client
 	urlParsed, err := url.Parse(destinationURI)
@@ -62,7 +57,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	s := &SFTPSink{
 		CommonSink:             commonSink,
-		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: t,
 		fileHandlers:           map[string]io.WriteCloser{},

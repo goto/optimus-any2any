@@ -1,10 +1,8 @@
 package postgresql
 
 import (
-	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -21,7 +19,6 @@ const (
 
 type PGSink struct {
 	*common.CommonSink
-	ctx context.Context
 
 	conn               *pgx.Conn
 	destinationTableID string
@@ -34,22 +31,18 @@ type PGSink struct {
 var _ flow.Sink = (*PGSink)(nil)
 
 // NewSink creates a new PGSink
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	connectionDSN, preSQLScript, destinationTableID string,
 	batchSize int, opts ...common.Option) (*PGSink, error) {
 
-	// create common sink
-	commonSink := common.NewCommonSink(l, "pg", opts...)
-
 	// create pg connection
-	conn, err := pgx.Connect(ctx, connectionDSN)
+	conn, err := pgx.Connect(commonSink.Context(), connectionDSN)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	p := &PGSink{
 		CommonSink:         commonSink,
-		ctx:                ctx,
 		conn:               conn,
 		destinationTableID: destinationTableID,
 		batchSize:          512,
@@ -58,15 +51,15 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	}
 
 	// execute preSQLScript
-	l.Info(fmt.Sprintf("execute preSQLScript: %s", preSQLScript))
-	if _, err := conn.Exec(ctx, preSQLScript); err != nil {
+	p.Logger().Info(fmt.Sprintf("execute preSQLScript: %s", preSQLScript))
+	if _, err := conn.Exec(p.Context(), preSQLScript); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
 		p.Logger().Info(fmt.Sprintf("close pg connection"))
-		return p.conn.Close(ctx)
+		return p.conn.Close(p.Context())
 	})
 
 	// register sink process
@@ -142,7 +135,7 @@ func (p *PGSink) flush() error {
 	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
 	p.Logger().Info(fmt.Sprintf("start writing %d records to pg", p.fileRecordCounter))
 	p.Logger().Debug(fmt.Sprintf("query: %s", query))
-	t, err := p.conn.PgConn().CopyFrom(p.ctx, r, query)
+	t, err := p.conn.PgConn().CopyFrom(p.Context(), r, query)
 	if err != nil {
 		return errors.WithStack(err)
 	}

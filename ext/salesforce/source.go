@@ -2,7 +2,6 @@ package salesforce
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -25,11 +24,9 @@ var _ flow.Source = (*SalesforceSource)(nil)
 // sfURL, sfUser, sfPassword, sfToken are the Salesforce credentials
 // soqlFilePath is the path to the SOQL query file
 // columnMapFilePath is the path to the column map file
-func NewSource(l *slog.Logger,
+func NewSource(commonSource *common.CommonSource,
 	sfURL, sfUser, sfPassword, sfToken string,
 	soqlFilePath string, opts ...common.Option) (*SalesforceSource, error) {
-	// create commonSource
-	commonSource := common.NewCommonSource(l, "sf", opts...)
 
 	// create salesforce client
 	client, err := createClient(sfURL, sfUser, sfPassword, sfToken)

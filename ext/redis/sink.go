@@ -1,10 +1,8 @@
 package redis
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"strconv"
 	"strings"
@@ -20,7 +18,6 @@ import (
 
 type RedisSink struct {
 	*common.CommonSink
-	ctx    context.Context
 	client redis.Cmdable
 
 	recordKeyTemplate   *template.Template
@@ -31,15 +28,12 @@ type RedisSink struct {
 var _ flow.Sink = (*RedisSink)(nil)
 
 // NewSink creates a new RedisSink
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	connectionDSN string, connectionTLSCert, connectionTLSCACert, connectionTLSKey string,
 	recordKey, recordValue string, batchSize int, opts ...common.Option) (*RedisSink, error) {
 
-	// create common sink
-	commonSink := common.NewCommonSink(l, "redis", opts...)
-
 	// parse connectionDSN
-	l.Debug(fmt.Sprintf("connection DSN: %s", connectionDSN))
+	commonSink.Logger().Debug(fmt.Sprintf("connection DSN: %s", connectionDSN))
 	parsedConnection, err := url.Parse(connectionDSN)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -70,7 +64,7 @@ func NewSink(ctx context.Context, l *slog.Logger,
 	}
 
 	// create Redis client
-	client, err := NewRedisClient(ctx, addresses, username, password, dbNumber, tlsConfig)
+	client, err := NewRedisClient(commonSink.Context(), addresses, username, password, dbNumber, tlsConfig)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -86,7 +80,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	s := &RedisSink{
 		CommonSink:          commonSink,
-		ctx:                 ctx,
 		client:              client,
 		recordKeyTemplate:   recordKeyTemplate,
 		recordValueTemplate: recordValueTemplate,
@@ -146,7 +139,7 @@ func (s *RedisSink) process() error {
 
 func (s *RedisSink) flush() error {
 	s.Logger().Info(fmt.Sprintf("flushing %d records", len(s.records)/2))
-	if err := s.client.MSet(s.ctx, s.records...).Err(); err != nil {
+	if err := s.client.MSet(s.Context(), s.records...).Err(); err != nil {
 		return err
 	}
 

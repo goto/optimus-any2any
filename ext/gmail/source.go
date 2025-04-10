@@ -3,11 +3,9 @@ package gmail
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
-	"log/slog"
 	"path/filepath"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -29,16 +27,13 @@ type GmailSource struct {
 
 var _ flow.Source = (*GmailSource)(nil)
 
-func NewSource(ctx context.Context, l *slog.Logger,
+func NewSource(commonSource *common.CommonSource,
 	tokenJSON string,
 	filterRules, filenameColumn string,
 	opts ...common.Option) (*GmailSource, error) {
 
-	// create commonSource
-	commonSource := common.NewCommonSource(l, "gmail", opts...)
-
 	// create gmail service
-	srv, err := NewServiceFromToken(ctx, []byte(tokenJSON))
+	srv, err := NewServiceFromToken(commonSource.Context(), []byte(tokenJSON))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

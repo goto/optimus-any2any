@@ -1,6 +1,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -28,6 +29,7 @@ type Setter interface {
 // that a component must implement to get some internal
 // properties like logger, component type and name.
 type Getter interface {
+	Context() context.Context
 	Logger() *slog.Logger
 	Component() string
 	Name() string
@@ -44,6 +46,8 @@ type backend interface {
 type Core struct {
 	*Base
 	backend
+	ctx             context.Context
+	cancelFn        context.CancelFunc
 	backendName     string
 	size            int
 	component       string
@@ -53,13 +57,16 @@ type Core struct {
 
 var _ Registrants = (*Core)(nil)
 var _ Setter = (*Core)(nil)
+var _ Getter = (*Core)(nil)
 var _ flow.Inlet = (*Core)(nil)
 var _ flow.Outlet = (*Core)(nil)
 
 // NewCore creates a new Core instance.
-func NewCore(l *slog.Logger, component, name string) *Core {
+func NewCore(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
+		ctx:             ctx,
+		cancelFn:        cancelFn,
 		backendName:     "channel",
 		size:            0,
 		component:       component,
@@ -101,6 +108,11 @@ func (c *Core) Name() string {
 	return c.name
 }
 
+// Context returns the context of the core component.
+func (c *Core) Context() context.Context {
+	return c.ctx
+}
+
 // AddCleanFunc adds a clean function to the component.
 // Clean functions are called when the component is closed
 // whether it is closed gracefully or due to an error.
@@ -116,11 +128,31 @@ func (c *Core) RegisterProcess(f func() error) {
 		defer func() {
 			c.postHookProcess()
 		}()
-		if err := f(); err != nil {
-			c.l.Error(fmt.Sprintf("process error: %s", err.Error()))
-			c.err = errors.WithStack(err)
+
+		// wait until the context is canceled or the process is done
+		select {
+		case <-c.ctx.Done():
+			c.l.Info(fmt.Sprintf("context canceled: %s", c.ctx.Err()))
+		case <-process(f, &c.err):
+			if c.err != nil {
+				c.l.Error(fmt.Sprintf("process error: %s", c.err.Error()))
+				c.cancelFn()
+			}
 		}
 	}()
+}
+
+func process(f func() error, e *error) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		err := f()
+		if err != nil {
+			ee := errors.WithStack(err)
+			*e = ee
+		}
+	}()
+	return done
 }
 
 func (c *Core) newBackend() backend {

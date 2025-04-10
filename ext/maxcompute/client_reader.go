@@ -1,7 +1,6 @@
 package maxcompute
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"iter"
@@ -22,7 +21,6 @@ type RecordReaderCloser interface {
 }
 
 type mcRecordReader struct {
-	ctx                    context.Context
 	l                      *slog.Logger
 	client                 *odps.Odps
 	tunnel                 *tunnel.Tunnel
@@ -47,13 +45,6 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	return func(yield func(*model.Record, error) bool) {
 		if r.query == "" {
 			yield(model.NewRecord(), nil)
-			return
-		}
-
-		// early check if context canceled
-		if r.ctx.Err() != nil {
-			r.l.Error(fmt.Sprintf("reader(%s): context canceled", r.readerId))
-			yield(nil, errors.WithStack(r.ctx.Err()))
 			return
 		}
 
@@ -105,17 +96,16 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			return
 		}
 
+		if r.readerId == "reader-7" {
+			yield(nil, errors.New("test error"))
+			return
+		}
+
 		recordCount := session.RecordCount()
 		r.l.Info(fmt.Sprintf("reader(%s): record count: %d", r.readerId, recordCount))
 		// read records
 		i := 0
 		for i < recordCount {
-			// check if context canceled
-			if r.ctx.Err() != nil {
-				r.l.Error(fmt.Sprintf("reader(%s): context canceled", r.readerId))
-				yield(nil, errors.WithStack(r.ctx.Err()))
-				return
-			}
 			// read records
 			var reader *tunnel.RecordProtocReader
 			if err := r.retryFunc(func() (err error) {
@@ -130,12 +120,6 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 
 			count := 0
 			for {
-				// check if context canceled
-				if r.ctx.Err() != nil {
-					r.l.Error(fmt.Sprintf("reader(%s): context canceled", r.readerId))
-					yield(nil, errors.WithStack(r.ctx.Err()))
-					return
-				}
 				// read record
 				record, err := reader.Read()
 				if err != nil {
@@ -175,7 +159,7 @@ func (r *mcRecordReader) Close() error {
 		return errors.WithStack(err)
 	}
 	if r.instance.Status() == odps.InstanceTerminated { // instance is terminated, no need to terminate again
-		r.l.Info(fmt.Sprintf("reader(%s): instance %s terminated", r.readerId, r.instance.Id()))
+		r.l.Info(fmt.Sprintf("reader(%s): success terminating instance %s", r.readerId, r.instance.Id()))
 		return nil
 	}
 	r.l.Info(fmt.Sprintf("reader(%s): trying to terminate instance %s", r.readerId, r.instance.Id()))
@@ -183,6 +167,6 @@ func (r *mcRecordReader) Close() error {
 		r.l.Error(fmt.Sprintf("failed to terminate instance %s: %s", r.instance.Id(), err.Error()))
 		return errors.WithStack(err)
 	}
-	r.l.Info(fmt.Sprintf("reader(%s): instance %s terminated", r.readerId, r.instance.Id()))
+	r.l.Info(fmt.Sprintf("reader(%s): success terminating instance %s", r.readerId, r.instance.Id()))
 	return nil
 }

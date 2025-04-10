@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -34,8 +35,8 @@ var _ Reader = (*CommonSink)(nil)
 var _ RecordReader = (*CommonSink)(nil)
 
 // NewCommonSink creates a new CommonSink.
-func NewCommonSink(l *slog.Logger, name string, opts ...Option) *CommonSink {
-	coreSink := component.NewCoreSink(l, name)
+func NewCommonSink(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string, opts ...Option) *CommonSink {
+	coreSink := component.NewCoreSink(ctx, cancelFn, l, name)
 	c := &CommonSink{
 		CoreSink: coreSink,
 		Common:   NewCommon(coreSink.Core),

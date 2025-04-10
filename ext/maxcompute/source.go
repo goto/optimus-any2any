@@ -1,7 +1,6 @@
 package maxcompute
 
 import (
-	"context"
 	errs "errors"
 	"fmt"
 	"io"
@@ -31,15 +30,13 @@ type MaxcomputeSource struct {
 	PreQuery      string
 	QueryTemplate *template.Template
 
-	ctx      context.Context
-	closers  []io.Closer
-	cancelFn context.CancelFunc
+	closers []io.Closer
 }
 
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(ctx context.Context, commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int, batchSize int) (*MaxcomputeSource, error) {
+func NewSource(commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int, batchSize int) (*MaxcomputeSource, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {
@@ -68,17 +65,17 @@ func NewSource(ctx context.Context, commonSource *common.CommonSource, creds str
 	}
 
 	// create tunnel
-	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
-	if err != nil {
+	var t *tunnel.Tunnel
+	if err := commonSource.Retry(func() (err error) {
+		t, err = tunnel.NewTunnelFromProject(client.DefaultProject())
+		return
+	}); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// add additional hints
 	hints := make(map[string]string)
 	maps.Copy(hints, additionalHints)
-
-	// create context with cancel
-	ctx, cancelFn := context.WithCancel(ctx)
 
 	// query reader
 	readerId := 0
@@ -88,7 +85,6 @@ func NewSource(ctx context.Context, commonSource *common.CommonSource, creds str
 			readerIdName = "prereader"
 		}
 		mcRecordReader := &mcRecordReader{
-			ctx:                    ctx,
 			l:                      commonSource.Logger(),
 			client:                 client.Odps,
 			readerId:               readerIdName,
@@ -114,8 +110,6 @@ func NewSource(ctx context.Context, commonSource *common.CommonSource, creds str
 		QueryTemplate:     queryTemplate,
 		PreQuery:          string(rawPreQuery),
 		closers:           []io.Closer{},
-		cancelFn:          cancelFn,
-		ctx:               ctx,
 	}
 
 	// add clean function
@@ -194,5 +188,5 @@ func (mc *MaxcomputeSource) Process() error {
 			return nil
 		})
 	}
-	return mc.ConcurrentLimiter.ConcurrentTasks(mc.ctx, 4, recordReaderTasks)
+	return mc.ConcurrentLimiter.ConcurrentTasks(mc.Context(), 4, recordReaderTasks)
 }

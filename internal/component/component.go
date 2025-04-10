@@ -50,11 +50,11 @@ const (
 
 // GetSource returns a source based on the given type.
 // It will return an error if the source is unknown.
-func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
+func GetSource(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
 	// create commonSource
-	commonSource := common.NewCommonSource(l, strings.ToLower(string(source)), opts...)
+	commonSource := common.NewCommonSource(ctx, cancelFn, l, strings.ToLower(string(source)), opts...)
 
 	// create source based on type
 	switch source {
@@ -63,7 +63,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSource(ctx, commonSource, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints, sourceCfg.LogViewRetentionInDays, sourceCfg.BatchSize)
+		return maxcompute.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints, sourceCfg.LogViewRetentionInDays, sourceCfg.BatchSize)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
@@ -75,7 +75,7 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return salesforce.NewSource(l,
+		return salesforce.NewSource(commonSource,
 			sourceCfg.Host, sourceCfg.User, sourceCfg.Pass, sourceCfg.Token,
 			sourceCfg.SOQLFilePath, opts...)
 	case GMAIL:
@@ -83,13 +83,13 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return gmail.NewSource(ctx, l, sourceCfg.Token, sourceCfg.Filter, sourceCfg.FilenameColumn, opts...)
+		return gmail.NewSource(commonSource, sourceCfg.Token, sourceCfg.Filter, sourceCfg.FilenameColumn, opts...)
 	case OSS:
 		sourceCfg, err := config.SourceOSS(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSource(ctx, l, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.CSVDelimiter, sourceCfg.SkipHeader, opts...)
+		return oss.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.CSVDelimiter, sourceCfg.SkipHeader, opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
@@ -97,11 +97,11 @@ func GetSource(ctx context.Context, l *slog.Logger, source Type, cfg *config.Con
 
 // GetSink returns a sink based on the given type.
 // It will return an error if the sink is unknown.
-func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
+func GetSink(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
 	// create commonSink
-	commonSink := common.NewCommonSink(l, strings.ToLower(string(sink)), opts...)
+	commonSink := common.NewCommonSink(ctx, cancelFn, l, strings.ToLower(string(sink)), opts...)
 
 	// create sink based on type
 	switch sink {
@@ -118,13 +118,13 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		}
 		return file.NewSink(commonSink, sinkCfg.DestinationURI, opts...)
 	case IO:
-		return io.NewSink(l), nil
+		return io.NewSink(commonSink), nil
 	case OSS:
 		sinkCfg, err := config.SinkOSS(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSink(ctx, l, sinkCfg.Credentials,
+		return oss.NewSink(commonSink, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.BatchSize, sinkCfg.EnableOverwrite, sinkCfg.SkipHeader, opts...)
 	case SFTP:
@@ -132,7 +132,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return sftp.NewSink(ctx, l,
+		return sftp.NewSink(commonSink,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 			sinkCfg.DestinationURI, opts...)
 	case SMTP:
@@ -140,7 +140,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return smtp.NewSink(ctx, l,
+		return smtp.NewSink(commonSink,
 			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
 			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, opts...)
 	case PSQL:
@@ -148,14 +148,14 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return postgresql.NewSink(ctx, l, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript,
+		return postgresql.NewSink(commonSink, sinkCfg.ConnectionDSN, sinkCfg.PreSQLScript,
 			sinkCfg.DestinationTableID, sinkCfg.BatchSize, opts...)
 	case REDIS:
 		sinkCfg, err := config.SinkRedis(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return redis.NewSink(ctx, l,
+		return redis.NewSink(commonSink,
 			sinkCfg.ConnectionDSN, sinkCfg.ConnectionTLSCert, sinkCfg.ConnectionTLSCACert, sinkCfg.ConnectionTLSKey,
 			sinkCfg.RecordKey, sinkCfg.RecordValue, sinkCfg.BatchSize, opts...)
 	case HTTP:
@@ -163,7 +163,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return http.NewSink(ctx, l,
+		return http.NewSink(commonSink,
 			sinkCfg.Method, sinkCfg.Endpoint, sinkCfg.Headers, sinkCfg.HeadersFile,
 			sinkCfg.Body, sinkCfg.BodyFilePath, sinkCfg.BatchSize, opts...)
 	case KAFKA:
@@ -171,7 +171,7 @@ func GetSink(ctx context.Context, l *slog.Logger, sink Type, cfg *config.Config,
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return kafka.NewSink(ctx, l, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
+		return kafka.NewSink(commonSink, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }

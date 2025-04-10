@@ -1,11 +1,9 @@
 package oss
 
 import (
-	"context"
 	errs "errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -26,7 +24,6 @@ import (
 
 type OSSSink struct {
 	*common.CommonSink
-	ctx context.Context
 
 	client                 *oss.Client
 	destinationURITemplate *template.Template
@@ -41,13 +38,10 @@ type OSSSink struct {
 var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	opts ...common.Option) (*OSSSink, error) {
-
-	// create common sink
-	commonSink := common.NewCommonSink(l, "oss", opts...)
 
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -63,7 +57,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	o := &OSSSink{
 		CommonSink:             commonSink,
-		ctx:                    ctx,
 		client:                 client,
 		destinationURITemplate: tmpl,
 		fileHandlers:           make(map[string]io.WriteCloser),
@@ -162,7 +155,7 @@ func (o *OSSSink) process() error {
 					return errors.WithStack(err)
 				}
 			}
-			oh, err := oss.NewAppendFile(o.ctx, o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+			oh, err := oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to create oss file handler: %s", err.Error()))
 				return errors.WithStack(err)
@@ -206,7 +199,7 @@ func (o *OSSSink) process() error {
 			return o.flush(uri, o.ossHandlers[uri])
 		})
 	}
-	if err := o.ConcurrentTasks(o.ctx, 4, funcs); err != nil {
+	if err := o.ConcurrentTasks(o.Context(), 4, funcs); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -215,7 +208,7 @@ func (o *OSSSink) process() error {
 }
 
 func (o *OSSSink) remove(bucket, path string) error {
-	response, err := o.client.DeleteObject(o.ctx, &oss.DeleteObjectRequest{
+	response, err := o.client.DeleteObject(o.Context(), &oss.DeleteObjectRequest{
 		Bucket: oss.Ptr(bucket),
 		Key:    oss.Ptr(path),
 	})

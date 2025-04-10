@@ -2,10 +2,8 @@ package oss
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -21,7 +19,6 @@ import (
 type OSSSource struct {
 	*common.CommonSource
 
-	ctx          context.Context
 	client       *oss.Client
 	bucket       string
 	path         string
@@ -32,11 +29,8 @@ type OSSSource struct {
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
-func NewSource(ctx context.Context, l *slog.Logger, creds string,
+func NewSource(commonSource *common.CommonSource, creds string,
 	sourceURI string, csvDelimiter rune, skipHeader bool, opts ...common.Option) (*OSSSource, error) {
-	// create commonSource source
-	commonSource := common.NewCommonSource(l, "oss", opts...)
-
 	// create OSS client
 	client, err := NewOSSClient(creds)
 	if err != nil {
@@ -51,7 +45,6 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 
 	o := &OSSSource{
 		CommonSource: commonSource,
-		ctx:          ctx,
 		client:       client,
 		bucket:       parsedURL.Host,
 		path:         strings.TrimPrefix(parsedURL.Path, "/"),
@@ -73,7 +66,7 @@ func NewSource(ctx context.Context, l *slog.Logger, creds string,
 
 func (o *OSSSource) process() error {
 	// list objects
-	objectResult, err := o.client.ListObjects(o.ctx, &oss.ListObjectsRequest{
+	objectResult, err := o.client.ListObjects(o.Context(), &oss.ListObjectsRequest{
 		Bucket: oss.Ptr(o.bucket),
 		Prefix: oss.Ptr(o.path),
 	})
@@ -90,7 +83,7 @@ func (o *OSSSource) process() error {
 	for _, objectProp := range objectResult.Contents {
 		o.Logger().Info(fmt.Sprintf("processing object: %s", oss.ToString(objectProp.Key)))
 		// read object
-		ossFile, err := o.client.OpenFile(o.ctx, o.bucket, oss.ToString(objectProp.Key))
+		ossFile, err := o.client.OpenFile(o.Context(), o.bucket, oss.ToString(objectProp.Key))
 		if err != nil {
 			o.Logger().Warn(fmt.Sprintf("failed to open object: %s", oss.ToString(objectProp.Key)))
 			return errors.WithStack(err)

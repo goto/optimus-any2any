@@ -1,12 +1,10 @@
 package smtp
 
 import (
-	"context"
 	"crypto/md5"
 	errs "errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +49,6 @@ type emailHandler struct {
 
 type SMTPSink struct {
 	*common.CommonSink
-	ctx    context.Context
 	client *SMTPClient
 
 	emailMetadataTemplate emailMetadataTemplate
@@ -59,12 +56,9 @@ type SMTPSink struct {
 }
 
 // NewSink creates a new SMTPSink
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	connectionDSN string, from, to, subject, bodyFilePath, attachment string,
 	opts ...common.Option) (*SMTPSink, error) {
-
-	// create common sink
-	commonSink := common.NewCommonSink(l, "smtp", opts...)
 
 	// create SMTP client
 	client, err := NewSMTPClient(connectionDSN)
@@ -112,7 +106,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	s := &SMTPSink{
 		CommonSink:            commonSink,
-		ctx:                   ctx,
 		client:                client,
 		emailMetadataTemplate: m,
 		emailHandlers:         make(map[string]emailHandler),

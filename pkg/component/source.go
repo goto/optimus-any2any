@@ -1,6 +1,7 @@
 package component
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -15,9 +16,9 @@ type CoreSource struct {
 var _ flow.Source = (*CoreSource)(nil)
 
 // NewCoreSource creates a new CoreSource instance.
-func NewCoreSource(l *slog.Logger, name string) *CoreSource {
+func NewCoreSource(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string) *CoreSource {
 	c := &CoreSource{
-		Core: NewCore(l, "source", name),
+		Core: NewCore(ctx, cancelFn, l, "source", name),
 	}
 	// special case for source to close the channel
 	// after all processes are done

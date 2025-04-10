@@ -3,7 +3,6 @@ package io
 import (
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -17,9 +16,7 @@ type IOSink struct {
 
 var _ flow.Sink = (*IOSink)(nil)
 
-func NewSink(l *slog.Logger) *IOSink {
-	// create common
-	commonSink := common.NewCommonSink(l, "io")
+func NewSink(commonSink *common.CommonSink) *IOSink {
 	s := &IOSink{
 		CommonSink: commonSink,
 		w:          os.Stdout,

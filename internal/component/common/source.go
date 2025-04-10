@@ -34,8 +34,8 @@ var _ Sender = (*CommonSource)(nil)
 var _ RecordSender = (*CommonSource)(nil)
 
 // NewCommonSource creates a new CommonSource.
-func NewCommonSource(l *slog.Logger, name string, opts ...Option) *CommonSource {
-	coreSource := component.NewCoreSource(l, name)
+func NewCommonSource(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string, opts ...Option) *CommonSource {
+	coreSource := component.NewCoreSource(ctx, cancelFn, l, name)
 	c := &CommonSource{
 		CoreSource: coreSource,
 		Common:     NewCommon(coreSource.Core),

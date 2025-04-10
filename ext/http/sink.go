@@ -2,11 +2,9 @@ package http
 
 import (
 	"bufio"
-	"context"
 	"crypto/md5"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -38,7 +36,6 @@ type httpHandler struct {
 
 type HTTPSink struct {
 	*common.CommonSink
-	ctx    context.Context
 	client *http.Client
 
 	bodyContentTemplate  *template.Template
@@ -49,12 +46,10 @@ type HTTPSink struct {
 
 var _ flow.Sink = (*HTTPSink)(nil)
 
-func NewSink(ctx context.Context, l *slog.Logger,
+func NewSink(commonSink *common.CommonSink,
 	method, endpoint string, headers map[string]string, headerContent string,
 	body, bodyContent string,
 	batchSize int, opts ...common.Option) (*HTTPSink, error) {
-	// create common
-	commonSink := common.NewCommonSink(l, "http", opts...)
 
 	// prepare template
 	m := httpMetadataTemplate{}
@@ -76,7 +71,6 @@ func NewSink(ctx context.Context, l *slog.Logger,
 
 	s := &HTTPSink{
 		CommonSink:           commonSink,
-		ctx:                  ctx,
 		client:               http.DefaultClient,
 		bodyContentTemplate:  bodyContentTemplate,
 		httpMetadataTemplate: m,
@@ -197,7 +191,7 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 		ContentLength: int64(len([]byte(body))),
 		Body:          io.NopCloser(strings.NewReader(body)),
 	}
-	resp, err := s.client.Do(req.WithContext(s.ctx))
+	resp, err := s.client.Do(req.WithContext(s.Context()))
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -167,12 +167,22 @@ func concurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 			}
 
 			// run the task
-			if err := f(); err != nil {
-				select {
-				case errCh <- err:
-					cancel() // cancel all other tasks
-				default:
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				if err := f(); err != nil {
+					select {
+					case errCh <- err:
+						cancel() // cancel all other tasks
+					default:
+					}
 				}
+			}()
+
+			select {
+			case <-done:
+			case <-ctx.Done():
+				return
 			}
 		}(fn)
 	}

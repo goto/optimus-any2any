@@ -1,6 +1,7 @@
 package component
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -14,9 +15,9 @@ type CoreSink struct {
 
 var _ flow.Sink = (*CoreSink)(nil)
 
-func NewCoreSink(l *slog.Logger, name string) *CoreSink {
+func NewCoreSink(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string) *CoreSink {
 	c := &CoreSink{
-		Core: NewCore(l, "sink", name),
+		Core: NewCore(ctx, cancelFn, l, "sink", name),
 		done: make(chan uint8),
 	}
 	// special case for sink to drain the channel after process is done

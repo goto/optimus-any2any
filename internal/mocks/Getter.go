@@ -3,6 +3,7 @@
 package mocks
 
 import (
+	context "context"
 	slog "log/slog"
 
 	mock "github.com/stretchr/testify/mock"
@@ -26,6 +27,26 @@ func (_m *Getter) Component() string {
 		r0 = rf()
 	} else {
 		r0 = ret.Get(0).(string)
+	}
+
+	return r0
+}
+
+// Context provides a mock function with no fields
+func (_m *Getter) Context() context.Context {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Context")
+	}
+
+	var r0 context.Context
+	if rf, ok := ret.Get(0).(func() context.Context); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(context.Context)
+		}
 	}
 
 	return r0
