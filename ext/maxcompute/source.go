@@ -1,6 +1,7 @@
 package maxcompute
 
 import (
+	"context"
 	errs "errors"
 	"fmt"
 	"io"
@@ -30,13 +31,14 @@ type MaxcomputeSource struct {
 	PreQuery      string
 	QueryTemplate *template.Template
 
-	closers []io.Closer
+	closers  []io.Closer
+	cancelFn context.CancelFunc
 }
 
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int, batchSize int) (*MaxcomputeSource, error) {
+func NewSource(ctx context.Context, commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int, batchSize int) (*MaxcomputeSource, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {
@@ -74,6 +76,9 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 	hints := make(map[string]string)
 	maps.Copy(hints, additionalHints)
 
+	// create context with cancel
+	ctx, cancelFn := context.WithCancel(ctx)
+
 	// query reader
 	readerId := 0
 	client.QueryReader = func(query string) (RecordReaderCloser, error) {
@@ -82,6 +87,7 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 			readerIdName = "prereader"
 		}
 		mcRecordReader := &mcRecordReader{
+			ctx:                    ctx,
 			l:                      commonSource.Logger(),
 			client:                 client.Odps,
 			readerId:               readerIdName,
@@ -106,6 +112,7 @@ func NewSource(commonSource *common.CommonSource, creds string, queryFilePath st
 		QueryTemplate: queryTemplate,
 		PreQuery:      string(rawPreQuery),
 		closers:       []io.Closer{},
+		cancelFn:      cancelFn,
 	}
 
 	// add clean function
@@ -175,9 +182,12 @@ func (mc *MaxcomputeSource) Process() error {
 			}()
 			for record, err := range recordReader.ReadRecord() {
 				if err != nil {
-					errM.Lock()
-					e = errors.WithStack(err)
-					errM.Unlock()
+					if e == nil {
+						errM.Lock()
+						e = errors.WithStack(err)
+						errM.Unlock()
+					}
+					mc.cancelFn()
 					return
 				}
 
@@ -190,9 +200,12 @@ func (mc *MaxcomputeSource) Process() error {
 
 				if err := mc.SendRecord(record); err != nil {
 					mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-					errM.Lock()
-					e = errors.WithStack(err)
-					errM.Unlock()
+					if e == nil {
+						errM.Lock()
+						e = errors.WithStack(err)
+						errM.Unlock()
+					}
+					mc.cancelFn()
 					return
 				}
 			}

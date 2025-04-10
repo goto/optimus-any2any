@@ -1,6 +1,7 @@
 package maxcompute
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"iter"
@@ -21,6 +22,7 @@ type RecordReaderCloser interface {
 }
 
 type mcRecordReader struct {
+	ctx                    context.Context
 	l                      *slog.Logger
 	client                 *odps.Odps
 	tunnel                 *tunnel.Tunnel
@@ -47,6 +49,14 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			yield(model.NewRecord(), nil)
 			return
 		}
+
+		// early check if context canceled
+		if r.ctx.Err() != nil {
+			r.l.Error(fmt.Sprintf("reader(%s): context canceled", r.readerId))
+			yield(nil, errors.WithStack(r.ctx.Err()))
+			return
+		}
+
 		// run query
 		r.l.Info(fmt.Sprintf("reader(%s): running query:\n%s", r.readerId, r.query))
 		r.l.Info(fmt.Sprintf("reader(%s): executing the query", r.readerId))
@@ -59,7 +69,15 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		r.instance = instance
 
 		// generate log view
-		url, err := odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
+		var url string
+		err = r.retryFunc(func() error {
+			u, err := odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			url = u
+			return nil
+		})
 		if err != nil {
 			r.l.Error(fmt.Sprintf("reader(%s): failed to generate log view", r.readerId))
 			yield(nil, errors.WithStack(err))
@@ -69,12 +87,13 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 
 		// wait for query to finish
 		r.l.Info(fmt.Sprintf("reader(%s): waiting for query to finish", r.readerId))
-		r.l.Info(fmt.Sprintf("reader(%s): taskId: %s", r.readerId, instance.Id()))
+		r.l.Info(fmt.Sprintf("reader(%s): instanceId: %s", r.readerId, instance.Id()))
 		if err := r.retryFunc(instance.WaitForSuccess); err != nil {
 			r.l.Error(fmt.Sprintf("reader(%s): query failed", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
 		}
+		r.l.Info(fmt.Sprintf("reader(%s): query finished", r.readerId))
 
 		// create session for reading records
 		r.l.Info(fmt.Sprintf("reader(%s): creating session for reading records", r.readerId))
@@ -90,6 +109,13 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		// read records
 		i := 0
 		for i < recordCount {
+			// check if context canceled
+			if r.ctx.Err() != nil {
+				r.l.Error(fmt.Sprintf("reader(%s): context canceled", r.readerId))
+				yield(nil, errors.WithStack(r.ctx.Err()))
+				return
+			}
+			// read records
 			reader, err := session.OpenRecordReader(i, r.batchSize, 0, nil)
 			if err != nil {
 				r.l.Error(fmt.Sprintf("reader(%s): failed to open record reader", r.readerId))
@@ -100,6 +126,13 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 
 			count := 0
 			for {
+				// check if context canceled
+				if r.ctx.Err() != nil {
+					r.l.Error(fmt.Sprintf("reader(%s): context canceled", r.readerId))
+					yield(nil, errors.WithStack(r.ctx.Err()))
+					return
+				}
+				// read record
 				record, err := reader.Read()
 				if err != nil {
 					if errors.Is(err, io.EOF) {
@@ -140,9 +173,11 @@ func (r *mcRecordReader) Close() error {
 	if r.instance.Status() == odps.InstanceTerminated { // instance is terminated, no need to terminate again
 		return nil
 	}
+	r.l.Info(fmt.Sprintf("reader(%s): trying to terminate instance", r.readerId))
 	if err := r.instance.Terminate(); err != nil {
 		r.l.Error(fmt.Sprintf("failed to terminate instance %s: %s", r.instance.Id(), err.Error()))
 		return errors.WithStack(err)
 	}
+	r.l.Info(fmt.Sprintf("reader(%s): instance terminated", r.readerId))
 	return nil
 }
