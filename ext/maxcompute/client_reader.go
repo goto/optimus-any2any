@@ -60,8 +60,11 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		// run query
 		r.l.Info(fmt.Sprintf("reader(%s): running query:\n%s", r.readerId, r.query))
 		r.l.Info(fmt.Sprintf("reader(%s): executing the query", r.readerId))
-		instance, err := r.client.ExecSQl(r.query, hints)
-		if err != nil {
+		var instance *odps.Instance
+		if err := r.retryFunc(func() (err error) {
+			instance, err = r.client.ExecSQl(r.query, hints)
+			return
+		}); err != nil {
 			r.l.Error(fmt.Sprintf("failed to run query: %s", r.query))
 			yield(nil, errors.WithStack(err))
 			return
@@ -70,15 +73,10 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 
 		// generate log view
 		var url string
-		err = r.retryFunc(func() error {
-			u, err := odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			url = u
-			return nil
-		})
-		if err != nil {
+		if err := r.retryFunc(func() (err error) {
+			url, err = odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
+			return
+		}); err != nil {
 			r.l.Error(fmt.Sprintf("reader(%s): failed to generate log view", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
@@ -97,8 +95,11 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 
 		// create session for reading records
 		r.l.Info(fmt.Sprintf("reader(%s): creating session for reading records", r.readerId))
-		session, err := r.tunnel.CreateInstanceResultDownloadSession(r.client.DefaultProjectName(), instance.Id())
-		if err != nil {
+		var session *tunnel.InstanceResultDownloadSession
+		if err := r.retryFunc(func() (err error) {
+			session, err = r.tunnel.CreateInstanceResultDownloadSession(r.client.DefaultProjectName(), instance.Id())
+			return
+		}); err != nil {
 			r.l.Error(fmt.Sprintf("reader(%s): failed to create session for reading records", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
@@ -116,8 +117,11 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 				return
 			}
 			// read records
-			reader, err := session.OpenRecordReader(i, r.batchSize, 0, nil)
-			if err != nil {
+			var reader *tunnel.RecordProtocReader
+			if err := r.retryFunc(func() (err error) {
+				reader, err = session.OpenRecordReader(i, r.batchSize, 0, nil)
+				return
+			}); err != nil {
 				r.l.Error(fmt.Sprintf("reader(%s): failed to open record reader", r.readerId))
 				yield(nil, errors.WithStack(err))
 				return
@@ -166,15 +170,16 @@ func (r *mcRecordReader) Close() error {
 	if r.instance == nil {
 		return nil
 	}
-	if err := r.instance.Load(); err != nil {
+	if err := r.retryFunc(r.instance.Load); err != nil {
 		r.l.Error(fmt.Sprintf("failed to load instance %s: %s", r.instance.Id(), err.Error()))
 		return errors.WithStack(err)
 	}
 	if r.instance.Status() == odps.InstanceTerminated { // instance is terminated, no need to terminate again
+		r.l.Info(fmt.Sprintf("reader(%s): instance terminated", r.readerId))
 		return nil
 	}
 	r.l.Info(fmt.Sprintf("reader(%s): trying to terminate instance", r.readerId))
-	if err := r.instance.Terminate(); err != nil {
+	if err := r.retryFunc(r.instance.Terminate); err != nil {
 		r.l.Error(fmt.Sprintf("failed to terminate instance %s: %s", r.instance.Id(), err.Error()))
 		return errors.WithStack(err)
 	}
