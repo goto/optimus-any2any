@@ -8,6 +8,7 @@ type SourceMCConfig struct {
 	ExecutionProject       string            `env:"MC__EXECUTION_PROJECT"`
 	AdditionalHints        map[string]string `env:"MC__ADDITIONAL_HINTS" envKeyValSeparator:"=" envSeparator:","`
 	LogViewRetentionInDays int               `env:"MC__LOG_VIEW_RETENTION_IN_DAYS" envDefault:"2"`
+	BatchSize              int               `env:"MC__BATCH_SIZE" envDefault:"1000"`
 }
 
 // SourceMC parses the environment variables and returns the source maxcompute configuration.

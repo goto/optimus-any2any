@@ -29,6 +29,8 @@ type mcRecordReader struct {
 	additionalHints        map[string]string
 	logViewRetentionInDays int
 	instance               *odps.Instance
+	retryFunc              func(f func() error) error
+	batchSize              int
 }
 
 var _ RecordReaderCloser = (*mcRecordReader)(nil)
@@ -47,7 +49,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		}
 		// run query
 		r.l.Info(fmt.Sprintf("reader(%s): running query:\n%s", r.readerId, r.query))
-		r.l.Info(fmt.Sprintf("reader(%s): execution the query", r.readerId))
+		r.l.Info(fmt.Sprintf("reader(%s): executing the query", r.readerId))
 		instance, err := r.client.ExecSQl(r.query, hints)
 		if err != nil {
 			r.l.Error(fmt.Sprintf("failed to run query: %s", r.query))
@@ -68,7 +70,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		// wait for query to finish
 		r.l.Info(fmt.Sprintf("reader(%s): waiting for query to finish", r.readerId))
 		r.l.Info(fmt.Sprintf("reader(%s): taskId: %s", r.readerId, instance.Id()))
-		if err := instance.WaitForSuccess(); err != nil { // retryable
+		if err := r.retryFunc(instance.WaitForSuccess); err != nil {
 			r.l.Error(fmt.Sprintf("reader(%s): query failed", r.readerId))
 			yield(nil, errors.WithStack(err))
 			return
@@ -87,9 +89,8 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		r.l.Info(fmt.Sprintf("reader(%s): record count: %d", r.readerId, recordCount))
 		// read records
 		i := 0
-		step := 1000 // batch size for reading records
 		for i < recordCount {
-			reader, err := session.OpenRecordReader(i, step, 0, nil)
+			reader, err := session.OpenRecordReader(i, r.batchSize, 0, nil)
 			if err != nil {
 				r.l.Error(fmt.Sprintf("reader(%s): failed to open record reader", r.readerId))
 				yield(nil, errors.WithStack(err))
