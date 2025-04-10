@@ -193,7 +193,7 @@ func (mc *MaxcomputeSource) Process() error {
 					return
 				}
 			}
-		}(recordReader, preRecordWithPrefix)
+		}(recordReader, preRecordWithPrefix.Copy())
 	}
 
 	wg.Wait() // wait for all goroutines to finish
