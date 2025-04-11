@@ -72,7 +72,12 @@ func NewSink(commonSink *common.CommonSink, creds string, executionProject strin
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return newStreamRecordSender(commonSink.Logger(), session, batchSizeInMB)
+		recordSender, err := newStreamRecordSender(commonSink.Logger(), session, batchSizeInMB)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		recordSender.retryFunc = commonSink.Retry
+		return recordSender, nil
 	}
 
 	client.BatchWriter = func(tableID string) (*mcBatchRecordSender, error) {

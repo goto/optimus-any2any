@@ -17,6 +17,7 @@ type mcStreamRecordSender struct {
 	batchSizeInBytes int64
 	recordCounter    int
 	err              error
+	retryFunc        func(func() error) error
 }
 
 var _ common.RecordSender = (*mcStreamRecordSender)(nil)
@@ -29,6 +30,9 @@ func newStreamRecordSender(l *slog.Logger, session *tunnel.StreamUploadSession, 
 		batchSizeInBytes: int64(batchSizeInMB) * (1 << 20), // MB to bytes
 		recordCounter:    0,
 		err:              nil,
+		retryFunc: func(f func() error) error {
+			return f()
+		},
 	}
 	return s, nil
 }
@@ -67,10 +71,14 @@ func (s *mcStreamRecordSender) errStack(err error) error {
 }
 
 func (s *mcStreamRecordSender) flush() error {
-	traceId, recordCount, bytesSend, err := s.packWriter.Flush()
-	if err != nil {
+	// retryable flush
+	if err := s.retryFunc(func() error {
+		traceId, recordCount, bytesSend, err := s.packWriter.Flush()
+		s.l.Debug(fmt.Sprintf("flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
+		return err
+	}); err != nil {
 		return errors.WithStack(err)
 	}
-	s.l.Debug(fmt.Sprintf("flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
-	return err
+
+	return nil
 }
