@@ -10,16 +10,16 @@ import (
 )
 
 type IOSink struct {
-	*common.CommonSink
+	common.Sink
 	w io.Writer
 }
 
 var _ flow.Sink = (*IOSink)(nil)
 
-func NewSink(commonSink *common.CommonSink) *IOSink {
+func NewSink(commonSink common.Sink) *IOSink {
 	s := &IOSink{
-		CommonSink: commonSink,
-		w:          os.Stdout,
+		Sink: commonSink,
+		w:    os.Stdout,
 	}
 
 	// add clean func

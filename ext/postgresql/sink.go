@@ -18,7 +18,7 @@ const (
 )
 
 type PGSink struct {
-	*common.CommonSink
+	common.Sink
 
 	conn               *pgx.Conn
 	destinationTableID string
@@ -31,7 +31,7 @@ type PGSink struct {
 var _ flow.Sink = (*PGSink)(nil)
 
 // NewSink creates a new PGSink
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	connectionDSN, preSQLScript, destinationTableID string,
 	batchSize int, opts ...common.Option) (*PGSink, error) {
 
@@ -42,7 +42,7 @@ func NewSink(commonSink *common.CommonSink,
 	}
 
 	p := &PGSink{
-		CommonSink:         commonSink,
+		Sink:               commonSink,
 		conn:               conn,
 		destinationTableID: destinationTableID,
 		batchSize:          512,

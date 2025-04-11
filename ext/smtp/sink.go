@@ -48,7 +48,7 @@ type emailHandler struct {
 }
 
 type SMTPSink struct {
-	*common.CommonSink
+	common.Sink
 	client *SMTPClient
 
 	emailMetadataTemplate emailMetadataTemplate
@@ -56,7 +56,7 @@ type SMTPSink struct {
 }
 
 // NewSink creates a new SMTPSink
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	connectionDSN string, from, to, subject, bodyFilePath, attachment string,
 	opts ...common.Option) (*SMTPSink, error) {
 
@@ -105,7 +105,7 @@ func NewSink(commonSink *common.CommonSink,
 	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
 
 	s := &SMTPSink{
-		CommonSink:            commonSink,
+		Sink:                  commonSink,
 		client:                client,
 		emailMetadataTemplate: m,
 		emailHandlers:         make(map[string]emailHandler),

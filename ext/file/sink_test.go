@@ -32,7 +32,7 @@ func TestSinkProcess(t *testing.T) {
 
 		// when
 		fileSink := &file.FileSink{
-			RecordReader: mockRecordReader,
+			// RecordReader: mockRecordReader,
 		}
 		err := fileSink.Process()
 
@@ -53,7 +53,7 @@ func TestSinkProcess(t *testing.T) {
 		// when
 		fileSink := &file.FileSink{
 			DestinationURITemplate: template.New("empty"),
-			RecordReader:           mockRecordReader,
+			// RecordReader:           mockRecordReader,
 		}
 		err := fileSink.Process()
 
@@ -81,8 +81,8 @@ func TestSinkProcess(t *testing.T) {
 		// when
 		fileSink := &file.FileSink{
 			DestinationURITemplate: tmpl,
-			RecordReader:           mockRecordReader,
-			Getter:                 mockGetter,
+			// RecordReader:           mockRecordReader,
+			// Getter:                 mockGetter,
 		}
 		err := fileSink.Process()
 
@@ -110,8 +110,8 @@ func TestSinkProcess(t *testing.T) {
 		// when
 		fileSink := &file.FileSink{
 			DestinationURITemplate: tmpl,
-			RecordReader:           mockRecordReader,
-			Getter:                 mockGetter,
+			// RecordReader:           mockRecordReader,
+			// Getter:                 mockGetter,
 		}
 		err := fileSink.Process()
 
@@ -136,16 +136,16 @@ func TestSinkProcess(t *testing.T) {
 		// create empty template
 		tmpl := template.Must(compiler.NewTemplate("empty string", "file:///tmp/[[ .field ]].json"))
 		// create writerFactory
-		writerFactory := func(path string) (io.WriteCloser, error) {
+		_ = func(path string) (io.WriteCloser, error) {
 			return nil, fmt.Errorf("error writer factory")
 		}
 
 		// when
 		fileSink := &file.FileSink{
 			DestinationURITemplate: tmpl,
-			RecordReader:           mockRecordReader,
-			WriterFactory:          writerFactory,
-			Getter:                 mockGetter,
+			// RecordReader:           mockRecordReader,
+			// WriterFactory:          writerFactory,
+			// Getter:                 mockGetter,
 		}
 		err := fileSink.Process()
 
@@ -184,12 +184,12 @@ func TestSinkProcess(t *testing.T) {
 		// when
 		fileSink := &file.FileSink{
 			DestinationURITemplate: tmpl,
-			RecordReader:           mockRecordReader,
-			RecordHelper:           recordHelper,
-			WriterFactory:          writerFactory,
-			Getter:                 mockGetter,
-			WriteHandlers:          make(map[string]io.WriteCloser),
-			FileRecordCounters:     make(map[string]int),
+			// RecordReader:           mockRecordReader,
+			// RecordHelper:           recordHelper,
+			WriterFactory: writerFactory,
+			// Getter:                 mockGetter,
+			WriteHandlers:      make(map[string]io.WriteCloser),
+			FileRecordCounters: make(map[string]int),
 		}
 		err := fileSink.Process()
 
@@ -228,12 +228,12 @@ func TestSinkProcess(t *testing.T) {
 		// when
 		fileSink := &file.FileSink{
 			DestinationURITemplate: tmpl,
-			RecordReader:           mockRecordReader,
-			RecordHelper:           recordHelper,
-			WriterFactory:          writerFactory,
-			Getter:                 mockGetter,
-			WriteHandlers:          make(map[string]io.WriteCloser),
-			FileRecordCounters:     make(map[string]int),
+			// RecordReader:           mockRecordReader,
+			// RecordHelper:           recordHelper,
+			WriterFactory: writerFactory,
+			// Getter:                 mockGetter,
+			WriteHandlers:      make(map[string]io.WriteCloser),
+			FileRecordCounters: make(map[string]int),
 		}
 		err := fileSink.Process()
 

@@ -20,7 +20,7 @@ const (
 )
 
 type MaxcomputeSink struct {
-	*common.CommonSink
+	common.Sink
 
 	Client     *Client
 	uploadMode string
@@ -33,7 +33,7 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(commonSink *common.CommonSink, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, batchSizeInMB int, concurrency int, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(commonSink common.Sink, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, batchSizeInMB int, concurrency int, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {
@@ -96,7 +96,7 @@ func NewSink(commonSink *common.CommonSink, creds string, executionProject strin
 	}
 
 	mc := &MaxcomputeSink{
-		CommonSink:         commonSink,
+		Sink:               commonSink,
 		Client:             client,
 		loadMethod:         loadMethod,
 		tableIDTransition:  tableID,

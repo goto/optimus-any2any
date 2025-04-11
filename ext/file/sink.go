@@ -12,17 +12,13 @@ import (
 	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
-	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // FileSink is a sink that writes data to a file.
 type FileSink struct {
-	flow.Sink
-	component.Getter
-	common.RecordReader
-	common.RecordHelper
+	common.Sink
 	DestinationURITemplate *template.Template
 	WriterFactory          func(string) (io.WriteCloser, error)
 	WriteHandlers          map[string]io.WriteCloser
@@ -31,7 +27,7 @@ type FileSink struct {
 
 var _ flow.Sink = (*FileSink)(nil)
 
-func NewSink(commonSink *common.CommonSink, destinationURI string, opts ...common.Option) (*FileSink, error) {
+func NewSink(commonSink common.Sink, destinationURI string, opts ...common.Option) (*FileSink, error) {
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
@@ -40,9 +36,6 @@ func NewSink(commonSink *common.CommonSink, destinationURI string, opts ...commo
 	// create sink
 	fs := &FileSink{
 		Sink:                   commonSink,
-		Getter:                 commonSink,
-		RecordReader:           commonSink,
-		RecordHelper:           commonSink,
 		DestinationURITemplate: tmpl,
 		WriterFactory: func(s string) (io.WriteCloser, error) {
 			return xio.NewWriteHandler(commonSink.Logger(), s)

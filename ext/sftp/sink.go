@@ -19,7 +19,7 @@ import (
 
 // SFTPSink is a sink that writes data to a SFTP server.
 type SFTPSink struct {
-	*common.CommonSink
+	common.Sink
 
 	client                 *sftp.Client
 	destinationURITemplate *template.Template
@@ -29,7 +29,7 @@ type SFTPSink struct {
 var _ flow.Sink = (*SFTPSink)(nil)
 
 // NewSink creates a new SFTPSink.
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	privateKey, hostFingerprint string,
 	destinationURI string,
 	opts ...common.Option) (*SFTPSink, error) {
@@ -56,7 +56,7 @@ func NewSink(commonSink *common.CommonSink,
 	}
 
 	s := &SFTPSink{
-		CommonSink:             commonSink,
+		Sink:                   commonSink,
 		client:                 client,
 		destinationURITemplate: t,
 		fileHandlers:           map[string]io.WriteCloser{},

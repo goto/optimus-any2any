@@ -17,7 +17,7 @@ import (
 )
 
 type RedisSink struct {
-	*common.CommonSink
+	common.Sink
 	client redis.Cmdable
 
 	recordKeyTemplate   *template.Template
@@ -28,7 +28,7 @@ type RedisSink struct {
 var _ flow.Sink = (*RedisSink)(nil)
 
 // NewSink creates a new RedisSink
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	connectionDSN string, connectionTLSCert, connectionTLSCACert, connectionTLSKey string,
 	recordKey, recordValue string, batchSize int, opts ...common.Option) (*RedisSink, error) {
 
@@ -79,7 +79,7 @@ func NewSink(commonSink *common.CommonSink,
 	}
 
 	s := &RedisSink{
-		CommonSink:          commonSink,
+		Sink:                commonSink,
 		client:              client,
 		recordKeyTemplate:   recordKeyTemplate,
 		recordValueTemplate: recordValueTemplate,

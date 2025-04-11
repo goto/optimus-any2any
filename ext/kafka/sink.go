@@ -14,12 +14,12 @@ import (
 
 // KafkaSink is a sink for Kafka
 type KafkaSink struct {
-	*common.CommonSink
+	common.Sink
 
 	client *kgo.Client
 }
 
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	bootstrapServers []string, topic string,
 	opts ...common.Option) (*KafkaSink, error) {
 
@@ -30,8 +30,8 @@ func NewSink(commonSink *common.CommonSink,
 	}
 
 	k := &KafkaSink{
-		CommonSink: commonSink,
-		client:     client,
+		Sink:   commonSink,
+		client: client,
 	}
 
 	// add clean func

@@ -35,7 +35,7 @@ type httpHandler struct {
 }
 
 type HTTPSink struct {
-	*common.CommonSink
+	common.Sink
 	client *http.Client
 
 	bodyContentTemplate  *template.Template
@@ -46,7 +46,7 @@ type HTTPSink struct {
 
 var _ flow.Sink = (*HTTPSink)(nil)
 
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	method, endpoint string, headers map[string]string, headerContent string,
 	body, bodyContent string,
 	batchSize int, opts ...common.Option) (*HTTPSink, error) {
@@ -70,7 +70,7 @@ func NewSink(commonSink *common.CommonSink,
 	bodyContentTemplate := template.Must(compiler.NewTemplate("sink_http_body", body))
 
 	s := &HTTPSink{
-		CommonSink:           commonSink,
+		Sink:                 commonSink,
 		client:               http.DefaultClient,
 		bodyContentTemplate:  bodyContentTemplate,
 		httpMetadataTemplate: m,

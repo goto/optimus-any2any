@@ -24,11 +24,11 @@ type mcRecordReader struct {
 	l                      *slog.Logger
 	client                 *odps.Odps
 	tunnel                 *tunnel.Tunnel
+	instance               *odps.Instance
 	readerId               string
 	query                  string
 	additionalHints        map[string]string
 	logViewRetentionInDays int
-	instance               *odps.Instance
 	retryFunc              func(f func() error) error
 	batchSize              int
 }

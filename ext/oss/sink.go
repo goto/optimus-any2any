@@ -23,7 +23,7 @@ import (
 )
 
 type OSSSink struct {
-	*common.CommonSink
+	common.Sink
 
 	client                 *oss.Client
 	destinationURITemplate *template.Template
@@ -38,7 +38,7 @@ type OSSSink struct {
 var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
-func NewSink(commonSink *common.CommonSink,
+func NewSink(commonSink common.Sink,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	opts ...common.Option) (*OSSSink, error) {
@@ -56,7 +56,7 @@ func NewSink(commonSink *common.CommonSink,
 	}
 
 	o := &OSSSink{
-		CommonSink:             commonSink,
+		Sink:                   commonSink,
 		client:                 client,
 		destinationURITemplate: tmpl,
 		fileHandlers:           make(map[string]io.WriteCloser),
