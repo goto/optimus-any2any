@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.Reader {
+func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) io.ReadCloser {
 	id, err := uuid.NewV7()
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to generate uuid: %v, skip converting", err))
@@ -35,12 +35,16 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 	}
 	l.Info(fmt.Sprintf("converting json to csv to tmp file: %s", f.Name()))
 	if err := ToCSV(l, f, reader, skipHeader, delimiter...); err != nil {
-		l.Error(fmt.Sprintf("failed to convert json to csv: %v", err))
-	}
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		l.Error(fmt.Sprintf("failed to reset seek: %v", err))
+		l.Error(fmt.Sprintf("failed to convert json to csv: %v, skip converting", err))
+		f.Close()
 		return reader
 	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		l.Error(fmt.Sprintf("failed to reset seek: %v, skip converting", err))
+		f.Close()
+		return reader
+	}
+	reader.Close() // close the original reader
 	return f
 }
 
@@ -132,6 +136,9 @@ func ToCSV(l *slog.Logger, w io.Writer, r io.ReadSeeker, skipHeader bool, delimi
 	for record, err := range reader.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
+		}
+		if record.Len() == headerMap.Len() {
+			continue
 		}
 		for k := range record.AllFromFront() {
 			headerMap.Set(k, true)

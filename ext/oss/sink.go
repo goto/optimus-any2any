@@ -196,6 +196,7 @@ func (o *OSSSink) process() error {
 	funcs := []func() error{}
 	for uri := range o.ossHandlers {
 		funcs = append(funcs, func() error {
+			defer o.ossHandlers[uri].Close()
 			return o.flush(uri, o.ossHandlers[uri])
 		})
 	}
@@ -244,7 +245,7 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	defer f.Close()
 
 	// convert to appropriate format if necessary
-	var tmpReader io.Reader
+	var tmpReader io.ReadCloser
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		tmpReader = f
@@ -256,6 +257,8 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		tmpReader = f
 	}
+	defer tmpReader.Close()
+
 	o.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
 	return o.Retry(func() error {
 		_, err := io.Copy(oh, tmpReader)
