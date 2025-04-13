@@ -81,11 +81,14 @@ func NewSink(commonSink common.Sink,
 	commonSink.AddCleanFunc(func() error {
 		o.Logger().Info("remove tmp files")
 		var e error
-		for tmpPath, _ := range o.writeHandlers {
+		for tmpPath := range o.writeHandlers {
 			o.Logger().Debug(fmt.Sprintf("close tmp file: %s", tmpPath))
 
 			o.Logger().Debug(fmt.Sprintf("remove tmp file: %s", tmpPath))
 			err := os.Remove(tmpPath)
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			e = errs.Join(e, err)
 		}
 		return e
@@ -253,6 +256,12 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	default:
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing
+	}
+	// remove tmp file if destination is csv or tsv
+	if filepath.Ext(destinationURI) == ".csv" || filepath.Ext(destinationURI) == ".tsv" {
+		if err := os.Remove(tmpPath); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	defer tmpReader.Close()
 
