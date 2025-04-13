@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) io.ReadCloser {
+func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) io.ReadSeekCloser {
 	id, err := uuid.NewV7()
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to generate uuid: %v, skip converting", err))

@@ -170,12 +170,12 @@ func TestSinkProcess(t *testing.T) {
 		mockGetter.On("Logger").Return(slog.Default())
 		// create empty template
 		tmpl := template.Must(compiler.NewTemplate("empty string", "file:///tmp/[[ .field ]].json"))
-		// create writeCloser
-		writeCloser := mocks.NewWriteCloser(t)
-		writeCloser.On("Write", mock.Anything).Return(0, fmt.Errorf("error writing"))
+		// create writeFlusher
+		writeFlusher := mocks.NewWriteFlusher(t)
+		writeFlusher.On("Write", mock.Anything).Return(0, fmt.Errorf("error writing"))
 		// create writerFactory
-		writerFactory := func(path string) (io.WriteCloser, error) {
-			return writeCloser, nil
+		writerFactory := func(path string) (xio.WriteFlusher, error) {
+			return writeFlusher, nil
 		}
 		// create recordHelper
 		recordHelper := mocks.NewRecordHelper(t)
@@ -188,7 +188,7 @@ func TestSinkProcess(t *testing.T) {
 			// RecordHelper:           recordHelper,
 			WriterFactory: writerFactory,
 			// Getter:                 mockGetter,
-			WriteHandlers:      make(map[string]io.WriteCloser),
+			WriteHandlers:      make(map[string]xio.WriteFlusher),
 			FileRecordCounters: make(map[string]int),
 		}
 		err := fileSink.Process()
@@ -218,7 +218,7 @@ func TestSinkProcess(t *testing.T) {
 		buf := make([]byte, 32*1024)
 		w := xio.NewBufferedWriter(bytes.NewBuffer(buf))
 		// create writerFactory
-		writerFactory := func(path string) (io.WriteCloser, error) {
+		writerFactory := func(path string) (xio.WriteFlusher, error) {
 			return w, nil
 		}
 		// create recordHelper
@@ -232,7 +232,7 @@ func TestSinkProcess(t *testing.T) {
 			// RecordHelper:           recordHelper,
 			WriterFactory: writerFactory,
 			// Getter:                 mockGetter,
-			WriteHandlers:      make(map[string]io.WriteCloser),
+			WriteHandlers:      make(map[string]xio.WriteFlusher),
 			FileRecordCounters: make(map[string]int),
 		}
 		err := fileSink.Process()

@@ -2,7 +2,6 @@ package file
 
 import (
 	"fmt"
-	"io"
 	"net/url"
 	"text/template"
 
@@ -20,8 +19,8 @@ import (
 type FileSink struct {
 	common.Sink
 	DestinationURITemplate *template.Template
-	WriterFactory          func(string) (io.WriteCloser, error)
-	WriteHandlers          map[string]io.WriteCloser
+	WriterFactory          func(string) (xio.WriteFlusher, error)
+	WriteHandlers          map[string]xio.WriteFlusher
 	FileRecordCounters     map[string]int
 }
 
@@ -37,19 +36,16 @@ func NewSink(commonSink common.Sink, destinationURI string, opts ...common.Optio
 	fs := &FileSink{
 		Sink:                   commonSink,
 		DestinationURITemplate: tmpl,
-		WriterFactory: func(s string) (io.WriteCloser, error) {
+		WriterFactory: func(s string) (xio.WriteFlusher, error) {
 			return xio.NewWriteHandler(commonSink.Logger(), s)
 		},
-		WriteHandlers:      make(map[string]io.WriteCloser),
+		WriteHandlers:      make(map[string]xio.WriteFlusher),
 		FileRecordCounters: make(map[string]int),
 	}
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
 		fs.Logger().Info("close files")
-		for _, fh := range fs.WriteHandlers {
-			fh.Close()
-		}
 		return nil
 	})
 	// register process, it will immediately start the process
@@ -71,9 +67,9 @@ func (fs *FileSink) Process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		fh, ok := fs.WriteHandlers[destinationURI]
+		wh, ok := fs.WriteHandlers[destinationURI]
 		if !ok {
-			fs.Logger().Debug(fmt.Sprintf("create new file handler: %s", destinationURI))
+			fs.Logger().Debug(fmt.Sprintf("create new write handler: %s", destinationURI))
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
 				fs.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
@@ -83,12 +79,12 @@ func (fs *FileSink) Process() error {
 				fs.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetURI.Scheme))
 				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 			}
-			fh, err = fs.WriterFactory(targetURI.Path)
+			wh, err = fs.WriterFactory(targetURI.Path)
 			if err != nil {
-				fs.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
+				fs.Logger().Error(fmt.Sprintf("failed to create write handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			fs.WriteHandlers[destinationURI] = fh
+			fs.WriteHandlers[destinationURI] = wh
 			fs.FileRecordCounters[destinationURI] = 0
 		}
 
@@ -100,7 +96,7 @@ func (fs *FileSink) Process() error {
 		}
 
 		fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
-		_, err = fh.Write(append(raw, '\n'))
+		_, err = wh.Write(append(raw, '\n'))
 		if err != nil {
 			fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 			return errors.WithStack(err)
@@ -111,10 +107,10 @@ func (fs *FileSink) Process() error {
 			fs.Logger().Info(fmt.Sprintf("written %d records to file: %s", fs.FileRecordCounters[destinationURI], destinationURI))
 		}
 	}
-	// close all file handlers
-	for _, fh := range fs.WriteHandlers {
-		if err := fh.Close(); err != nil {
-			fs.Logger().Error(fmt.Sprintf("failed to close file handler: %s", err.Error()))
+	// flush all write handlers
+	for _, wh := range fs.WriteHandlers {
+		if err := wh.Flush(); err != nil {
+			fs.Logger().Error(fmt.Sprintf("failed to flush write handler: %s", err.Error()))
 			return errors.WithStack(err)
 		}
 	}

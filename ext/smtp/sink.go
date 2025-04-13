@@ -44,7 +44,7 @@ type emailMetadata struct {
 
 type emailHandler struct {
 	emailMetadata emailMetadata
-	fileHandlers  map[string]io.WriteCloser
+	writeHandlers map[string]xio.WriteFlusher
 }
 
 type SMTPSink struct {
@@ -120,10 +120,7 @@ func NewSink(commonSink common.Sink,
 		var e error
 
 		for _, eh := range s.emailHandlers {
-			for attachment, fh := range eh.fileHandlers {
-				s.Logger().Info("close file handler")
-				fh.Close()
-
+			for attachment, _ := range eh.writeHandlers {
 				attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
 				s.Logger().Info(fmt.Sprintf("remove tmp attachment file %s", attachmentPath))
 				err := os.Remove(attachmentPath)
@@ -157,7 +154,7 @@ func (s *SMTPSink) process() error {
 		if !ok {
 			s.emailHandlers[hash] = emailHandler{
 				emailMetadata: m,
-				fileHandlers:  make(map[string]io.WriteCloser),
+				writeHandlers: make(map[string]xio.WriteFlusher),
 			}
 			eh = s.emailHandlers[hash]
 		}
@@ -167,15 +164,15 @@ func (s *SMTPSink) process() error {
 			s.Logger().Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
-		fh, ok := eh.fileHandlers[attachment]
+		fh, ok := eh.writeHandlers[attachment]
 		if !ok {
 			attachmentPath := getAttachmentPath(m, attachment)
 			fh, err = xio.NewWriteHandler(s.Logger(), attachmentPath)
 			if err != nil {
-				s.Logger().Error(fmt.Sprintf("create file handler error: %s", err.Error()))
+				s.Logger().Error(fmt.Sprintf("create write handler error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			eh.fileHandlers[attachment] = fh
+			eh.writeHandlers[attachment] = fh
 		}
 
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
@@ -195,10 +192,10 @@ func (s *SMTPSink) process() error {
 	for _, eh := range s.emailHandlers {
 		attachmentReaders := map[string]io.Reader{}
 
-		for attachment, fh := range eh.fileHandlers {
-			// close file handler first
-			if err := fh.Close(); err != nil {
-				s.Logger().Error(fmt.Sprintf("close file handler error: %s", err.Error()))
+		for attachment, fh := range eh.writeHandlers {
+			// flush write handler first
+			if err := fh.Flush(); err != nil {
+				s.Logger().Error(fmt.Sprintf("flush write handler error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 			// open attachment file from tmp folder

@@ -10,6 +10,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+type WriteFlusher interface {
+	io.Writer
+	Flush() error
+}
+
 type BufferedWriter struct {
 	*bufio.Writer
 }
@@ -21,14 +26,9 @@ func NewBufferedWriter(w io.Writer) *BufferedWriter {
 	}
 }
 
-// Close flushes remaining data and closes the writer.
-func (b *BufferedWriter) Close() error {
-	return b.Writer.Flush()
-}
-
 // NewWriteHandler creates a new write handler.
 // Close must be called after use to flush remaining data.
-func NewWriteHandler(l *slog.Logger, path string) (io.WriteCloser, error) {
+func NewWriteHandler(l *slog.Logger, path string) (WriteFlusher, error) {
 	dir := filepath.Dir(path)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, 0755); err != nil {

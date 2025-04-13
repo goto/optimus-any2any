@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -23,9 +22,9 @@ type PGSink struct {
 	conn               *pgx.Conn
 	destinationTableID string
 
-	batchSize         int            // internal use
-	writerTmpHandler  io.WriteCloser // internal use
-	fileRecordCounter int            // internal use
+	batchSize         int              // internal use
+	writerTmpHandler  xio.WriteFlusher // internal use
+	fileRecordCounter int              // internal use
 }
 
 var _ flow.Sink = (*PGSink)(nil)
@@ -107,8 +106,8 @@ func (p *PGSink) process() error {
 
 // flush writes records buffer to file
 func (p *PGSink) flush() error {
-	// close the writer first
-	if err := p.writerTmpHandler.Close(); err != nil {
+	// flush the writer first
+	if err := p.writerTmpHandler.Flush(); err != nil {
 		p.Logger().Error(fmt.Sprintf("failed to close writer"))
 		return errors.WithStack(err)
 	}

@@ -27,7 +27,7 @@ type OSSSink struct {
 
 	client                 *oss.Client
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]io.WriteCloser // tmp file handler
+	writeHandlers          map[string]xio.WriteFlusher // tmp write handler
 	ossHandlers            map[string]io.WriteCloser
 	fileRecordCounters     map[string]int
 	batchSize              int
@@ -59,7 +59,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                   commonSink,
 		client:                 client,
 		destinationURITemplate: tmpl,
-		fileHandlers:           make(map[string]io.WriteCloser),
+		writeHandlers:          make(map[string]xio.WriteFlusher),
 		ossHandlers:            make(map[string]io.WriteCloser),
 		fileRecordCounters:     make(map[string]int),
 		batchSize:              batchSize,
@@ -71,7 +71,7 @@ func NewSink(commonSink common.Sink,
 	commonSink.AddCleanFunc(func() error {
 		o.Logger().Info("close oss files")
 		var e error
-		for destinationURI, oh := range o.fileHandlers {
+		for destinationURI, oh := range o.ossHandlers {
 			o.Logger().Debug(fmt.Sprintf("close file: %s", destinationURI))
 			err := oh.Close()
 			e = errs.Join(e, err)
@@ -79,11 +79,10 @@ func NewSink(commonSink common.Sink,
 		return e
 	})
 	commonSink.AddCleanFunc(func() error {
-		o.Logger().Info("close & remove tmp files")
+		o.Logger().Info("remove tmp files")
 		var e error
-		for tmpPath, fh := range o.fileHandlers {
+		for tmpPath, _ := range o.writeHandlers {
 			o.Logger().Debug(fmt.Sprintf("close tmp file: %s", tmpPath))
-			fh.Close()
 
 			o.Logger().Debug(fmt.Sprintf("remove tmp file: %s", tmpPath))
 			err := os.Remove(tmpPath)
@@ -128,16 +127,16 @@ func (o *OSSSink) process() error {
 			o.Logger().Error(fmt.Sprintf("failed to get tmp URI: %s", destinationURI))
 			return errors.WithStack(err)
 		}
-		fh, ok := o.fileHandlers[tmpPath]
+		wh, ok := o.writeHandlers[tmpPath]
 		if !ok {
-			// create new tmp file handler
-			fh, err = xio.NewWriteHandler(o.Logger(), tmpPath)
+			// create new tmp write handler
+			wh, err = xio.NewWriteHandler(o.Logger(), tmpPath)
 			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to create tmp file handler: %s", err.Error()))
+				o.Logger().Error(fmt.Sprintf("failed to create tmp write handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 
-			// create new oss file handler
+			// create new oss write handler
 			targetDestinationURI, err := url.Parse(destinationURI)
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
@@ -157,12 +156,12 @@ func (o *OSSSink) process() error {
 			}
 			oh, err := oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to create oss file handler: %s", err.Error()))
+				o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 
 			// dual handlers for both tmp file and oss
-			o.fileHandlers[tmpPath] = fh
+			o.writeHandlers[tmpPath] = wh
 			o.ossHandlers[destinationURI] = oh
 		}
 
@@ -174,7 +173,7 @@ func (o *OSSSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		_, err = fh.Write(append(raw, '\n'))
+		_, err = wh.Write(append(raw, '\n'))
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to write to file"))
 			return errors.WithStack(err)
@@ -192,11 +191,19 @@ func (o *OSSSink) process() error {
 		return nil
 	}
 
+	// flush tmp files
+	for tmpPath, wh := range o.writeHandlers {
+		if err := wh.Flush(); err != nil {
+			o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
+			return errors.WithStack(err)
+		}
+		o.Logger().Info(fmt.Sprintf("flushed tmp file: %s", tmpPath))
+	}
+
 	// flush remaining records concurrently
 	funcs := []func() error{}
 	for uri := range o.ossHandlers {
 		funcs = append(funcs, func() error {
-			defer o.ossHandlers[uri].Close()
 			return o.flush(uri, o.ossHandlers[uri])
 		})
 	}
@@ -229,33 +236,23 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// flush tmp file first by closing the writer
-	fh, ok := o.fileHandlers[tmpPath]
-	if !ok {
-		return errors.New(fmt.Sprintf("tmp file handler not found: %s", tmpPath))
-	}
-	if err := fh.Close(); err != nil {
-		return errors.WithStack(err)
-	}
 	// open tmp file for reading
-	f, err := os.OpenFile(tmpPath, os.O_RDONLY, 0644)
+	var tmpReader io.ReadSeekCloser
+	tmpReader, err = os.OpenFile(tmpPath, os.O_RDONLY, 0644)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer f.Close()
-
 	// convert to appropriate format if necessary
-	var tmpReader io.ReadCloser
 	switch filepath.Ext(destinationURI) {
 	case ".json":
-		tmpReader = f
+		// do nothing
 	case ".csv":
-		tmpReader = helper.FromJSONToCSV(o.Logger(), f, o.skipHeader)
+		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, o.skipHeader)
 	case ".tsv":
-		tmpReader = helper.FromJSONToCSV(o.Logger(), f, o.skipHeader, rune('\t'))
+		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, o.skipHeader, rune('\t'))
 	default:
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
-		tmpReader = f
+		// do nothing
 	}
 	defer tmpReader.Close()
 
