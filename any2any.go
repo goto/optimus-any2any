@@ -80,7 +80,7 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 			return []error{errors.WithStack(err)}
 		}
 		// run with pipeline
-		p = pipeline.NewMultiSinkPipeline(l, source, connector.FanOutWithJQ(l, jqQuery), sinks...)
+		p = pipeline.NewMultiSinkPipeline(l, source, connector.GetConnector(ctx, cancelFn, l, jqQuery), sinks...)
 	}
 	defer p.Close()
 

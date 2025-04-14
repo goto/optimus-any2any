@@ -8,21 +8,26 @@ import (
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
+type MultiSinkConnector interface {
+	Err() error
+	Connect() flow.ConnectMultiSink
+}
+
 // MultiSinkPipeline is a pipeline that connects a source to multiple sinks.
 type MultiSinkPipeline struct {
-	logger  *slog.Logger
-	source  flow.Source
-	connect flow.ConnectMultiSink
-	sinks   []flow.Sink
+	logger    *slog.Logger
+	source    flow.Source
+	connector MultiSinkConnector
+	sinks     []flow.Sink
 }
 
 // NewMultiSinkPipeline creates a new multi-sink pipeline.
-func NewMultiSinkPipeline(l *slog.Logger, source flow.Source, connect flow.ConnectMultiSink, sinks ...flow.Sink) *MultiSinkPipeline {
+func NewMultiSinkPipeline(l *slog.Logger, source flow.Source, connector MultiSinkConnector, sinks ...flow.Sink) *MultiSinkPipeline {
 	p := &MultiSinkPipeline{
-		logger:  l,
-		source:  source,
-		connect: connect,
-		sinks:   sinks,
+		logger:    l,
+		source:    source,
+		connector: connector,
+		sinks:     sinks,
 	}
 	return p
 }
@@ -35,9 +40,10 @@ func (p *MultiSinkPipeline) Run() <-chan uint8 {
 	for i, sink := range p.sinks {
 		sinks[i] = sink
 	}
+	connect := p.connector.Connect()
 	go func() {
 		defer close(done)
-		p.connect(p.source, sinks...)
+		connect(p.source, sinks...)
 		p.groupSinkWait(p.sinks...)
 	}()
 	return done
@@ -47,6 +53,9 @@ func (p *MultiSinkPipeline) Run() <-chan uint8 {
 func (p *MultiSinkPipeline) Errs() []error {
 	var errs []error
 	if err := p.source.Err(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := p.connector.Err(); err != nil {
 		errs = append(errs, err)
 	}
 	for _, sink := range p.sinks {
