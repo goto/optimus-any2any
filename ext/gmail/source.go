@@ -1,7 +1,6 @@
 package gmail
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/base64"
 	"fmt"
@@ -114,14 +113,16 @@ func (gs *GmailSource) process() error {
 			}
 
 			// send records
-			sc := bufio.NewScanner(reader)
-			for sc.Scan() {
-				// read line
-				raw := sc.Bytes()
-				line := make([]byte, len(raw)) // Important: make a copy of the line before sending
-				copy(line, raw)
+			recordReader := helper.NewRecordReader(reader)
+			for record, err := range recordReader.ReadRecord() {
+				if err != nil {
+					gs.Logger().Error(fmt.Sprintf("failed to read record %s", err.Error()))
+					return errors.WithStack(err)
+				}
+				// add metadata filename
+				record.Set(gs.filenameColumn, p.Filename)
 				// send to channel
-				gs.Send(line)
+				gs.SendRecord(record)
 			}
 		}
 	}

@@ -101,13 +101,17 @@ func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 	return r
 }
 
-type recordReadSeeker struct {
-	r io.ReadSeeker
+type RecordReader struct {
+	r io.Reader
 }
 
-var _ common.RecordReader = (*recordReadSeeker)(nil)
+var _ common.RecordReader = (*RecordReader)(nil)
 
-func (r *recordReadSeeker) ReadRecord() iter.Seq2[*model.Record, error] {
+func NewRecordReader(r io.Reader) *RecordReader {
+	return &RecordReader{r: r}
+}
+
+func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	return func(yield func(*model.Record, error) bool) {
 		sc := bufio.NewScanner(r.r)
 		for sc.Scan() {
@@ -130,7 +134,7 @@ func (r *recordReadSeeker) ReadRecord() iter.Seq2[*model.Record, error] {
 
 // ToCSV converts the records to CSV.
 func ToCSV(l *slog.Logger, w io.Writer, r io.ReadSeeker, skipHeader bool, delimiter ...rune) error {
-	reader := &recordReadSeeker{r: r}
+	reader := &RecordReader{r: r}
 	// get the header
 	headerMap := model.NewRecord()
 	for record, err := range reader.ReadRecord() {
@@ -163,7 +167,7 @@ func ToCSV(l *slog.Logger, w io.Writer, r io.ReadSeeker, skipHeader bool, delimi
 	}
 
 	// reset the reader
-	_, err := reader.r.Seek(0, io.SeekStart)
+	_, err := r.Seek(0, io.SeekStart)
 	if err != nil {
 		return errors.WithStack(err)
 	}

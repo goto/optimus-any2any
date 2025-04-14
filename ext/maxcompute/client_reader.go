@@ -78,7 +78,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		r.l.Info(fmt.Sprintf("reader(%s): waiting for query to finish", r.readerId))
 		r.l.Info(fmt.Sprintf("reader(%s): instanceId: %s", r.readerId, instance.Id()))
 		if err := r.retryFunc(instance.WaitForSuccess); err != nil {
-			r.l.Error(fmt.Sprintf("reader(%s): query failed", r.readerId))
+			r.l.Error(fmt.Sprintf("reader(%s): query failed: logview detail: %s", r.readerId, url))
 			yield(nil, errors.WithStack(err))
 			return
 		}
