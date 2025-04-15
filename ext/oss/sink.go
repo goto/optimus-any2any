@@ -152,13 +152,19 @@ func (o *OSSSink) process() error {
 			// remove object if overwrite is enabled
 			if _, ok := o.ossHandlers[destinationURI]; !ok && o.enableOverwrite {
 				o.Logger().Info(fmt.Sprintf("remove object: %s", destinationURI))
-				if err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/")); err != nil {
+				if err := o.Retry(func() error {
+					err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+					return err
+				}); err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
 					return errors.WithStack(err)
 				}
 			}
-			oh, err := oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-			if err != nil {
+			var oh io.WriteCloser
+			if err := o.Retry(func() (err error) {
+				oh, err = oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+				return
+			}); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
