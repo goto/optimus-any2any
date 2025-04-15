@@ -554,13 +554,9 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("dt is not a struct"))
 		}
-		curr, ok := value.(map[string]interface{})
+		currRecord, ok := value.(*model.Record)
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a struct, found %+v, type %T", value, value))
-		}
-		currRecord := model.NewRecord()
-		for k, v := range curr {
-			currRecord.Set(k, v)
 		}
 		currRecord = lowerCaseMapKeys(currRecord)
 
