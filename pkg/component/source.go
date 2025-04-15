@@ -16,7 +16,7 @@ type CoreSource struct {
 var _ flow.Source = (*CoreSource)(nil)
 
 // NewCoreSource creates a new CoreSource instance.
-func NewCoreSource(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string) *CoreSource {
+func NewCoreSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string) *CoreSource {
 	c := &CoreSource{
 		Core: NewCore(ctx, cancelFn, l, "source", name),
 	}

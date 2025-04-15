@@ -15,7 +15,7 @@ type CoreSink struct {
 
 var _ flow.Sink = (*CoreSink)(nil)
 
-func NewCoreSink(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string) *CoreSink {
+func NewCoreSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string) *CoreSink {
 	c := &CoreSink{
 		Core: NewCore(ctx, cancelFn, l, "sink", name),
 		done: make(chan uint8),

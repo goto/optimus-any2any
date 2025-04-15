@@ -99,7 +99,7 @@ func processBatch(l *slog.Logger, query string, batchData []byte, inlet flow.Inl
 	// transform the batch using JQ
 	outputJSON, err := execJQ(l, query, batchData)
 	if err != nil {
-		l.Error(fmt.Sprintf("connector(jq): failed to transform JSON batch: %v", err))
+		l.Error(fmt.Sprintf("failed to transform JSON batch: %v", err))
 		return errors.WithStack(err)
 	}
 

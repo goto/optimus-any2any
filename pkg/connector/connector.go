@@ -11,13 +11,13 @@ import (
 
 type Connector struct {
 	ctx      context.Context
-	cancelFn context.CancelFunc
+	cancelFn context.CancelCauseFunc
 	l        *slog.Logger
 	query    string
 	err      error
 }
 
-func GetConnector(ctx context.Context, cancelFn context.CancelFunc, logger *slog.Logger, query string) *Connector {
+func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, query string) *Connector {
 	l := logger.WithGroup("connector").With("name", "jq")
 	if query == "" {
 		l = logger.WithGroup("connector").With("name", "passthrough")
@@ -58,13 +58,17 @@ func (c *Connector) connect(outlet flow.Outlet, inlets ...flow.Inlet) {
 	go func() {
 		select {
 		case <-c.ctx.Done():
-			c.l.Info(fmt.Sprintf("context canceled: %s", c.ctx.Err()))
+			msg := "context canceled"
+			if err := context.Cause(c.ctx); err != nil {
+				msg = fmt.Sprintf("%s: %s", msg, err.Error())
+			}
+			c.l.Info(msg)
 		case err := <-errChan:
 			c.l.Info("done processing")
 			if err != nil {
 				c.l.Error(fmt.Sprintf("error: %s", err.Error()))
 				c.err = errors.WithStack(err)
-				c.cancelFn()
+				c.cancelFn(c.err)
 			}
 		}
 	}()

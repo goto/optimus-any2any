@@ -50,7 +50,7 @@ type commonSink struct {
 var _ Sink = (*commonSink)(nil)
 
 // NewCommonSink creates a new CommonSink.
-func NewCommonSink(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, name string, opts ...Option) *commonSink {
+func NewCommonSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *commonSink {
 	coreSink := component.NewCoreSink(ctx, cancelFn, l, name)
 	c := &commonSink{
 		CoreSink: coreSink,
