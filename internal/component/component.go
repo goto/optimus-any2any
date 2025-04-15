@@ -50,7 +50,7 @@ const (
 
 // GetSource returns a source based on the given type.
 // It will return an error if the source is unknown.
-func GetSource(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
+func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
 	// create commonSource
@@ -97,7 +97,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger,
 
 // GetSink returns a sink based on the given type.
 // It will return an error if the sink is unknown.
-func GetSink(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
+func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
 	// create commonSink

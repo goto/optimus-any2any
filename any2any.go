@@ -43,7 +43,7 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 	}
 
 	// graceful shutdown
-	ctx, cancelFn := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, cancelFn := signalAwareContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancelFn()
 
 	var p interface {
@@ -60,15 +60,17 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 		// run without pipeline
 		p = pipeline.NewNoPipeline(l, directSourceSink)
 	} else {
+		ctx, cancelCauseFn := context.WithCancelCause(ctx)
+		defer cancelCauseFn(context.Canceled)
 		// create source
-		source, err := component.GetSource(ctx, cancelFn, l, component.Type(strings.ToUpper(from)), cfg, envs...)
+		source, err := component.GetSource(ctx, cancelCauseFn, l, component.Type(strings.ToUpper(from)), cfg, envs...)
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
 		// create sinks (multiple)
 		var sinks []flow.Sink
 		for _, t := range to {
-			sink, err := component.GetSink(ctx, cancelFn, l, component.Type(strings.ToUpper(t)), cfg, envs...)
+			sink, err := component.GetSink(ctx, cancelCauseFn, l, component.Type(strings.ToUpper(t)), cfg, envs...)
 			if err != nil {
 				return []error{errors.WithStack(err)}
 			}
@@ -80,7 +82,7 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 			return []error{errors.WithStack(err)}
 		}
 		// run with pipeline
-		p = pipeline.NewMultiSinkPipeline(l, source, connector.GetConnector(ctx, cancelFn, l, jqQuery), sinks...)
+		p = pipeline.NewMultiSinkPipeline(l, source, connector.GetConnector(ctx, cancelCauseFn, l, jqQuery), sinks...)
 	}
 	defer p.Close()
 
@@ -92,6 +94,32 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 		return p.Errs()
 	// or until context is cancelled
 	case <-ctx.Done():
+		if err := context.Cause(ctx); err != nil {
+			return append(p.Errs(), errors.WithStack(err))
+		}
 		return p.Errs()
+	}
+}
+
+// signalAwareContext creates a context that is aware of signals.
+func signalAwareContext(parent context.Context, signals ...os.Signal) (context.Context, context.CancelFunc) {
+	ctx, cancelWithCause := context.WithCancelCause(parent)
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, signals...)
+
+	// start a goroutine to handle signals
+	go func() {
+		select {
+		case sig := <-sigCh:
+			cancelWithCause(fmt.Errorf("signal: %v", sig))
+			signal.Stop(sigCh)
+		case <-ctx.Done():
+			signal.Stop(sigCh)
+		}
+	}()
+
+	// return a standard CancelFunc that preserves the original behavior
+	return ctx, func() {
+		cancelWithCause(context.Canceled)
 	}
 }

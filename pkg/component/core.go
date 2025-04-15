@@ -47,7 +47,7 @@ type Core struct {
 	*Base
 	backend
 	ctx             context.Context
-	cancelFn        context.CancelFunc
+	cancelFn        context.CancelCauseFunc
 	backendName     string
 	size            int
 	component       string
@@ -62,7 +62,7 @@ var _ flow.Inlet = (*Core)(nil)
 var _ flow.Outlet = (*Core)(nil)
 
 // NewCore creates a new Core instance.
-func NewCore(ctx context.Context, cancelFn context.CancelFunc, l *slog.Logger, component, name string) *Core {
+func NewCore(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, component, name string) *Core {
 	c := &Core{
 		Base:            NewBase(l),
 		ctx:             ctx,
@@ -132,11 +132,15 @@ func (c *Core) RegisterProcess(f func() error) {
 		// wait until the context is canceled or the process is done
 		select {
 		case <-c.ctx.Done():
-			c.l.Info(fmt.Sprintf("context canceled: %s", c.ctx.Err()))
+			msg := "context canceled"
+			if err := context.Cause(c.ctx); err != nil {
+				msg = fmt.Sprintf("%s: %s", msg, err.Error())
+			}
+			c.l.Info(msg)
 		case <-process(f, &c.err):
 			if c.err != nil {
 				c.l.Error(fmt.Sprintf("process error: %s", c.err.Error()))
-				c.cancelFn()
+				c.cancelFn(c.err)
 			}
 		}
 	}()
