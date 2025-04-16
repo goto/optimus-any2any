@@ -35,6 +35,34 @@ type mcRecordReader struct {
 
 var _ RecordReaderCloser = (*mcRecordReader)(nil)
 
+func NewRecordReader(l *slog.Logger, client *odps.Odps, tunnel *tunnel.Tunnel, query string) (*mcRecordReader, error) {
+	return &mcRecordReader{
+		l:        l,
+		client:   client,
+		tunnel:   tunnel,
+		query:    query,
+		instance: nil,
+		// default values
+		readerId:               "",
+		additionalHints:        map[string]string{},
+		logViewRetentionInDays: 2,
+		retryFunc:              func(f func() error) error { return common.Retry(l, 3, 1000, f) },
+		batchSize:              1000,
+	}, nil
+}
+
+func (r *mcRecordReader) SetReaderId(id string) {
+	r.readerId = id
+}
+
+func (r *mcRecordReader) SetLogViewRetentionInDays(days int) {
+	r.logViewRetentionInDays = days
+}
+
+func (r *mcRecordReader) SetBatchSize(size int) {
+	r.batchSize = size
+}
+
 func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	// prepare hints
 	hints := map[string]string{}

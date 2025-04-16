@@ -84,11 +84,12 @@ func (o *OSS2MC) Run() []error {
 	return nil
 }
 
-func (o *OSS2MC) Close() {
+func (o *OSS2MC) Close() error {
 	o.logger.Debug("direct(oss2mc): close")
 	for _, clean := range o.cleanFuncs {
 		clean()
 	}
+	return nil
 }
 
 func buildQuery(cfg *config.OSS2MCConfig) (string, error) {
