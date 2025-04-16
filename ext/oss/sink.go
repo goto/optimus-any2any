@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	TEMP_FILE_MAX_RECORDS = 10000
+	MAX_TEMP_FILE_RECORD_NUMBER = 50000
 )
 
 type OSSSink struct {
@@ -204,8 +204,8 @@ func (o *OSSSink) process() error {
 		// EXPERIMENTAL: flush and upload to OSS if maximum number of records in tmp file is reached.
 		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
 		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
-		if o.fileRecordCounters[tmpPath] >= TEMP_FILE_MAX_RECORDS {
-			o.Logger().Error(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", TEMP_FILE_MAX_RECORDS, tmpPath))
+		if o.fileRecordCounters[tmpPath] >= MAX_TEMP_FILE_RECORD_NUMBER {
+			o.Logger().Info(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", MAX_TEMP_FILE_RECORD_NUMBER, tmpPath))
 			if err := wh.Flush(); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
 				return errors.WithStack(err)
@@ -217,10 +217,10 @@ func (o *OSSSink) process() error {
 				return errors.WithStack(err)
 			}
 
-			// Reset counters and handlers for the current batch
+			// reset counters and handlers for the current batch
+			// except for oss handler which is reused to upload the next part of the file
 			o.fileRecordCounters[tmpPath] = 0
 			delete(o.writeHandlers, tmpPath)
-			// delete(o.ossHandlers, destinationURI)
 
 			// increment the partially uploaded files counter
 			o.partiallyUploadedFiles[destinationURI]++
