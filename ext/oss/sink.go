@@ -22,23 +22,20 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	MAX_TEMP_FILE_RECORD_NUMBER = 50000
-)
-
 type OSSSink struct {
 	common.Sink
 
-	client                 *oss.Client
-	destinationURITemplate *template.Template
-	writeHandlers          map[string]xio.WriteFlusher // tmp write handler
-	ossHandlers            map[string]io.WriteCloser
-	fileRecordCounters     map[string]int
-	batchSize              int
-	enableOverwrite        bool
-	skipHeader             bool
+	client                  *oss.Client
+	destinationURITemplate  *template.Template
+	writeHandlers           map[string]xio.WriteFlusher // tmp write handler
+	ossHandlers             map[string]io.WriteCloser
+	fileRecordCounters      map[string]int
+	batchSize               int
+	enableOverwrite         bool
+	skipHeader              bool
+	maxTempFileRecordNumber int
 
-	partiallyUploadedFiles map[string]int // map of destinationURI to the sequence of file being uploaded
+	partialFileRecordCounters map[string]int // map of destinationURI to the number of records
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -47,6 +44,7 @@ var _ flow.Sink = (*OSSSink)(nil)
 func NewSink(commonSink common.Sink,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
+	maxTempFileRecordNumber int,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
@@ -62,16 +60,17 @@ func NewSink(commonSink common.Sink,
 	}
 
 	o := &OSSSink{
-		Sink:                   commonSink,
-		client:                 client,
-		destinationURITemplate: tmpl,
-		writeHandlers:          make(map[string]xio.WriteFlusher),
-		ossHandlers:            make(map[string]io.WriteCloser),
-		fileRecordCounters:     make(map[string]int),
-		partiallyUploadedFiles: make(map[string]int),
-		batchSize:              batchSize,
-		enableOverwrite:        enableOverwrite,
-		skipHeader:             skipHeader,
+		Sink:                      commonSink,
+		client:                    client,
+		destinationURITemplate:    tmpl,
+		writeHandlers:             make(map[string]xio.WriteFlusher),
+		ossHandlers:               make(map[string]io.WriteCloser),
+		fileRecordCounters:        make(map[string]int),
+		partialFileRecordCounters: make(map[string]int),
+		batchSize:                 batchSize,
+		enableOverwrite:           enableOverwrite,
+		skipHeader:                skipHeader,
+		maxTempFileRecordNumber:   maxTempFileRecordNumber,
 	}
 
 	// add clean func
@@ -197,6 +196,7 @@ func (o *OSSSink) process() error {
 
 		recordCounter++
 		o.fileRecordCounters[tmpPath]++
+		o.partialFileRecordCounters[destinationURI]++
 		if recordCounter%logCheckPoint == 0 {
 			o.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", o.fileRecordCounters[tmpPath], tmpPath))
 		}
@@ -204,8 +204,8 @@ func (o *OSSSink) process() error {
 		// EXPERIMENTAL: flush and upload to OSS if maximum number of records in tmp file is reached.
 		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
 		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
-		if o.fileRecordCounters[tmpPath] >= MAX_TEMP_FILE_RECORD_NUMBER {
-			o.Logger().Info(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", MAX_TEMP_FILE_RECORD_NUMBER, tmpPath))
+		if o.partialFileRecordCounters[destinationURI] >= o.maxTempFileRecordNumber {
+			o.Logger().Info(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", o.maxTempFileRecordNumber, tmpPath))
 			if err := wh.Flush(); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
 				return errors.WithStack(err)
@@ -219,11 +219,8 @@ func (o *OSSSink) process() error {
 
 			// reset counters and handlers for the current batch
 			// except for oss handler which is reused to upload the next part of the file
-			o.fileRecordCounters[tmpPath] = 0
+			o.partialFileRecordCounters[destinationURI] = 0
 			delete(o.writeHandlers, tmpPath)
-
-			// increment the partially uploaded files counter
-			o.partiallyUploadedFiles[destinationURI]++
 
 			if err := os.Remove(tmpPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 				o.Logger().Error(fmt.Sprintf("failed to remove tmp file: %s", tmpPath))
@@ -288,8 +285,8 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	// header is skipped if the file is already partially uploaded OR SKIP_HEADER is explicitly set to true
-	skipHeader := o.partiallyUploadedFiles[destinationURI] > 0 || o.skipHeader
+	// header is skipped if SKIP_HEADER is explicitly set to true OR if file has been partially uploaded previously
+	skipHeader := o.skipHeader || o.fileRecordCounters[tmpPath] > o.maxTempFileRecordNumber
 
 	// convert to appropriate format if necessary
 	switch filepath.Ext(destinationURI) {
