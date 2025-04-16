@@ -213,15 +213,23 @@ func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
 }
 
 func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink Type, cfg *config.Config, envs ...string) (flow.NoFlow, error) {
-	// set up options
-	// opts := getOpts(ctx, cfg)
-
 	if source == OSS && sink == MC {
 		directCfg, err := config.OSS2MC(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 		return direct.NewOSS2MC(ctx, l, directCfg)
+	}
+	if source == MC && sink == OSS {
+		sourceCfg, err := config.SourceMC(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		sinkCfg, err := config.SinkOSS(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return direct.NewMC2OSS(ctx, l, cfg.MetadataPrefix, sourceCfg, sinkCfg)
 	}
 	return nil, fmt.Errorf("direct: unknown source-sink: %s-%s", source, sink)
 }

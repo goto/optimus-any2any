@@ -89,19 +89,43 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
-	return retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
+	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
 }
 
 // ConcurrentTasks runs the given functions concurrently with a limit
 func (c *Common) ConcurrentTasks(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
-	return concurrentTask(ctx, concurrencyLimit, funcs)
+	return ConcurrentTask(ctx, concurrencyLimit, funcs)
 }
 
 // RecordWithMetadata returns a new record without metadata prefix
 func (c *Common) RecordWithoutMetadata(record *model.Record) *model.Record {
+	return RecordWithoutMetadata(record, c.metadataPrefix)
+}
+
+// RecordWithMetadata returns a new record with metadata prefix
+func (c *Common) RecordWithMetadata(record *model.Record) *model.Record {
+	return RecordWithMetadata(record, c.metadataPrefix)
+}
+
+// RecordWithoutMetadata returns a new record without metadata prefix
+// TODO: refactor this function to use the proper package for metadata
+func RecordWithMetadata(record *model.Record, metadataPrefix string) *model.Record {
+	recordWithMetadata := model.NewRecord()
+	for k, v := range record.AllFromFront() {
+		if strings.HasPrefix(k, metadataPrefix) {
+			continue
+		}
+		recordWithMetadata.Set(fmt.Sprintf("%s%s", metadataPrefix, k), v)
+	}
+	return recordWithMetadata
+}
+
+// RecordWithoutMetadata returns a new record without metadata prefix
+// TODO: refactor this function to use the proper package for metadata
+func RecordWithoutMetadata(record *model.Record, metadataPrefix string) *model.Record {
 	recordWithoutMetadata := model.NewRecord()
 	for k, v := range record.AllFromFront() {
-		if strings.HasPrefix(k, c.metadataPrefix) {
+		if strings.HasPrefix(k, metadataPrefix) {
 			continue
 		}
 		recordWithoutMetadata.Set(k, v)
@@ -109,19 +133,9 @@ func (c *Common) RecordWithoutMetadata(record *model.Record) *model.Record {
 	return recordWithoutMetadata
 }
 
-// RecordWithMetadata returns a new record with metadata prefix
-func (c *Common) RecordWithMetadata(record *model.Record) *model.Record {
-	recordWithMetadata := model.NewRecord()
-	for k, v := range record.AllFromFront() {
-		if strings.HasPrefix(k, c.metadataPrefix) {
-			continue
-		}
-		recordWithMetadata.Set(fmt.Sprintf("%s%s", c.metadataPrefix, k), v)
-	}
-	return recordWithMetadata
-}
-
-func retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) error {
+// Retry retries the given function with the specified maximum number of attempts
+// TODO: refactor this function to use proper package for retry
+func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) error {
 	var err error
 	sleepTime := int64(1)
 
@@ -139,8 +153,9 @@ func retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) e
 	return err
 }
 
-// concurrentTask runs N tasks concurrently with a limit, cancels on first error or context cancel.
-func concurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
+// ConcurrentTask runs N tasks concurrently with a limit, cancels on first error or context cancel.
+// TODO: refactor this function to use proper package for concurrency
+func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

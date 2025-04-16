@@ -34,7 +34,7 @@ type Sink interface {
 // NoFlow is an interface for components that do not have data flow.
 type NoFlow interface {
 	Run() []error
-	Close()
+	Close() error
 }
 
 // Connect is a function type that connects source and sink components.
