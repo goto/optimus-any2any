@@ -204,7 +204,7 @@ func (o *OSSSink) process() error {
 		// EXPERIMENTAL: flush and upload to OSS if maximum number of records in tmp file is reached.
 		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
 		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
-		if o.partialFileRecordCounters[destinationURI] >= o.maxTempFileRecordNumber {
+		if o.maxTempFileRecordNumber > 0 && o.partialFileRecordCounters[destinationURI] >= o.maxTempFileRecordNumber {
 			o.Logger().Info(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", o.maxTempFileRecordNumber, tmpPath))
 			if err := wh.Flush(); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
@@ -286,7 +286,7 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 		return errors.WithStack(err)
 	}
 	// header is skipped if SKIP_HEADER is explicitly set to true OR if file has been partially uploaded previously
-	skipHeader := o.skipHeader || o.fileRecordCounters[tmpPath] > o.maxTempFileRecordNumber
+	skipHeader := o.skipHeader || (o.maxTempFileRecordNumber > 0 && o.fileRecordCounters[tmpPath] > o.maxTempFileRecordNumber)
 
 	// convert to appropriate format if necessary
 	switch filepath.Ext(destinationURI) {
