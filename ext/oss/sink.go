@@ -22,6 +22,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	TEMP_FILE_MAX_RECORDS = 10000
+)
+
 type OSSSink struct {
 	common.Sink
 
@@ -33,6 +37,8 @@ type OSSSink struct {
 	batchSize              int
 	enableOverwrite        bool
 	skipHeader             bool
+
+	partiallyUploadedFiles map[string]int // map of destinationURI to the sequence of file being uploaded
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -62,6 +68,7 @@ func NewSink(commonSink common.Sink,
 		writeHandlers:          make(map[string]xio.WriteFlusher),
 		ossHandlers:            make(map[string]io.WriteCloser),
 		fileRecordCounters:     make(map[string]int),
+		partiallyUploadedFiles: make(map[string]int),
 		batchSize:              batchSize,
 		enableOverwrite:        enableOverwrite,
 		skipHeader:             skipHeader,
@@ -193,6 +200,36 @@ func (o *OSSSink) process() error {
 		if recordCounter%logCheckPoint == 0 {
 			o.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", o.fileRecordCounters[tmpPath], tmpPath))
 		}
+
+		// EXPERIMENTAL: flush and upload to OSS if maximum number of records in tmp file is reached.
+		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
+		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
+		if o.fileRecordCounters[tmpPath] >= TEMP_FILE_MAX_RECORDS {
+			o.Logger().Error(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", TEMP_FILE_MAX_RECORDS, tmpPath))
+			if err := wh.Flush(); err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
+				return errors.WithStack(err)
+			}
+			o.Logger().Info(fmt.Sprintf("flushed tmp file: %s", tmpPath))
+
+			if err := o.flush(destinationURI, o.ossHandlers[destinationURI]); err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to upload to OSS: %s", destinationURI))
+				return errors.WithStack(err)
+			}
+
+			// Reset counters and handlers for the current batch
+			o.fileRecordCounters[tmpPath] = 0
+			delete(o.writeHandlers, tmpPath)
+			// delete(o.ossHandlers, destinationURI)
+
+			// increment the partially uploaded files counter
+			o.partiallyUploadedFiles[destinationURI]++
+
+			if err := os.Remove(tmpPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+				o.Logger().Error(fmt.Sprintf("failed to remove tmp file: %s", tmpPath))
+				return errors.WithStack(err)
+			}
+		}
 	}
 
 	if recordCounter == 0 {
@@ -200,7 +237,7 @@ func (o *OSSSink) process() error {
 		return nil
 	}
 
-	// flush tmp files
+	// flush remaining tmp files
 	for tmpPath, wh := range o.writeHandlers {
 		if err := wh.Flush(); err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
@@ -251,14 +288,17 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	// header is skipped if the file is already partially uploaded OR SKIP_HEADER is explicitly set to true
+	skipHeader := o.partiallyUploadedFiles[destinationURI] > 0 || o.skipHeader
+
 	// convert to appropriate format if necessary
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		// do nothing
 	case ".csv":
-		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, o.skipHeader)
+		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader)
 	case ".tsv":
-		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, o.skipHeader, rune('\t'))
+		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader, rune('\t'))
 	default:
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing
