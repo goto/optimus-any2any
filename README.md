@@ -93,6 +93,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/or/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+| | OSS__SKIP_ROWS | Skip rows for CSV file format. (default: 0) |
 
 ## Supported Sinks
 

@@ -48,7 +48,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, de
 	return f
 }
 
-func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) io.Reader {
+func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRows int, delimiter ...rune) io.Reader {
 	csvReader := csv.NewReader(reader)
 	if len(delimiter) > 0 {
 		csvReader.Comma = delimiter[0]
@@ -62,6 +62,10 @@ func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 		headers := []string{}
 		isHeader := true
 		for record, err := csvReader.Read(); err == nil; record, err = csvReader.Read() {
+			if skipRows > 0 {
+				skipRows--
+				continue
+			}
 			if isHeader {
 				isHeader = false
 				if !skipHeader {

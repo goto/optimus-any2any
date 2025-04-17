@@ -104,9 +104,9 @@ func (gs *GmailSource) process() error {
 			case ".json":
 				reader = bytes.NewReader(data)
 			case ".csv":
-				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false)
+				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0)
 			case ".tsv":
-				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, rune('\t'))
+				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0, rune('\t'))
 			default:
 				gs.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(p.Filename)))
 				reader = bytes.NewReader(data)

@@ -24,13 +24,14 @@ type OSSSource struct {
 	path         string
 	csvDelimiter rune
 	skipHeader   bool
+	skipRows     int
 }
 
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
 func NewSource(commonSource *common.CommonSource, creds string,
-	sourceURI string, csvDelimiter rune, skipHeader bool, opts ...common.Option) (*OSSSource, error) {
+	sourceURI string, csvDelimiter rune, skipHeader bool, skipRows int, opts ...common.Option) (*OSSSource, error) {
 	// create OSS client
 	client, err := NewOSSClient(creds)
 	if err != nil {
@@ -50,6 +51,7 @@ func NewSource(commonSource *common.CommonSource, creds string,
 		path:         strings.TrimPrefix(parsedURL.Path, "/"),
 		csvDelimiter: csvDelimiter,
 		skipHeader:   skipHeader,
+		skipRows:     skipRows,
 	}
 
 	// add clean function
@@ -95,12 +97,12 @@ func (o *OSSSource) process() error {
 		case ".json":
 			reader = ossFile
 		case ".csv":
-			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader)
+			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows)
 			if o.csvDelimiter != 0 {
-				reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.csvDelimiter)
+				reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
 			}
 		case ".tsv":
-			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, rune('\t'))
+			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
 		default:
 			o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
 			reader = ossFile
