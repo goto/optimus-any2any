@@ -17,7 +17,7 @@ import (
 
 // OSSSource is the source component for OSS.
 type OSSSource struct {
-	*common.CommonSource
+	common.Source
 
 	client       *oss.Client
 	bucket       string
@@ -30,7 +30,7 @@ type OSSSource struct {
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
-func NewSource(commonSource *common.CommonSource, creds string,
+func NewSource(commonSource common.Source, creds string,
 	sourceURI string, csvDelimiter rune, skipHeader bool, skipRows int, opts ...common.Option) (*OSSSource, error) {
 	// create OSS client
 	client, err := NewOSSClient(creds)
@@ -45,7 +45,7 @@ func NewSource(commonSource *common.CommonSource, creds string,
 	}
 
 	o := &OSSSource{
-		CommonSource: commonSource,
+		Source:       commonSource,
 		client:       client,
 		bucket:       parsedURL.Host,
 		path:         strings.TrimPrefix(parsedURL.Path, "/"),

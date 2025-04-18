@@ -13,6 +13,23 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// Source is a complete interface that defines source component.
+type Source interface {
+	// fundamental
+	flow.Source
+	// must have
+	component.Setter
+	component.Getter
+	component.Registrants
+	// source specific
+	Sender
+	RecordSender
+	// helpers
+	RecordHelper
+	Retrier
+	ConcurrentLimiter
+}
+
 // Sender is an interface that defines a method to send data to a source.
 type Sender interface {
 	Send(v []byte)
@@ -29,9 +46,7 @@ type CommonSource struct {
 	*Common
 }
 
-var _ flow.Source = (*CommonSource)(nil)
-var _ Sender = (*CommonSource)(nil)
-var _ RecordSender = (*CommonSource)(nil)
+var _ Source = (*CommonSource)(nil)
 
 // NewCommonSource creates a new CommonSource.
 func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *CommonSource {

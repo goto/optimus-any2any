@@ -11,23 +11,20 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // FileSource is a source that reads data from a file.
 type FileSource struct {
-	flow.Source
-	component.Getter
-	common.Sender
+	common.Source
 	Readers []io.ReadCloser
 }
 
 var _ flow.Source = (*FileSource)(nil)
 
 // NewSource creates a new file common.
-func NewSource(commonSource *common.CommonSource, uri string) (*FileSource, error) {
+func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
 	// open file
 	sourceURI, err := url.Parse(uri)
 	if err != nil {
@@ -62,8 +59,6 @@ func NewSource(commonSource *common.CommonSource, uri string) (*FileSource, erro
 	// create source
 	fs := &FileSource{
 		Source:  commonSource,
-		Getter:  commonSource,
-		Sender:  commonSource,
 		Readers: files,
 	}
 

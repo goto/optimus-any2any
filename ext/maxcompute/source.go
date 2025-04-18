@@ -36,7 +36,7 @@ type MaxcomputeSource struct {
 var _ flow.Source = (*MaxcomputeSource)(nil)
 
 // NewSource creates a new MaxcomputeSource.
-func NewSource(commonSource *common.CommonSource, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int, batchSize int) (*MaxcomputeSource, error) {
+func NewSource(commonSource common.Source, creds string, queryFilePath string, prequeryFilePath string, executionProject string, additionalHints map[string]string, logViewRetentionInDays int, batchSize int) (*MaxcomputeSource, error) {
 	// create client for maxcompute
 	client, err := NewClient(creds)
 	if err != nil {

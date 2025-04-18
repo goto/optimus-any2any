@@ -16,7 +16,7 @@ import (
 
 // GmailSource is a source that reads data from Gmail.
 type GmailSource struct {
-	*common.CommonSource
+	common.Source
 	service *gmail.Service
 
 	filterRules string
@@ -26,7 +26,7 @@ type GmailSource struct {
 
 var _ flow.Source = (*GmailSource)(nil)
 
-func NewSource(commonSource *common.CommonSource,
+func NewSource(commonSource common.Source,
 	tokenJSON string,
 	filterRules, filenameColumn string,
 	opts ...common.Option) (*GmailSource, error) {
@@ -39,7 +39,7 @@ func NewSource(commonSource *common.CommonSource,
 
 	// create source
 	gs := &GmailSource{
-		CommonSource:   commonSource,
+		Source:         commonSource,
 		service:        srv,
 		filterRules:    filterRules,
 		filenameColumn: filenameColumn,

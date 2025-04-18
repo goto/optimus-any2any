@@ -15,15 +15,15 @@ func TestSourceProcess(t *testing.T) {
 	t.Run("return success reading record from readers", func(t *testing.T) {
 		// given
 		buf := []byte("{\"key\": \"value\"}")
-		// create mockSender
-		mockSender := mocks.NewSender(t)
-		mockSender.On("Send", buf)
+		// create mockSource
+		mockSource := mocks.NewSource(t)
+		mockSource.On("Send", buf)
 		// create readers
 		r := xio.NewBufferReader(bytes.NewReader(buf))
 
 		// when
 		f := &file.FileSource{
-			Sender:  mockSender,
+			Source:  mockSource,
 			Readers: []io.ReadCloser{r},
 		}
 		err := f.Process()

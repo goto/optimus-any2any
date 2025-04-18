@@ -13,7 +13,7 @@ import (
 
 // SalesforceSource is a source that reads data from Salesforce.
 type SalesforceSource struct {
-	*common.CommonSource
+	common.Source
 	client    *simpleforce.Client
 	soqlQuery string
 }
@@ -24,7 +24,7 @@ var _ flow.Source = (*SalesforceSource)(nil)
 // sfURL, sfUser, sfPassword, sfToken are the Salesforce credentials
 // soqlFilePath is the path to the SOQL query file
 // columnMapFilePath is the path to the column map file
-func NewSource(commonSource *common.CommonSource,
+func NewSource(commonSource common.Source,
 	sfURL, sfUser, sfPassword, sfToken string,
 	soqlFilePath string, opts ...common.Option) (*SalesforceSource, error) {
 
@@ -40,9 +40,9 @@ func NewSource(commonSource *common.CommonSource,
 	}
 	// create source
 	sf := &SalesforceSource{
-		CommonSource: commonSource,
-		client:       client,
-		soqlQuery:    string(soqlQueryRaw),
+		Source:    commonSource,
+		client:    client,
+		soqlQuery: string(soqlQueryRaw),
 	}
 
 	// add clean func
