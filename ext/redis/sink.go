@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/goto/optimus-any2any/internal/auth"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -46,7 +47,7 @@ func NewSink(commonSink common.Sink,
 		if connectionTLSCert == "" || connectionTLSKey == "" || connectionTLSCACert == "" {
 			return nil, fmt.Errorf("missing TLS certificate, key or CA certificate")
 		}
-		c, err := NewTLSConfig(connectionTLSCert, connectionTLSKey, connectionTLSCACert)
+		c, err := auth.NewTLSConfig(connectionTLSCert, connectionTLSKey, connectionTLSCACert)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
