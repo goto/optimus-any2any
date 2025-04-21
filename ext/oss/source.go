@@ -67,6 +67,8 @@ func NewSource(commonSource common.Source, creds string,
 }
 
 func (o *OSSSource) process() error {
+	logCheckPoint := 1000
+	recordCounter := 0
 	// list objects
 	objectResult, err := o.client.ListObjects(o.Context(), &oss.ListObjectsRequest{
 		Bucket: oss.Ptr(o.bucket),
@@ -98,9 +100,6 @@ func (o *OSSSource) process() error {
 			reader = ossFile
 		case ".csv":
 			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows)
-			if o.csvDelimiter != 0 {
-				reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
-			}
 		case ".tsv":
 			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
 		default:
@@ -114,6 +113,10 @@ func (o *OSSSource) process() error {
 			line := make([]byte, len(raw))
 			copy(line, raw)
 			o.Send(line)
+			recordCounter++
+			if recordCounter%logCheckPoint == 0 {
+				o.Logger().Info(fmt.Sprintf("processed %d records", recordCounter))
+			}
 		}
 	}
 	return nil
