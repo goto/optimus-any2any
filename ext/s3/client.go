@@ -13,13 +13,12 @@ import (
 
 // S3ClientUploader handles streaming data to S3
 type S3ClientUploader struct {
-	client     *s3.Client
-	uploader   *manager.Uploader
-	bucketName string
+	client   *s3.Client
+	uploader *manager.Uploader
 }
 
 // NewS3ClientUploader creates a new uploader with the provided authentication
-func NewS3ClientUploader(ctx context.Context, bucketName, region string, credProvider aws.CredentialsProvider) (*S3ClientUploader, error) {
+func NewS3ClientUploader(ctx context.Context, region string, credProvider aws.CredentialsProvider) (*S3ClientUploader, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(credProvider),
 		config.WithRegion(region),
@@ -36,13 +35,12 @@ func NewS3ClientUploader(ctx context.Context, bucketName, region string, credPro
 	})
 
 	return &S3ClientUploader{
-		client:     client,
-		uploader:   uploader,
-		bucketName: bucketName,
+		client:   client,
+		uploader: uploader,
 	}, nil
 }
 
 // GetUploadWriter returns a writer for streaming data to S3
-func (s *S3ClientUploader) GetUploadWriter(ctx context.Context, key string) *S3Writer {
-	return NewS3Writer(ctx, s.uploader, s.bucketName, key)
+func (s *S3ClientUploader) GetUploadWriter(ctx context.Context, bucketName, key string) *S3Writer {
+	return NewS3Writer(ctx, s.uploader, bucketName, key)
 }
