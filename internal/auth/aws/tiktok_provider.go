@@ -62,7 +62,7 @@ func (p *TikTokProvider) Retrieve(ctx context.Context) (aws.Credentials, error) 
 			Source:          "tiktok",
 		}, nil
 	case S3ResourceType:
-		time.Sleep(time.Duration(rand.Intn(5)+5) * time.Second)
+		time.Sleep(time.Duration(rand.Intn(5)+5) * time.Second) // wait for 5-10 seconds between requests
 		return p.getTemporaryUploadCredentials(token)
 	default:
 		return aws.Credentials{}, fmt.Errorf("unsupported resource type: %s", p.Resource)
