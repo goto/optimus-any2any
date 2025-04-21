@@ -205,7 +205,7 @@ func (s3 *S3Sink) process() error {
 			s3.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", s3.fileRecordCounters[tmpPath], tmpPath))
 		}
 
-		// EXPERIMENTAL: flush and upload to OSS if maximum number of records in tmp file is reached.
+		// EXPERIMENTAL: flush and upload to S3 if maximum number of records in tmp file is reached.
 		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
 		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
 		if s3.maxTempFileRecordNumber > 0 && s3.partialFileRecordCounters[destinationURI] >= s3.maxTempFileRecordNumber {
