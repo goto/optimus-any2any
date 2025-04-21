@@ -26,7 +26,7 @@ import (
 type S3Sink struct {
 	common.Sink
 
-	client                    *S3ClientUploader
+	client                    *S3Client
 	destinationURITemplate    *template.Template
 	writeHandlers             map[string]xio.WriteFlusher // tmp write handler
 	s3Handlers                map[string]io.WriteCloser
@@ -64,7 +64,7 @@ func NewSink(commonSink common.Sink,
 	}
 
 	// create S3 client uploader
-	client, err := NewS3ClientUploader(commonSink.Context(), region, provider)
+	client, err := NewS3Client(commonSink.Context(), region, provider)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -169,9 +169,7 @@ func (s3 *S3Sink) process() error {
 			if _, ok := s3.s3Handlers[destinationURI]; !ok && s3.enableOverwrite {
 				s3.Logger().Info(fmt.Sprintf("remove object: %s", destinationURI))
 				if err := s3.Retry(func() error {
-					return nil
-					// err := s3.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-					// return err
+					return s3.client.DeleteObject(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 				}); err != nil {
 					s3.Logger().Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
 					return errors.WithStack(err)

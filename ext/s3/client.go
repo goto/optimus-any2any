@@ -11,14 +11,14 @@ import (
 	"github.com/pkg/errors"
 )
 
-// S3ClientUploader handles streaming data to S3
-type S3ClientUploader struct {
+// S3Client handles streaming data to S3
+type S3Client struct {
 	client   *s3.Client
 	uploader *manager.Uploader
 }
 
-// NewS3ClientUploader creates a new uploader with the provided authentication
-func NewS3ClientUploader(ctx context.Context, region string, credProvider aws.CredentialsProvider) (*S3ClientUploader, error) {
+// NewS3Client creates a new uploader with the provided authentication
+func NewS3Client(ctx context.Context, region string, credProvider aws.CredentialsProvider) (*S3Client, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(credProvider),
 		config.WithRegion(region),
@@ -34,13 +34,25 @@ func NewS3ClientUploader(ctx context.Context, region string, credProvider aws.Cr
 		u.Concurrency = 3
 	})
 
-	return &S3ClientUploader{
+	return &S3Client{
 		client:   client,
 		uploader: uploader,
 	}, nil
 }
 
 // GetUploadWriter returns a writer for streaming data to S3
-func (s *S3ClientUploader) GetUploadWriter(ctx context.Context, bucketName, key string) *S3Writer {
+func (s *S3Client) GetUploadWriter(ctx context.Context, bucketName, key string) *S3Writer {
 	return NewS3Writer(ctx, s.uploader, bucketName, key)
+}
+
+// DeleteObject deletes an object from S3
+func (s *S3Client) DeleteObject(ctx context.Context, bucketName, key string) error {
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &bucketName,
+		Key:    &key,
+	})
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
