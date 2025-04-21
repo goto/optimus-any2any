@@ -49,6 +49,19 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, de
 }
 
 func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRows int, delimiter ...rune) io.Reader {
+	if skipRows > 0 {
+		rowOffset := 0
+		sc := bufio.NewScanner(reader)
+		for skipRows > 0 && sc.Scan() {
+			raw := sc.Bytes()
+			rowOffset += len(raw)
+			skipRows--
+		}
+		if _, err := reader.Seek(int64(rowOffset), io.SeekStart); err != nil {
+			l.Error(fmt.Sprintf("failed to reset seek: %v, skip converting", err))
+		}
+	}
+
 	csvReader := csv.NewReader(reader)
 	if len(delimiter) > 0 {
 		csvReader.Comma = delimiter[0]
@@ -62,10 +75,6 @@ func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRo
 		headers := []string{}
 		isHeader := true
 		for record, err := csvReader.Read(); err == nil; record, err = csvReader.Read() {
-			if skipRows > 0 {
-				skipRows--
-				continue
-			}
 			if isHeader {
 				isHeader = false
 				if !skipHeader {

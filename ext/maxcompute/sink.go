@@ -124,7 +124,7 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 
 func (mc *MaxcomputeSink) process() error {
 	mc.Logger().Info(fmt.Sprintf("start writing records to table: %s", mc.tableIDTransition))
-	logCheckpoint := 100
+	logCheckpoint := 1000
 	countRecord := 0
 
 	// prepare record sender
