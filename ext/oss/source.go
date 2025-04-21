@@ -115,9 +115,10 @@ func (o *OSSSource) process() error {
 			o.Send(line)
 			recordCounter++
 			if recordCounter%logCheckPoint == 0 {
-				o.Logger().Info(fmt.Sprintf("processed %d records", recordCounter))
+				o.Logger().Info(fmt.Sprintf("sent %d records", recordCounter))
 			}
 		}
 	}
+	o.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))
 	return nil
 }
