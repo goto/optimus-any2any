@@ -18,6 +18,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/postgresql"
 	"github.com/goto/optimus-any2any/ext/redis"
+	"github.com/goto/optimus-any2any/ext/s3"
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
 	"github.com/goto/optimus-any2any/ext/smtp"
@@ -40,6 +41,7 @@ const (
 	IO    Type = "IO"
 	SF    Type = "SF"
 	OSS   Type = "OSS"
+	S3    Type = "S3"
 	SFTP  Type = "SFTP"
 	SMTP  Type = "SMTP"
 	PSQL  Type = "PSQL"
@@ -127,6 +129,14 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return oss.NewSink(commonSink, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
+			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber, opts...)
+	case S3:
+		sinkCfg, err := config.SinkS3(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return s3.NewSink(commonSink, sinkCfg.Credentials, sinkCfg.Provider, sinkCfg.Region,
+			sinkCfg.DestinationURI, sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
 			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber, opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)

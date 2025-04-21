@@ -41,20 +41,26 @@ type S3Sink struct {
 var _ flow.Sink = (*S3Sink)(nil)
 
 // NewS3Sink creates a new S3 sink instance
-func NewS3Sink(commonSink common.Sink,
-	key string, secret string, clientCredsProvider string,
-	region string, destinationURITemplate *template.Template,
+func NewSink(commonSink common.Sink,
+	rawCreds string, clientCredsProvider string,
+	region string, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	maxTempFileRecordNumber int,
 	opts ...common.Option) (*S3Sink, error) {
 
+	// parse credentials
+	creds, err := parseCredentials(rawCreds)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	// get provider
 	var provider aws.CredentialsProvider
-	switch clientCredsProvider {
+	switch strings.ToLower(clientCredsProvider) {
 	case string(xaws.TikTokProviderType):
-		provider = xaws.NewTikTokProvider(key, secret, xaws.S3ResourceType)
+		provider = xaws.NewTikTokProvider(creds.AWSAccessKeyID, creds.AWSSecretAccessKey, xaws.S3ResourceType)
 	default:
-		provider = credentials.NewStaticCredentialsProvider(key, secret, "")
+		provider = credentials.NewStaticCredentialsProvider(creds.AWSAccessKeyID, creds.AWSSecretAccessKey, creds.AWSSessionToken)
 	}
 
 	// create S3 client uploader
@@ -63,10 +69,16 @@ func NewS3Sink(commonSink common.Sink,
 		return nil, errors.WithStack(err)
 	}
 
+	// parse destinationURI as template
+	tmpl, err := compiler.NewTemplate("sink_s3_destination_uri", destinationURI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+	}
+
 	s3 := &S3Sink{
 		Sink:                      commonSink,
 		client:                    client,
-		destinationURITemplate:    destinationURITemplate,
+		destinationURITemplate:    tmpl,
 		writeHandlers:             make(map[string]xio.WriteFlusher),
 		s3Handlers:                make(map[string]io.WriteCloser),
 		fileRecordCounters:        make(map[string]int),

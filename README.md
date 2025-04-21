@@ -115,6 +115,14 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | OSS__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to OSS. (default: 50000) |
+| S3 | S3__CREDENTIALS | Credentials for S3. |
+| | S3__PROVIDER | S3 provider availability: AWS, TIKTOK. (default: AWS) |
+| | S3__REGION | S3 region for the bucket. (default: us-east-1) |
+| | S3__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
+| | S3__DESTINATION_URI | The destination path in a S3 bucket to put the result files. Format `s3://bucket/path/to/file.extension` |
+| | S3__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
+| | S3__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+| | S3__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to S3. (default: 50000) |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
