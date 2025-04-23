@@ -85,6 +85,7 @@ It applies when sink and source are in the same environment. For example, transf
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__PRE_QUERY_FILE_PATH | Path to the pre sql query file. (empty for ignore) |
 | | MC__QUERY_FILE_PATH | Path to the query file. |
+| | MC__FILENAME_COLUMN | Column name for the filename. (default: __METADATA__filename) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | | MC__ADDITIONAL_HINTS | Additional hints for the execution query. |
 | | MC__LOG_VIEW_RETENTION_IN_DAYS | Log view retention in days. (default: 2) |
