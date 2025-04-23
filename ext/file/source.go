@@ -46,7 +46,7 @@ func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
 	var files []io.ReadCloser
 	if fileStat.IsDir() {
 		// read all files in the directory recursively
-		ff, err := readFiles(sourceURI.Path)
+		ff, err := ReadFiles(sourceURI.Path)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -94,7 +94,7 @@ func (fs *FileSource) Process() error {
 	return nil
 }
 
-func readFiles(dir string) ([]*os.File, error) {
+func ReadFiles(dir string) ([]*os.File, error) {
 	// read all files in the directory recursively
 	files := make([]*os.File, 0)
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {

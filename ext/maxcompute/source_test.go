@@ -96,11 +96,11 @@ func TestSourceProcess(t *testing.T) {
 
 		// when
 		mc := &maxcompute.MaxcomputeSource{
-			Client:        client,
-			Getter:        mockGetter,
-			RecordHelper:  mockRecordHelper,
-			PreQuery:      "select * from table_pre",
-			QueryTemplate: template.New("empty"),
+			Client:         client,
+			Getter:         mockGetter,
+			RecordHelper:   mockRecordHelper,
+			PreQuery:       "select * from table_pre",
+			QueryTemplates: []*template.Template{template.New("empty")},
 		}
 		err := mc.Process()
 
@@ -153,12 +153,12 @@ func TestSourceProcess(t *testing.T) {
 
 		// when
 		mc := &maxcompute.MaxcomputeSource{
-			Client:        client,
-			Getter:        mockGetter,
-			RecordSender:  mockRecordSender,
-			RecordHelper:  mockRecordHelper,
-			PreQuery:      "select * from table_pre",
-			QueryTemplate: template.Must(template.New("empty").Parse("select * from table")),
+			Client:         client,
+			Getter:         mockGetter,
+			RecordSender:   mockRecordSender,
+			RecordHelper:   mockRecordHelper,
+			PreQuery:       "select * from table_pre",
+			QueryTemplates: []*template.Template{template.Must(template.New("empty").Parse("select * from table"))},
 		}
 		err := mc.Process()
 

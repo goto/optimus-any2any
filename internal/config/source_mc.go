@@ -5,6 +5,7 @@ type SourceMCConfig struct {
 	Credentials            string            `env:"MC__CREDENTIALS"`
 	QueryFilePath          string            `env:"MC__QUERY_FILE_PATH"`
 	PreQueryFilePath       string            `env:"MC__PRE_QUERY_FILE_PATH"`
+	FilenameColumn         string            `env:"MC__FILENAME_COLUMN" envDefault:"__METADATA__filename"`
 	ExecutionProject       string            `env:"MC__EXECUTION_PROJECT"`
 	AdditionalHints        map[string]string `env:"MC__ADDITIONAL_HINTS" envKeyValSeparator:"=" envSeparator:","`
 	LogViewRetentionInDays int               `env:"MC__LOG_VIEW_RETENTION_IN_DAYS" envDefault:"2"`
