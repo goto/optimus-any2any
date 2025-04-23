@@ -141,9 +141,17 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+
+		storageCfg := smtp.StorageConfig{
+			Mode:           sinkCfg.StorageMode,
+			DestinationDir: sinkCfg.StorageDestinationDir,
+			Credentials:    sinkCfg.StorageCredentials,
+			LinkExpiration: sinkCfg.StorageLinkExpiration,
+		}
+
 		return smtp.NewSink(commonSink,
 			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
-			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, opts...)
+			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, storageCfg, opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)
 		if err != nil {
