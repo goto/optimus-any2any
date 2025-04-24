@@ -254,12 +254,12 @@ func separateBodyAndAttachmentBodyTemplate(bodyTemplateStr string) (*template.Te
 
 	bodyTmpl, err := compiler.NewTemplate("sink_smtp_email_metadata_body", processedTemplate)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.WithStack(err)
 	}
 
 	attachmentTmpl, err := compiler.NewTemplate("sink_smtp_email_metadata_attachment_body", attachmentContent)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.WithStack(err)
 	}
 
 	return bodyTmpl, attachmentTmpl, nil
