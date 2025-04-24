@@ -15,37 +15,39 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goccy/go-json"
-	"github.com/google/uuid"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
-func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) io.ReadSeekCloser {
-	id, err := uuid.NewV7()
-	if err != nil {
-		l.Error(fmt.Sprintf("failed to generate uuid: %v, skip converting", err))
-		return reader
-	}
-	f, err := os.OpenFile(fmt.Sprintf("/tmp/%s.csv", id), os.O_RDWR|os.O_CREATE, 0755)
+func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) (io.ReadSeekCloser, func() error, error) {
+	cleanUpFn := func() error { return nil }
+	f, err := os.CreateTemp(os.TempDir(), "csv-*")
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to open file: %v, skip converting", err))
-		return reader
+		return reader, cleanUpFn, errors.WithStack(err)
 	}
 	l.Info(fmt.Sprintf("converting json to csv to tmp file: %s", f.Name()))
 	if err := ToCSV(l, f, reader, skipHeader, delimiter...); err != nil {
 		l.Error(fmt.Sprintf("failed to convert json to csv: %v, skip converting", err))
 		f.Close()
-		return reader
+		return reader, cleanUpFn, errors.WithStack(err)
 	}
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		l.Error(fmt.Sprintf("failed to reset seek: %v, skip converting", err))
 		f.Close()
-		return reader
+		return reader, cleanUpFn, errors.WithStack(err)
 	}
 	reader.Close() // close the original reader
-	return f
+	cleanUpFn = func() error {
+		f.Close()
+		if err := os.Remove(f.Name()); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
+	return f, cleanUpFn, nil
 }
 
 func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRows int, delimiter ...rune) io.Reader {

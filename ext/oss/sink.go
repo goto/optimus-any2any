@@ -289,30 +289,39 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	skipHeader := o.skipHeader || (o.maxTempFileRecordNumber > 0 && o.fileRecordCounters[tmpPath] > o.maxTempFileRecordNumber)
 
 	// convert to appropriate format if necessary
+	cleanUpFn := func() error { return nil }
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		// do nothing
 	case ".csv":
-		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader)
+		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader)
 	case ".tsv":
-		tmpReader = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader, rune('\t'))
+		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader, rune('\t'))
 	default:
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing
 	}
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer func() {
+		cleanUpFn()
+		tmpReader.Close()
+	}()
+
 	// remove tmp file if destination is csv or tsv
 	if filepath.Ext(destinationURI) == ".csv" || filepath.Ext(destinationURI) == ".tsv" {
 		if err := os.Remove(tmpPath); err != nil {
 			return errors.WithStack(err)
 		}
 	}
-	defer tmpReader.Close()
 
 	o.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
-	return o.Retry(func() error {
+	err = o.Retry(func() error {
 		_, err := io.Copy(oh, tmpReader)
-		return err
+		return errors.WithStack(err)
 	})
+	return err
 }
 
 func getTmpPath(destinationURI string) (string, error) {

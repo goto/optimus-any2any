@@ -199,26 +199,34 @@ func (s *SMTPSink) process() error {
 				return errors.WithStack(err)
 			}
 			// open attachment file from tmp folder
+			var tmpReader io.ReadSeekCloser
 			attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
-			f, err := os.OpenFile(attachmentPath, os.O_RDONLY, 0644)
+			tmpReader, err := os.OpenFile(attachmentPath, os.O_RDONLY, 0644)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("open attachment file error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 
 			// convert attachment file to desired format if necessary
-			var tmpReader io.Reader
+			cleanUpFn := func() error { return nil }
 			switch filepath.Ext(attachment) {
 			case ".json":
-				tmpReader = f
+				// do nothing
 			case ".csv":
-				tmpReader = helper.FromJSONToCSV(s.Logger(), f, false) // no skip header by default
+				tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, false) // no skip header by default
 			case ".tsv":
-				tmpReader = helper.FromJSONToCSV(s.Logger(), f, false, rune('\t'))
+				tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, false, rune('\t'))
 			default:
 				s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
-				tmpReader = f
+				// do nothing
 			}
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			defer func() {
+				cleanUpFn()
+				tmpReader.Close()
+			}()
 
 			attachmentReaders[attachment] = tmpReader
 		}

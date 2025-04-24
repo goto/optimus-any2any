@@ -128,7 +128,15 @@ func (p *PGSink) flush() error {
 		return errors.WithStack(err)
 	}
 
-	r := helper.FromJSONToCSV(p.Logger(), f, false) // no skip header by default
+	r, cleanUpFn, err := helper.FromJSONToCSV(p.Logger(), f, false) // no skip header by default
+	if err != nil {
+		p.Logger().Error(fmt.Sprintf("failed to convert json to csv"))
+		return errors.WithStack(err)
+	}
+	defer func() {
+		cleanUpFn()
+		r.Close()
+	}()
 
 	// piping the records to pg
 	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
