@@ -125,6 +125,10 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__SUBJECT | SMTP email subject. |
 | | SMTP__BODY_FILE_PATH | SMTP email body from given path. |
 | | SMTP__ATTACHMENT_FILENAME | SMTP email attachment filename. |
+| | SMTP__STORAGE_MODE | SMTP email storage mode. Support attachment (default) and OSS. If set to OSS, attachments will be sent as OSS signed URL |
+| | SMTP__STORAGE_DESTINATION_DIR | If storage mode is set to other than attachment, this will be the root directory where the generated attachment will be uploaded |
+| | SMTP__STORAGE_LINK_EXPIRATION | If storage mode is set to other than attachment, the generated signed URLs expiration will be set to this number (seconds) |
+| | SMTP__STORAGE_CREDENTIALS | If storage mode is set to other than attachment, this credential will be used to authenticate to the bucket |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |
