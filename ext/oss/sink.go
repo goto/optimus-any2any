@@ -297,6 +297,8 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader)
 	case ".tsv":
 		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(o.Logger(), tmpReader, skipHeader, rune('\t'))
+	case ".xlsx":
+		tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(o.Logger(), tmpReader, skipHeader)
 	default:
 		o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing

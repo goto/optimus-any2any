@@ -64,6 +64,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.9.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect

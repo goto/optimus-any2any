@@ -216,6 +216,8 @@ func (s *SMTPSink) process() error {
 				tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, false) // no skip header by default
 			case ".tsv":
 				tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, false, rune('\t'))
+			case ".xlsx":
+				tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s.Logger(), tmpReader, false) // no skip header by default
 			default:
 				s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
 				// do nothing
