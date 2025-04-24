@@ -20,6 +20,7 @@ require (
 	github.com/simpleforce/simpleforce v0.0.0-20220429021116-acf4ac67ef68
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
+	github.com/tealeg/xlsx v1.0.5
 	github.com/twmb/franz-go v1.18.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.57.0
 	go.opentelemetry.io/otel v1.32.0
@@ -64,7 +65,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	github.com/tealeg/xlsx v1.0.5 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.9.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect

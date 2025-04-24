@@ -29,6 +29,10 @@ const (
 	attachmentBodyPlaceholder = "<!-- ATTACHMENTS_PLACEHOLDER -->"
 )
 
+var (
+	attachmentBodyPattern = regexp.MustCompile(`(?s)\[\[\s*range\s*\.Attachments\s*\]\](.*?)\[\[\s*end\s*\]\]`)
+)
+
 type SMTPStorage interface {
 	Process() error
 	Close() error
@@ -146,7 +150,10 @@ func NewSink(commonSink common.Sink,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	m.body, m.attachmentBody = separateBodyAndAttachmentBodyTemplate(string(body))
+	m.body, m.attachmentBody, err = separateBodyAndAttachmentBodyTemplate(string(body))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
 
@@ -232,10 +239,9 @@ func NewSink(commonSink common.Sink,
 	return s, nil
 }
 
-func separateBodyAndAttachmentBodyTemplate(bodyTemplateStr string) (*template.Template, *template.Template) {
+func separateBodyAndAttachmentBodyTemplate(bodyTemplateStr string) (*template.Template, *template.Template, error) {
 	var attachmentContent string
 
-	attachmentBodyPattern := regexp.MustCompile(`(?s)\[\[\s*range\s*\.Attachments\s*\]\](.*?)\[\[\s*end\s*\]\]`)
 	matches := attachmentBodyPattern.FindStringSubmatch(bodyTemplateStr)
 	if len(matches) > 1 {
 		attachmentContent = matches[1]
@@ -246,10 +252,17 @@ func separateBodyAndAttachmentBodyTemplate(bodyTemplateStr string) (*template.Te
 
 	attachmentContent = fmt.Sprintf("[[ range .Attachments ]]%s[[ end ]]", attachmentContent)
 
-	bodyTmpl := template.Must(compiler.NewTemplate("sink_smtp_email_metadata_body", processedTemplate))
-	attachmentTmpl := template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment_body", attachmentContent))
+	bodyTmpl, err := compiler.NewTemplate("sink_smtp_email_metadata_body", processedTemplate)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return bodyTmpl, attachmentTmpl
+	attachmentTmpl, err := compiler.NewTemplate("sink_smtp_email_metadata_attachment_body", attachmentContent)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return bodyTmpl, attachmentTmpl, nil
 }
 
 func compileAttachmentBodyTemplate(body string, attachmentTmpl *template.Template, attachments []attachmentBody) (string, error) {
@@ -716,25 +729,32 @@ func (s *SMTPSink) flushToOSS(destinationURI string, oh io.WriteCloser) error {
 	// header is skipped if SKIP_HEADER is explicitly set to true OR if file has been partially uploaded previously
 	skipHeader := s.skipHeader || (s.maxTempFileRecordNumber > 0 && s.fileRecordCounters[tmpPath] > s.maxTempFileRecordNumber)
 
+	cleanUpFn := func() error { return nil }
 	// convert to appropriate format if necessary
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		// do nothing
 	case ".csv":
-		tmpReader = helper.FromJSONToCSV(s.Logger(), tmpReader, skipHeader)
+		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, skipHeader) // no skip header by default
 	case ".tsv":
-		tmpReader = helper.FromJSONToCSV(s.Logger(), tmpReader, skipHeader, rune('\t'))
+		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, skipHeader, rune('\t'))
+	case ".xlsx":
+		tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s.Logger(), tmpReader, skipHeader) // no skip header by default
 	default:
 		s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing
 	}
+	defer func() {
+		cleanUpFn()
+		tmpReader.Close()
+	}()
+
 	// remove tmp file if destination is csv or tsv
 	if filepath.Ext(destinationURI) == ".csv" || filepath.Ext(destinationURI) == ".tsv" {
 		if err := os.Remove(tmpPath); err != nil {
 			return errors.WithStack(err)
 		}
 	}
-	defer tmpReader.Close()
 
 	s.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
 	return s.Retry(func() error {
