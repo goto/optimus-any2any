@@ -270,7 +270,7 @@ func compileAttachmentBodyTemplate(body string, attachmentTmpl *template.Templat
 		"Attachments": attachments,
 	})
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 
 	// replace the placeholder with the actual attachment body
