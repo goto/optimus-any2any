@@ -48,6 +48,7 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (
 	}
 
 	f, err := os.CreateTemp(os.TempDir(), "xlsx-*")
+	l.Info(fmt.Sprintf("converting csv to xlsx to tmp file: %s", f.Name()))
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to create temp file: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
@@ -55,13 +56,15 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (
 	cleanUpFn = func() error {
 		c()
 		f.Close()
-		if err := os.Remove(f.Name()); err != nil {
-			return errors.WithStack(err)
-		}
+		os.Remove(f.Name())
 		return nil
 	}
 	if err := xlsxFile.Write(f); err != nil {
 		l.Error(fmt.Sprintf("failed to write xlsx file: %v, skip converting", err))
+		return reader, cleanUpFn, errors.WithStack(err)
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		l.Error(fmt.Sprintf("failed to reset seek: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
 	}
 
@@ -89,9 +92,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, de
 	reader.Close() // close the original reader
 	cleanUpFn = func() error {
 		f.Close()
-		if err := os.Remove(f.Name()); err != nil {
-			return errors.WithStack(err)
-		}
+		os.Remove(f.Name())
 		return nil
 	}
 	return f, cleanUpFn, nil

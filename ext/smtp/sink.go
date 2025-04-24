@@ -225,10 +225,11 @@ func (s *SMTPSink) process() error {
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			defer func() {
-				cleanUpFn()
+			s.AddCleanFunc(func() error {
 				tmpReader.Close()
-			}()
+				cleanUpFn()
+				return nil
+			})
 
 			attachmentReaders[attachment] = tmpReader
 		}
