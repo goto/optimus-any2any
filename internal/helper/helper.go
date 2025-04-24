@@ -15,11 +15,58 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goccy/go-json"
+	"github.com/tealeg/xlsx"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
+
+func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (io.ReadSeekCloser, func() error, error) {
+	r, c, err := FromJSONToCSV(l, reader, skipHeader)
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to convert json to csv: %v, skip converting", err))
+		return reader, func() error { return nil }, errors.WithStack(err)
+	}
+	cleanUpFn := func() error { return c() }
+	csvReader := csv.NewReader(r)
+	csvReader.Comma = ','
+
+	xlsxFile := xlsx.NewFile()
+	sheet, err := xlsxFile.AddSheet("Sheet1")
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to add sheet: %v, skip converting", err))
+		return reader, cleanUpFn, errors.WithStack(err)
+	}
+
+	for record, err := csvReader.Read(); err == nil; record, err = csvReader.Read() {
+		row := sheet.AddRow()
+		for _, field := range record {
+			cell := row.AddCell()
+			cell.Value = field
+		}
+	}
+
+	f, err := os.CreateTemp(os.TempDir(), "xlsx-*")
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to create temp file: %v, skip converting", err))
+		return reader, cleanUpFn, errors.WithStack(err)
+	}
+	cleanUpFn = func() error {
+		c()
+		f.Close()
+		if err := os.Remove(f.Name()); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	}
+	if err := xlsxFile.Write(f); err != nil {
+		l.Error(fmt.Sprintf("failed to write xlsx file: %v, skip converting", err))
+		return reader, cleanUpFn, errors.WithStack(err)
+	}
+
+	return f, cleanUpFn, nil
+}
 
 func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) (io.ReadSeekCloser, func() error, error) {
 	cleanUpFn := func() error { return nil }
