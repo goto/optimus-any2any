@@ -389,12 +389,12 @@ func (s *SMTPSink) processWithOSS() error {
 		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
 		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
 		if s.maxTempFileRecordNumber > 0 && s.partialFileRecordCounters[ossPath] >= s.maxTempFileRecordNumber {
-			s.Logger().Info(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", s.maxTempFileRecordNumber, attachmentPath))
+			s.Logger().Debug(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", s.maxTempFileRecordNumber, attachmentPath))
 			if err := wh.Flush(); err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", attachmentPath))
 				return errors.WithStack(err)
 			}
-			s.Logger().Info(fmt.Sprintf("flushed tmp file: %s", attachmentPath))
+			s.Logger().Debug(fmt.Sprintf("flushed tmp file: %s", attachmentPath))
 
 			if err := s.flushToOSS(ossPath, s.ossHandlers[ossPath]); err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to upload to OSS: %s", ossPath))

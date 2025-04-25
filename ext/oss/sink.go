@@ -205,12 +205,12 @@ func (o *OSSSink) process() error {
 		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
 		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
 		if o.maxTempFileRecordNumber > 0 && o.partialFileRecordCounters[destinationURI] >= o.maxTempFileRecordNumber {
-			o.Logger().Info(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", o.maxTempFileRecordNumber, tmpPath))
+			o.Logger().Debug(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", o.maxTempFileRecordNumber, tmpPath))
 			if err := wh.Flush(); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
 				return errors.WithStack(err)
 			}
-			o.Logger().Info(fmt.Sprintf("flushed tmp file: %s", tmpPath))
+			o.Logger().Debug(fmt.Sprintf("flushed tmp file: %s", tmpPath))
 
 			if err := o.flush(destinationURI, o.ossHandlers[destinationURI]); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to upload to OSS: %s", destinationURI))
