@@ -99,7 +99,7 @@ func (o *OSSSource) process() error {
 		case ".json":
 			reader = ossFile
 		case ".csv":
-			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows)
+			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
 		case ".tsv":
 			reader = helper.FromCSVToJSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
 		default:
