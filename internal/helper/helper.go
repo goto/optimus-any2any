@@ -15,7 +15,7 @@ import (
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
 	"github.com/goccy/go-json"
-	"github.com/tealeg/xlsx"
+	"github.com/xuri/excelize/v2"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -32,37 +32,54 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (
 	csvReader := csv.NewReader(r)
 	csvReader.Comma = ','
 
-	xlsxFile := xlsx.NewFile()
-	sheet, err := xlsxFile.AddSheet("Sheet1")
-	if err != nil {
-		l.Error(fmt.Sprintf("failed to add sheet: %v, skip converting", err))
-		return reader, cleanUpFn, errors.WithStack(err)
-	}
-
-	for record, err := csvReader.Read(); err == nil; record, err = csvReader.Read() {
-		row := sheet.AddRow()
-		for _, field := range record {
-			cell := row.AddCell()
-			cell.Value = field
-		}
-	}
-
 	f, err := os.CreateTemp(os.TempDir(), "xlsx-*")
 	l.Info(fmt.Sprintf("converting csv to xlsx to tmp file: %s", f.Name()))
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to create temp file: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
 	}
+	xlsxFile := excelize.NewFile()
 	cleanUpFn = func() error {
 		c()
 		f.Close()
 		os.Remove(f.Name())
+		xlsxFile.Close()
 		return nil
+	}
+
+	streamWriter, err := xlsxFile.NewStreamWriter("Sheet1")
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to add sheet: %v, skip converting", err))
+		return reader, cleanUpFn, errors.WithStack(err)
+	}
+
+	rowIdx := 0
+	for record, err := csvReader.Read(); err == nil; record, err = csvReader.Read() {
+		cell, err := excelize.CoordinatesToCellName(1, rowIdx+1)
+		if err != nil {
+			l.Error(fmt.Sprintf("failed to convert coordinates to cell name: %v, skip converting", err))
+			return reader, cleanUpFn, errors.WithStack(err)
+		}
+		rowIdx++
+		values := make([]interface{}, len(record))
+		for i, field := range record {
+			values[i] = field
+		}
+		if err := streamWriter.SetRow(cell, values); err != nil {
+			l.Error(fmt.Sprintf("failed to set row: %v, skip converting", err))
+			return reader, cleanUpFn, errors.WithStack(err)
+		}
+	}
+
+	if err := streamWriter.Flush(); err != nil {
+		l.Error(fmt.Sprintf("failed to flush stream writer: %v, skip converting", err))
+		return reader, cleanUpFn, errors.WithStack(err)
 	}
 	if err := xlsxFile.Write(f); err != nil {
 		l.Error(fmt.Sprintf("failed to write xlsx file: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
 	}
+
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		l.Error(fmt.Sprintf("failed to reset seek: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
