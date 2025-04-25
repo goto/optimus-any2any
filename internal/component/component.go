@@ -83,7 +83,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return gmail.NewSource(commonSource, sourceCfg.Token, sourceCfg.Filter, sourceCfg.FilenameColumn, opts...)
+		return gmail.NewSource(commonSource, sourceCfg.Token, sourceCfg.Filter, sourceCfg.FilenameColumn, sourceCfg.CSVDelimiter, opts...)
 	case OSS:
 		sourceCfg, err := config.SourceOSS(envs...)
 		if err != nil {

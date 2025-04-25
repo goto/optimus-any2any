@@ -22,6 +22,7 @@ type GmailSource struct {
 	filterRules string
 
 	filenameColumn string
+	csvDelimiter   rune
 }
 
 var _ flow.Source = (*GmailSource)(nil)
@@ -29,6 +30,7 @@ var _ flow.Source = (*GmailSource)(nil)
 func NewSource(commonSource common.Source,
 	tokenJSON string,
 	filterRules, filenameColumn string,
+	csvDelimiter rune,
 	opts ...common.Option) (*GmailSource, error) {
 
 	// create gmail service
@@ -43,6 +45,7 @@ func NewSource(commonSource common.Source,
 		service:        srv,
 		filterRules:    filterRules,
 		filenameColumn: filenameColumn,
+		csvDelimiter:   csvDelimiter,
 	}
 
 	// add clean func
@@ -104,7 +107,7 @@ func (gs *GmailSource) process() error {
 			case ".json":
 				reader = bytes.NewReader(data)
 			case ".csv":
-				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0)
+				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0, gs.csvDelimiter)
 			case ".tsv":
 				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0, rune('\t'))
 			default:
