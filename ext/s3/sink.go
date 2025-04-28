@@ -274,17 +274,28 @@ func (s3 *S3Sink) flush(destinationURI string, wh io.WriteCloser) error {
 	skipHeader := s3.skipHeader || (s3.maxTempFileRecordNumber > 0 && s3.fileRecordCounters[tmpPath] > s3.maxTempFileRecordNumber)
 
 	// convert to appropriate format if necessary
+	cleanUpFn := func() error { return nil }
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		// do nothing
 	case ".csv":
-		tmpReader = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader)
+		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader)
 	case ".tsv":
-		tmpReader = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader, rune('\t'))
+		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader, rune('\t'))
+	case ".xlsx":
+		tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s3.Logger(), tmpReader, skipHeader)
 	default:
 		s3.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing
 	}
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	defer func() {
+		cleanUpFn()
+		tmpReader.Close()
+	}()
+
 	// remove tmp file if destination is csv or tsv
 	if filepath.Ext(destinationURI) == ".csv" || filepath.Ext(destinationURI) == ".tsv" {
 		if err := os.Remove(tmpPath); err != nil {
