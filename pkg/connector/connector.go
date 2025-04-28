@@ -40,7 +40,7 @@ func (c *Connector) Connect() flow.ConnectMultiSink {
 }
 
 func (c *Connector) connect(outlet flow.Outlet, inlets ...flow.Inlet) {
-	errChan := make(chan error)
+	errChan := make(chan error, 1)
 	go func() {
 		defer func() {
 			c.l.Info("close inlets")
