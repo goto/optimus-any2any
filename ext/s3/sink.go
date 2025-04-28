@@ -16,7 +16,6 @@ import (
 	xaws "github.com/goto/optimus-any2any/internal/auth/aws"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -271,19 +270,19 @@ func (s3 *S3Sink) flush(destinationURI string, wh io.WriteCloser) error {
 		return errors.WithStack(err)
 	}
 	// header is skipped if SKIP_HEADER is explicitly set to true OR if file has been partially uploaded previously
-	skipHeader := s3.skipHeader || (s3.maxTempFileRecordNumber > 0 && s3.fileRecordCounters[tmpPath] > s3.maxTempFileRecordNumber)
+	// skipHeader := s3.skipHeader || (s3.maxTempFileRecordNumber > 0 && s3.fileRecordCounters[tmpPath] > s3.maxTempFileRecordNumber)
 
 	// convert to appropriate format if necessary
 	cleanUpFn := func() error { return nil }
 	switch filepath.Ext(destinationURI) {
 	case ".json":
 		// do nothing
-	case ".csv":
-		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader)
-	case ".tsv":
-		tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader, rune('\t'))
-	case ".xlsx":
-		tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s3.Logger(), tmpReader, skipHeader)
+	// case ".csv":
+	// 	tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader)
+	// case ".tsv":
+	// 	tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s3.Logger(), tmpReader, skipHeader, rune('\t'))
+	// case ".xlsx":
+	// 	tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s3.Logger(), tmpReader, skipHeader)
 	default:
 		s3.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
 		// do nothing
