@@ -508,6 +508,9 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 		if !ok {
 			return nil, errors.WithStack(fmt.Errorf("value is not a string, found %+v, type %T", value, value))
 		}
+		if curr == "" {
+			return createData(l, nil, dt)
+		}
 
 		switch dt.ID() {
 		case datatype.DATE, datatype.DATETIME, datatype.TIMESTAMP, datatype.TIMESTAMP_NTZ:
