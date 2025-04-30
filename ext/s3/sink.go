@@ -305,10 +305,13 @@ func (s3 *S3Sink) flush(destinationURI string, wh io.WriteCloser) error {
 	defer tmpReader.Close()
 
 	s3.Logger().Info(fmt.Sprintf("upload tmp file %s to s3 %s", tmpPath, destinationURI))
-	return s3.Retry(func() error {
-		_, err := io.Copy(wh, tmpReader)
-		return err
-	})
+	n, err := io.Copy(wh, tmpReader)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	s3.Logger().Debug(fmt.Sprintf("uploaded %d bytes to s3 %s", n, destinationURI))
+	return nil
 }
 
 func getTmpPath(destinationURI string) (string, error) {

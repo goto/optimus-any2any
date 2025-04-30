@@ -318,12 +318,18 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 		}
 	}
 
+	// previously there was a retry when flushing the records to OSS.
+	// but retrying on a failed write (e.g. network error) may cause the reader to skip some records
+	// as the read pointer is not reset to the beginning of the file.
+	// will get back into this later until we find a better solution.
 	o.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
-	err = o.Retry(func() error {
-		_, err := io.Copy(oh, tmpReader)
+	n, err := io.Copy(oh, tmpReader)
+	if err != nil {
 		return errors.WithStack(err)
-	})
-	return err
+	}
+
+	o.Logger().Debug(fmt.Sprintf("uploaded %d bytes to oss %s", n, destinationURI))
+	return nil
 }
 
 func getTmpPath(destinationURI string) (string, error) {

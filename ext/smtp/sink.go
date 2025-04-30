@@ -756,9 +756,16 @@ func (s *SMTPSink) flushToOSS(destinationURI string, oh io.WriteCloser) error {
 		}
 	}
 
+	// previously there was a retry when flushing the records to OSS.
+	// but retrying on a failed write (e.g. network error) may cause the reader to skip some records
+	// as the read pointer is not reset to the beginning of the file.
+	// will get back into this later until we find a better solution.
 	s.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
-	return s.Retry(func() error {
-		_, err := io.Copy(oh, tmpReader)
-		return err
-	})
+	n, err := io.Copy(oh, tmpReader)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	s.Logger().Debug(fmt.Sprintf("uploaded %d bytes to oss %s", n, destinationURI))
+	return nil
 }
