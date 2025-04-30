@@ -440,27 +440,86 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 	}
 	switch dt.ID() {
 	case datatype.TINYINT:
-		curr, ok := value.(int8)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("value is not a tinyint, found %+v, type %T", value, value))
+		var curr int8
+		switch v := value.(type) {
+		case int64:
+			curr = int8(v)
+		case int32:
+			curr = int8(v)
+		case int:
+			curr = int8(v)
+		case int16:
+			curr = int8(v)
+		case int8:
+			curr = v
+		case float32:
+			curr = int8(v)
+		case float64:
+			curr = int8(v)
+			return nil, errors.WithStack(fmt.Errorf("unsupported tinyint type %T with value %+v", value, value))
 		}
 		return data.TinyInt(curr), nil
 	case datatype.SMALLINT:
-		curr, ok := value.(int16)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("value is not a smallint, found %+v, type %T", value, value))
+		var curr int16
+		switch v := value.(type) {
+		case int64:
+			curr = int16(v)
+		case int32:
+			curr = int16(v)
+		case int:
+			curr = int16(v)
+		case int16:
+			curr = v
+		case int8:
+			curr = int16(v)
+		case float32:
+			curr = int16(v)
+		case float64:
+			curr = int16(v)
+		default:
+			return nil, errors.WithStack(fmt.Errorf("unsupported smallint type %T with value %+v", value, value))
 		}
 		return data.SmallInt(curr), nil
 	case datatype.INT:
-		curr, ok := value.(int32)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("value is not an int, found %+v, type %T", value, value))
+		var curr int32
+		switch v := value.(type) {
+		case int64:
+			curr = int32(v)
+		case int32:
+			curr = v
+		case int:
+			curr = int32(v)
+		case int16:
+			curr = int32(v)
+		case int8:
+			curr = int32(v)
+		case float32:
+			curr = int32(v)
+		case float64:
+			curr = int32(v)
+		default:
+			return nil, errors.WithStack(fmt.Errorf("unsupported int type %T with value %+v", value, value))
 		}
 		return data.Int(curr), nil
 	case datatype.BIGINT:
-		curr, ok := value.(int64)
-		if !ok {
-			return nil, errors.WithStack(fmt.Errorf("value is not a bigint, found %+v, type %T", value, value))
+		var curr int64
+		switch v := value.(type) {
+		case int64:
+			curr = v
+		case int32:
+			curr = int64(v)
+		case int:
+			curr = int64(v)
+		case int16:
+			curr = int64(v)
+		case int8:
+			curr = int64(v)
+		case float32:
+			curr = int64(v)
+		case float64:
+			curr = int64(v)
+		default:
+			return nil, errors.WithStack(fmt.Errorf("unsupported bigint type %T with value %+v", value, value))
 		}
 		return data.BigInt(curr), nil
 	case datatype.DECIMAL:
