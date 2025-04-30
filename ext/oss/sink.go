@@ -319,11 +319,13 @@ func (o *OSSSink) flush(destinationURI string, oh io.WriteCloser) error {
 	}
 
 	o.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
-	err = o.Retry(func() error {
-		_, err := io.Copy(oh, tmpReader)
+	n, err := io.Copy(oh, tmpReader)
+	if err != nil {
 		return errors.WithStack(err)
-	})
-	return err
+	}
+
+	o.Logger().Debug(fmt.Sprintf("uploaded %d bytes to oss %s", n, destinationURI))
+	return errors.WithStack(err)
 }
 
 func getTmpPath(destinationURI string) (string, error) {
