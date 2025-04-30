@@ -6,15 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/pkg/errors"
 )
-
-// Registrants is an interface that defines the methods
-// that a component must implement to register processes and clean functions.
-type Registrants interface {
-	AddCleanFunc(f func() error)
-	RegisterProcess(f func() error)
-}
 
 // Setter is an interface that defines the methods
 // that a component must implement to set some internal
@@ -42,17 +34,14 @@ type backend interface {
 	flow.Outlet
 }
 
-// Core is a struct that implements the Registrants and Setter interfaces.
+// Core is a struct that implements the Registrants, Setter, Getter interfaces.
 type Core struct {
 	*Base
 	backend
-	ctx             context.Context
-	cancelFn        context.CancelCauseFunc
-	backendName     string
-	size            int
-	component       string
-	name            string
-	postHookProcess func() error // this is called after all processes are done
+	backendName string
+	size        int
+	component   string
+	name        string
 }
 
 var _ Registrants = (*Core)(nil)
@@ -64,14 +53,11 @@ var _ flow.Outlet = (*Core)(nil)
 // NewCore creates a new Core instance.
 func NewCore(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, component, name string) *Core {
 	c := &Core{
-		Base:            NewBase(l),
-		ctx:             ctx,
-		cancelFn:        cancelFn,
-		backendName:     "channel",
-		size:            0,
-		component:       component,
-		name:            name,
-		postHookProcess: func() error { return nil },
+		Base:        NewBase(ctx, cancelFn, l),
+		backendName: "channel",
+		size:        0,
+		component:   component,
+		name:        name,
 	}
 	c.backend = c.newBackend()
 	c.l = c.l.WithGroup(c.component).With("name", c.name)
@@ -111,52 +97,6 @@ func (c *Core) Name() string {
 // Context returns the context of the core component.
 func (c *Core) Context() context.Context {
 	return c.ctx
-}
-
-// AddCleanFunc adds a clean function to the component.
-// Clean functions are called when the component is closed
-// whether it is closed gracefully or due to an error.
-func (c *Core) AddCleanFunc(f func() error) {
-	c.cleanFuncs = append(c.cleanFuncs, f)
-}
-
-// RegisterProcess registers a process function that is run in a goroutine.
-// The process function is expected to return an error if it fails.
-// And postHookProcess is called after all processes are done.
-func (c *Core) RegisterProcess(f func() error) {
-	go func() {
-		defer func() {
-			c.postHookProcess()
-		}()
-
-		// wait until the context is canceled or the process is done
-		select {
-		case <-c.ctx.Done():
-			msg := "context canceled"
-			if err := context.Cause(c.ctx); err != nil {
-				msg = fmt.Sprintf("%s: %s", msg, err.Error())
-			}
-			c.l.Info(msg)
-		case <-process(f, &c.err):
-			if c.err != nil {
-				c.l.Error(fmt.Sprintf("process error: %s", c.err.Error()))
-				c.cancelFn(c.err)
-			}
-		}
-	}()
-}
-
-func process(f func() error, e *error) <-chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		err := f()
-		if err != nil {
-			ee := errors.WithStack(err)
-			*e = ee
-		}
-	}()
-	return done
 }
 
 func (c *Core) newBackend() backend {
