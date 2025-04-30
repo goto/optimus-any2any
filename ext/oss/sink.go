@@ -188,6 +188,7 @@ func (o *OSSSink) process() error {
 				return errors.WithStack(err)
 			}
 			o.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+			return nil
 		})
 	}
 	if err := o.ConcurrentTasks(o.Context(), 4, funcs); err != nil {

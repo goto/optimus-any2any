@@ -88,18 +88,15 @@ type SMTPSink struct {
 	emailHandlers         map[string]emailHandler
 
 	// TODO move this to shared package
-	ossclient               *oss.Client
-	writeHandlers           map[string]xio.WriteFlusher // tmp write handler
-	ossHandlers             map[string]io.WriteCloser
-	fileRecordCounters      map[string]int
-	enableOverwrite         bool
-	skipHeader              bool
-	maxTempFileRecordNumber int
-	ossDestinationDir       string
-	ossLinkExpiration       time.Duration
-	emailWithAttachments    map[string]emailWithAttachment
-
-	partialFileRecordCounters map[string]int // map of destinationURI to the number of records
+	ossclient            *oss.Client
+	writeHandlers        map[string]xio.WriteFlusher // tmp write handler
+	ossHandlers          map[string]io.WriteCloser
+	fileRecordCounters   map[string]int
+	enableOverwrite      bool
+	skipHeader           bool
+	ossDestinationDir    string
+	ossLinkExpiration    time.Duration
+	emailWithAttachments map[string]emailWithAttachment
 }
 
 // NewSink creates a new SMTPSink
@@ -157,16 +154,15 @@ func NewSink(commonSink common.Sink,
 	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
 
 	s := &SMTPSink{
-		Sink:                      commonSink,
-		client:                    client,
-		emailMetadataTemplate:     m,
-		emailHandlers:             make(map[string]emailHandler),
-		writeHandlers:             make(map[string]xio.WriteFlusher),
-		emailWithAttachments:      make(map[string]emailWithAttachment),
-		ossHandlers:               make(map[string]io.WriteCloser),
-		fileRecordCounters:        make(map[string]int),
-		partialFileRecordCounters: make(map[string]int),
-		// TODO skipheader is set to false by default
+		Sink:                  commonSink,
+		client:                client,
+		emailMetadataTemplate: m,
+		emailHandlers:         make(map[string]emailHandler),
+		writeHandlers:         make(map[string]xio.WriteFlusher),
+		emailWithAttachments:  make(map[string]emailWithAttachment),
+		ossHandlers:           make(map[string]io.WriteCloser),
+		fileRecordCounters:    make(map[string]int),
+		// skipheader is set to false by default
 		skipHeader: false,
 		// remove existing data by default
 		enableOverwrite: true,
@@ -195,21 +191,6 @@ func NewSink(commonSink common.Sink,
 			for destinationURI, oh := range s.ossHandlers {
 				s.Logger().Debug(fmt.Sprintf("close file: %s", destinationURI))
 				err := oh.Close()
-				e = errs.Join(e, err)
-			}
-			return e
-		})
-		commonSink.AddCleanFunc(func() error {
-			s.Logger().Info("remove tmp files")
-			var e error
-			for tmpPath := range s.writeHandlers {
-				s.Logger().Debug(fmt.Sprintf("close tmp file: %s", tmpPath))
-
-				s.Logger().Debug(fmt.Sprintf("remove tmp file: %s", tmpPath))
-				err := os.Remove(tmpPath)
-				if errors.Is(err, os.ErrNotExist) {
-					continue
-				}
 				e = errs.Join(e, err)
 			}
 			return e
@@ -309,26 +290,12 @@ func (s *SMTPSink) processWithOSS() error {
 			eh = s.emailWithAttachments[hash]
 		}
 
-		// stream to tmp file
 		// TODO: if the processes below is exported into a new struct, we only need to provide the relative attachment path
 		// and the new struct can figure out where to put the tmp file & the oss file
 		ossPath := getOSSPath(m, attachment, s.ossDestinationDir)
 		eh.attachments = append(eh.attachments, ossPath)
-		attachmentPath, err := getTmpPath(ossPath)
-		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to get tmp URI: %s", ossPath))
-			return errors.WithStack(err)
-		}
-
-		wh, ok := s.writeHandlers[attachmentPath]
+		wh, ok := s.writeHandlers[ossPath]
 		if !ok {
-			// create new tmp write handler
-			wh, err = xio.NewWriteHandler(s.Logger(), attachmentPath)
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to create tmp write handler: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-
 			// create new oss write handler
 			targetDestinationURI, err := url.Parse(ossPath)
 			if err != nil {
@@ -340,7 +307,7 @@ func (s *SMTPSink) processWithOSS() error {
 				return errors.WithStack(err)
 			}
 			// remove object if overwrite is enabled
-			if _, ok := s.ossHandlers[ossPath]; !ok && s.enableOverwrite {
+			if s.enableOverwrite {
 				s.Logger().Info(fmt.Sprintf("remove object: %s", ossPath))
 				if err := s.Retry(func() error {
 					err := s.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
@@ -359,9 +326,14 @@ func (s *SMTPSink) processWithOSS() error {
 				return errors.WithStack(err)
 			}
 
-			// dual handlers for both tmp file and oss
-			s.writeHandlers[attachmentPath] = wh
+			// store in both write handlers & oss handlers
+			// so that OSS write handler can be closed
 			s.ossHandlers[ossPath] = oh
+			s.writeHandlers[ossPath] = xio.NewChunkWriter(
+				s.Logger(), oh,
+				xio.WithExtension(filepath.Ext(ossPath)),
+				xio.WithCSVSkipHeader(s.skipHeader),
+			)
 			s.emailWithAttachments[hash] = eh
 		}
 
@@ -378,37 +350,9 @@ func (s *SMTPSink) processWithOSS() error {
 		}
 
 		recordCounter++
-		s.fileRecordCounters[attachmentPath]++
-		s.partialFileRecordCounters[ossPath]++
+		s.fileRecordCounters[ossPath]++
 		if recordCounter%logCheckPoint == 0 {
-			s.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", s.fileRecordCounters[attachmentPath], attachmentPath))
-		}
-
-		// EXPERIMENTAL: flush and upload to OSS if maximum number of records in tmp file is reached.
-		// a method of partial upload is implemented to avoid having large number of tmp files which leads to high disk usage.
-		// as long as the streamed records from source are guaranteed to be uniform (same header & value ordering), this should work.
-		if s.maxTempFileRecordNumber > 0 && s.partialFileRecordCounters[ossPath] >= s.maxTempFileRecordNumber {
-			s.Logger().Debug(fmt.Sprintf("maximum number of temp file records %d reached. flushing %s to OSS", s.maxTempFileRecordNumber, attachmentPath))
-			if err := wh.Flush(); err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", attachmentPath))
-				return errors.WithStack(err)
-			}
-			s.Logger().Debug(fmt.Sprintf("flushed tmp file: %s", attachmentPath))
-
-			if err := s.flushToOSS(ossPath, s.ossHandlers[ossPath]); err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to upload to OSS: %s", ossPath))
-				return errors.WithStack(err)
-			}
-
-			// reset counters and handlers for the current batch
-			// except for oss handler which is reused to upload the next part of the file
-			s.partialFileRecordCounters[ossPath] = 0
-			delete(s.writeHandlers, attachmentPath)
-
-			if err := os.Remove(attachmentPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-				s.Logger().Error(fmt.Sprintf("failed to remove tmp file: %s", attachmentPath))
-				return errors.WithStack(err)
-			}
+			s.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", s.fileRecordCounters[ossPath], ossPath))
 		}
 	}
 
@@ -417,20 +361,16 @@ func (s *SMTPSink) processWithOSS() error {
 		return nil
 	}
 
-	// flush remaining tmp files
-	for tmpPath, wh := range s.writeHandlers {
-		if err := wh.Flush(); err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
-			return errors.WithStack(err)
-		}
-		s.Logger().Info(fmt.Sprintf("flushed tmp file: %s", tmpPath))
-	}
-
 	// flush remaining records concurrently
 	funcs := []func() error{}
-	for uri := range s.ossHandlers {
+	for destinationURI, wh := range s.writeHandlers {
 		funcs = append(funcs, func() error {
-			return s.flushToOSS(uri, s.ossHandlers[uri])
+			if err := wh.Flush(); err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
+				return errors.WithStack(err)
+			}
+			s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+			return nil
 		})
 	}
 	if err := s.ConcurrentTasks(s.Context(), 4, funcs); err != nil {
@@ -442,7 +382,7 @@ func (s *SMTPSink) processWithOSS() error {
 	// Generate presigned URLs for all files in ossHandlers
 	// Presigned URLs must be generated after all files are finished uploading
 	presignedURLs := map[string]string{}
-	for uri := range s.ossHandlers {
+	for uri := range s.writeHandlers {
 		targetDestinationURI, err := url.Parse(uri)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", uri))
@@ -700,71 +640,6 @@ func getAttachmentPath(em emailMetadata, attachment string) string {
 	return filepath.Join(tmpFolder, hashMetadata(em), attachment)
 }
 
-// TODO need to ensure that TMP path has hash metadata in it
-func getTmpPath(destinationURI string) (string, error) {
-	targetURI, err := url.Parse(destinationURI)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	return filepath.Join("/tmp", targetURI.Path), nil
-}
-
 func getOSSPath(em emailMetadata, attachment string, ossDestinationDir string) string {
 	return fmt.Sprintf("%s/%s/%s", strings.TrimRight(ossDestinationDir, "/"), hashMetadata(em), attachment)
-}
-
-func (s *SMTPSink) flushToOSS(destinationURI string, oh io.WriteCloser) error {
-	// open tmp file for reading
-	tmpPath, err := getTmpPath(destinationURI)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	var tmpReader io.ReadSeekCloser
-	tmpReader, err = os.OpenFile(tmpPath, os.O_RDONLY, 0644)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	// header is skipped if SKIP_HEADER is explicitly set to true OR if file has been partially uploaded previously
-	// skipHeader := s.skipHeader || (s.maxTempFileRecordNumber > 0 && s.fileRecordCounters[tmpPath] > s.maxTempFileRecordNumber)
-
-	cleanUpFn := func() error { return nil }
-	// convert to appropriate format if necessary
-	switch filepath.Ext(destinationURI) {
-	case ".json":
-		// do nothing
-	// case ".csv":
-	// 	tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, skipHeader) // no skip header by default
-	// case ".tsv":
-	// 	tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, skipHeader, rune('\t'))
-	// case ".xlsx":
-	// 	tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s.Logger(), tmpReader, skipHeader) // no skip header by default
-	default:
-		s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(destinationURI)))
-		// do nothing
-	}
-	defer func() {
-		cleanUpFn()
-		tmpReader.Close()
-	}()
-
-	// remove tmp file if destination is csv or tsv
-	if filepath.Ext(destinationURI) == ".csv" || filepath.Ext(destinationURI) == ".tsv" {
-		if err := os.Remove(tmpPath); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
-	// previously there was a retry when flushing the records to OSS.
-	// but retrying on a failed write (e.g. network error) may cause the reader to skip some records
-	// as the read pointer is not reset to the beginning of the file.
-	// will get back into this later until we find a better solution.
-	s.Logger().Info(fmt.Sprintf("upload tmp file %s to oss %s", tmpPath, destinationURI))
-	n, err := io.Copy(oh, tmpReader)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	s.Logger().Debug(fmt.Sprintf("uploaded %d bytes to oss %s", n, destinationURI))
-	return nil
 }
