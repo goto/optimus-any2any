@@ -328,12 +328,13 @@ func (s *SMTPSink) processWithOSS() error {
 
 			// store in both write handlers & oss handlers
 			// so that OSS write handler can be closed
-			s.ossHandlers[ossPath] = oh
-			s.writeHandlers[ossPath] = xio.NewChunkWriter(
+			wh = xio.NewChunkWriter(
 				s.Logger(), oh,
 				xio.WithExtension(filepath.Ext(ossPath)),
 				xio.WithCSVSkipHeader(s.skipHeader),
 			)
+			s.ossHandlers[ossPath] = oh
+			s.writeHandlers[ossPath] = wh
 			s.emailWithAttachments[hash] = eh
 		}
 
@@ -493,15 +494,19 @@ func (s *SMTPSink) process() error {
 			s.Logger().Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
-		fh, ok := eh.writeHandlers[attachment]
+		wh, ok := eh.writeHandlers[attachment]
 		if !ok {
 			attachmentPath := getAttachmentPath(m, attachment)
-			fh, err = xio.NewWriteHandler(s.Logger(), attachmentPath)
+			fh, err := xio.NewWriteHandler(s.Logger(), attachmentPath)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("create write handler error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			eh.writeHandlers[attachment] = fh
+			wh = xio.NewChunkWriter(
+				s.Logger(), fh,
+				xio.WithExtension(filepath.Ext(attachment)),
+			)
+			eh.writeHandlers[attachment] = wh
 		}
 
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
@@ -511,7 +516,7 @@ func (s *SMTPSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		if _, err = fh.Write(append(raw, '\n')); err != nil {
+		if _, err = wh.Write(append(raw, '\n')); err != nil {
 			s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
@@ -521,9 +526,9 @@ func (s *SMTPSink) process() error {
 	for _, eh := range s.emailHandlers {
 		attachmentReaders := map[string]io.Reader{}
 
-		for attachment, fh := range eh.writeHandlers {
+		for attachment, wh := range eh.writeHandlers {
 			// flush write handler first
-			if err := fh.Flush(); err != nil {
+			if err := wh.Flush(); err != nil {
 				s.Logger().Error(fmt.Sprintf("flush write handler error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
@@ -535,30 +540,6 @@ func (s *SMTPSink) process() error {
 				s.Logger().Error(fmt.Sprintf("open attachment file error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-
-			// convert attachment file to desired format if necessary
-			cleanUpFn := func() error { return nil }
-			switch filepath.Ext(attachment) {
-			case ".json":
-				// do nothing
-			// case ".csv":
-			// 	tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, false) // no skip header by default
-			// case ".tsv":
-			// 	tmpReader, cleanUpFn, err = helper.FromJSONToCSV(s.Logger(), tmpReader, false, rune('\t'))
-			// case ".xlsx":
-			// 	tmpReader, cleanUpFn, err = helper.FromJSONToXLSX(s.Logger(), tmpReader, false) // no skip header by default
-			default:
-				s.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(attachment)))
-				// do nothing
-			}
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			s.AddCleanFunc(func() error {
-				tmpReader.Close()
-				cleanUpFn()
-				return nil
-			})
 
 			attachmentReaders[attachment] = tmpReader
 		}
