@@ -76,3 +76,10 @@ func SetupRetry(retryMax int, retryBackoffMs int64) Option {
 		}
 	}
 }
+
+// SetupDryRun sets up the dry run mode for the Common struct
+func SetupDryRun(dryRun bool) Option {
+	return func(c *Common) {
+		c.SetDryRun(dryRun)
+	}
+}

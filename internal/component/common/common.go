@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,12 @@ type Retrier interface {
 	Retry(func() error) error
 }
 
+// DryRunabler is an interface that defines a method to run a function
+// in dry run mode. It is used to handle dry run scenarios in a consistent way across different components.
+type DryRunabler interface {
+	DryRunable(func() error) error
+}
+
 // ConcurrentLimiter is an interface that defines a method to limit the number of concurrent tasks.
 type ConcurrentLimiter interface {
 	ConcurrentTasks(context.Context, int, []func() error) error
@@ -39,6 +47,7 @@ type ConcurrentLimiter interface {
 type Common struct {
 	Core           *component.Core
 	m              metric.Meter
+	dryRun         bool
 	retryMax       int
 	retryBackoffMs int64
 	metadataPrefix string
@@ -46,6 +55,7 @@ type Common struct {
 
 var _ ConcurrentLimiter = (*Common)(nil)
 var _ Retrier = (*Common)(nil)
+var _ DryRunabler = (*Common)(nil)
 var _ RecordHelper = (*Common)(nil)
 
 // NewCommon creates a new Common struct
@@ -53,6 +63,7 @@ func NewCommon(c *component.Core) *Common {
 	return &Common{
 		Core:           c,
 		m:              opentelemetry.GetMeterProvider().Meter(c.Component()),
+		dryRun:         false,          // default
 		retryMax:       1,              // default
 		retryBackoffMs: 1000,           // default
 		metadataPrefix: "__METADATA__", // default
@@ -82,6 +93,11 @@ func (c *Common) SetRetry(retryMax int, retryBackoffMs int64) {
 	c.retryBackoffMs = retryBackoffMs
 }
 
+// SetDryRun sets the dry run mode
+func (c *Common) SetDryRun(dryRun bool) {
+	c.dryRun = dryRun
+}
+
 // SetMetadataPrefix sets the metadata prefix
 func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 	c.metadataPrefix = metadataPrefix
@@ -90,6 +106,16 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
 	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
+}
+
+// DryRunable runs the given function in dry run mode
+func (c *Common) DryRunable(f func() error) error {
+	if c.dryRun {
+		functionName := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
+		c.Core.Logger().Info(fmt.Sprintf("dry run mode, skipping function %s", functionName))
+		return nil
+	}
+	return f()
 }
 
 // ConcurrentTasks runs the given functions concurrently with a limit
