@@ -212,14 +212,6 @@ func (s3 *S3Sink) process() error {
 	return nil
 }
 
-func getTmpPath(destinationURI string) (string, error) {
-	targetURI, err := url.Parse(destinationURI)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
-}
-
 func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize int) string {
 	return fmt.Sprintf("%s.%d.%s",
 		destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
