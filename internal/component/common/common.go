@@ -2,9 +2,10 @@ package common
 
 import (
 	"context"
+	errs "errors"
 	"fmt"
 	"log/slog"
-	"reflect"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
+	"github.com/pkg/errors"
 	opentelemetry "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -35,7 +37,9 @@ type Retrier interface {
 // DryRunabler is an interface that defines a method to run a function
 // in dry run mode. It is used to handle dry run scenarios in a consistent way across different components.
 type DryRunabler interface {
-	DryRunable(func() error) error
+	// DryRunable runs the given function in dry run mode.
+	// It provides alternative optional functions to run in dry run mode.
+	DryRunable(func() error, ...func() error) error
 }
 
 // ConcurrentLimiter is an interface that defines a method to limit the number of concurrent tasks.
@@ -48,6 +52,7 @@ type Common struct {
 	Core           *component.Core
 	m              metric.Meter
 	dryRun         bool
+	dryRunPCs      map[uintptr]bool
 	retryMax       int
 	retryBackoffMs int64
 	metadataPrefix string
@@ -63,10 +68,11 @@ func NewCommon(c *component.Core) *Common {
 	return &Common{
 		Core:           c,
 		m:              opentelemetry.GetMeterProvider().Meter(c.Component()),
-		dryRun:         false,          // default
-		retryMax:       1,              // default
-		retryBackoffMs: 1000,           // default
-		metadataPrefix: "__METADATA__", // default
+		dryRun:         false,                  // default
+		dryRunPCs:      make(map[uintptr]bool), // default
+		retryMax:       1,                      // default
+		retryBackoffMs: 1000,                   // default
+		metadataPrefix: "__METADATA__",         // default
 	}
 
 }
@@ -109,13 +115,27 @@ func (c *Common) Retry(f func() error) error {
 }
 
 // DryRunable runs the given function in dry run mode
-func (c *Common) DryRunable(f func() error) error {
+func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 	if c.dryRun {
-		functionName := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
-		c.Core.Logger().Info(fmt.Sprintf("dry run mode, skipping function %s", functionName))
-		return nil
+		// for logging purpose, we need to get the caller function
+		// and log it only once
+		pc, _, _, _ := runtime.Caller(1)
+		if _, ok := c.dryRunPCs[pc]; !ok {
+			// get the file name and line number
+			fileName, line := runtime.FuncForPC(pc).FileLine(pc)
+			c.Core.Logger().Info(fmt.Sprintf("dry run mode, skipping function %s:%d", filepath.Base(fileName), line))
+			c.dryRunPCs[pc] = true
+		}
+		// run dry run functions if any
+		var e error
+		for _, dryRunFunc := range dryRunFuncs {
+			if err := dryRunFunc(); err != nil {
+				e = errs.Join(e, err)
+			}
+		}
+		return errors.WithStack(e)
 	}
-	return f()
+	return errors.WithStack(f())
 }
 
 // ConcurrentTasks runs the given functions concurrently with a limit

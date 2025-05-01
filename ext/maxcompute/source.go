@@ -15,18 +15,13 @@ import (
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
-	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
 
 // MaxcomputeSource is the source component for MaxCompute.
 type MaxcomputeSource struct {
-	flow.Source
-	component.Getter
-	common.RecordSender
-	common.RecordHelper
-	common.ConcurrentLimiter
+	common.Source
 
 	Client         *Client
 	PreQuery       string
@@ -64,7 +59,7 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 	}
 	queryTemplates := make(map[string]*template.Template, len(rawQueries))
 	for filename, rawQuery := range rawQueries {
-		queryTemplate, err := compiler.NewTemplate(fmt.Sprintf("source_mc_query_%d", filename), string(rawQuery))
+		queryTemplate, err := compiler.NewTemplate(fmt.Sprintf("source_mc_query_%s", filename), string(rawQuery))
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -108,16 +103,12 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 	}
 
 	mc := &MaxcomputeSource{
-		Source:            commonSource,
-		Getter:            commonSource,
-		RecordSender:      commonSource,
-		RecordHelper:      commonSource,
-		ConcurrentLimiter: commonSource,
-		Client:            client,
-		QueryTemplates:    queryTemplates,
-		PreQuery:          string(rawPreQuery),
-		filenameColumn:    filenameColumn,
-		closers:           []io.Closer{},
+		Source:         commonSource,
+		Client:         client,
+		QueryTemplates: queryTemplates,
+		PreQuery:       string(rawPreQuery),
+		filenameColumn: filenameColumn,
+		closers:        []io.Closer{},
 	}
 
 	// add clean function
@@ -141,12 +132,25 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 // process is the process function for MaxcomputeSource.
 func (mc *MaxcomputeSource) Process() error {
 	// create pre-record reader
-	preRecordReader, err := mc.Client.QueryReader(mc.PreQuery)
+	var preRecordReader RecordReaderCloser
+	var err error
+
+	err = mc.DryRunable(func() error {
+		preRecordReader, err = mc.Client.QueryReader(mc.PreQuery)
+		if err != nil {
+			mc.Logger().Error(fmt.Sprintf("failed to get pre-record reader"))
+			return errors.WithStack(err)
+		}
+		mc.closers = append(mc.closers, preRecordReader)
+		return nil
+	}, func() error {
+		// use empty query for dry run
+		preRecordReader, _ = mc.Client.QueryReader("")
+		return nil
+	})
 	if err != nil {
-		mc.Logger().Error(fmt.Sprintf("failed to get pre-record reader"))
 		return errors.WithStack(err)
 	}
-	mc.closers = append(mc.closers, preRecordReader)
 
 	// record reader tasks
 	recordReaderTasks := []func() error{}
@@ -169,12 +173,23 @@ func (mc *MaxcomputeSource) Process() error {
 			}
 
 			// create record reader
-			recordReader, err := mc.Client.QueryReader(query)
+			var recordReader RecordReaderCloser
+			err = mc.DryRunable(func() error {
+				recordReader, err = mc.Client.QueryReader(query)
+				if err != nil {
+					mc.Logger().Error(fmt.Sprintf("failed to get record reader"))
+					return errors.WithStack(err)
+				}
+				mc.closers = append(mc.closers, recordReader)
+				return nil
+			}, func() error {
+				// use empty query for dry run
+				recordReader, _ = mc.Client.QueryReader("")
+				return nil
+			})
 			if err != nil {
-				mc.Logger().Error(fmt.Sprintf("failed to get record reader"))
 				return errors.WithStack(err)
 			}
-			mc.closers = append(mc.closers, recordReader)
 
 			preRecordWithPrefixCopy := preRecordWithPrefix.Copy()
 			filenameCopy := filename
@@ -202,7 +217,7 @@ func (mc *MaxcomputeSource) Process() error {
 			})
 		}
 	}
-	return mc.ConcurrentLimiter.ConcurrentTasks(mc.Context(), 4, recordReaderTasks)
+	return mc.ConcurrentTasks(mc.Context(), 4, recordReaderTasks)
 }
 
 func getRawQueries(queryFilePath string) (map[string][]byte, error) {

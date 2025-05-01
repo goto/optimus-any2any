@@ -155,15 +155,22 @@ func (mc *MaxcomputeSink) process() error {
 		}
 		record = mc.RecordWithoutMetadata(record)
 
-		if err := mc.Retry(func() error {
-			return sender.SendRecord(record)
-		}); err != nil {
-			return errors.WithStack(err)
-		}
-		countRecord++
+		// send record to maxcompute
+		err = mc.DryRunable(func() error {
+			if err := mc.Retry(func() error {
+				return sender.SendRecord(record)
+			}); err != nil {
+				return errors.WithStack(err)
+			}
+			countRecord++
 
-		if countRecord%logCheckpoint == 0 {
-			mc.Logger().Info(fmt.Sprintf("send %d records", countRecord))
+			if countRecord%logCheckpoint == 0 {
+				mc.Logger().Info(fmt.Sprintf("send %d records", countRecord))
+			}
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	}
 
@@ -171,19 +178,22 @@ func (mc *MaxcomputeSink) process() error {
 		mc.Logger().Info(fmt.Sprintf("write %d records", countRecord))
 	}
 
-	if err := closer.Close(); err != nil {
+	if err := mc.DryRunable(closer.Close); err != nil {
 		return errors.WithStack(err)
 	}
 
-	if mc.loadMethod == LOAD_METHOD_REPLACE {
-		mc.Logger().Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
-		if err := mc.Retry(func() error {
-			return insertOverwrite(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
-		}); err != nil {
-			mc.Logger().Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
-			return errors.WithStack(err)
+	err = mc.DryRunable(func() error {
+		if mc.loadMethod == LOAD_METHOD_REPLACE {
+			mc.Logger().Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
+			if err := mc.Retry(func() error {
+				return insertOverwrite(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
+			}); err != nil {
+				mc.Logger().Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+			mc.Logger().Info(fmt.Sprintf("load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
 		}
-		mc.Logger().Info(fmt.Sprintf("load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
-	}
-	return nil
+		return nil
+	})
+	return errors.WithStack(err)
 }

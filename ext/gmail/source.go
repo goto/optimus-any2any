@@ -60,20 +60,35 @@ func NewSource(commonSource common.Source,
 
 // process reads data from Gmail.
 func (gs *GmailSource) process() error {
-	// get messages
+	var resp *gmail.ListMessagesResponse
+	var err error
 	user := "me"
-	r, err := gs.service.Users.Messages.List(user).Q(gs.filterRules).Do()
+
+	// get messages
+	err = gs.DryRunable(func() error {
+		resp, err = gs.service.Users.Messages.List(user).Q(gs.filterRules).Do()
+		if err != nil {
+			gs.Logger().Error(fmt.Sprintf("failed to list messages %s", err.Error()))
+			return errors.WithStack(err)
+		}
+		return nil
+	}, func() error {
+		// if dry run, create empty response
+		resp = &gmail.ListMessagesResponse{}
+		return nil
+	})
 	if err != nil {
-		gs.Logger().Error(fmt.Sprintf("failed to list messages %s", err.Error()))
 		return errors.WithStack(err)
 	}
-	if len(r.Messages) == 0 {
+
+	// check if there are any messages
+	if len(resp.Messages) == 0 {
 		gs.Logger().Info(fmt.Sprintf("no messages found"))
 		return nil
 	}
 
 	// process messages
-	for _, m := range r.Messages {
+	for _, m := range resp.Messages {
 		msg, err := gs.service.Users.Messages.Get(user, m.Id).Do()
 		if err != nil {
 			gs.Logger().Error(fmt.Sprintf("failed to get message %s", err.Error()))

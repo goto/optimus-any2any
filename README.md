@@ -179,6 +179,7 @@ It applies when sink and source are in the same environment. For example, transf
 | METADATA_PREFIX | Metadata prefix for the data transfer. (default: __METADATA__) |
 | RETRY_MAX | Maximum number of retries for the data transfer. (default: 3) |
 | RETRY_BACKOFF_MS | Backoff time in milliseconds for the retry. (default: 1000) |
+| DRY_RUN | Enable dry run mode. (default: false) |
 | ENABLE_PPROF | Enable pprof for profiling. (default: false) |
 
 ## Supported Direct Execution For Data Transfer
