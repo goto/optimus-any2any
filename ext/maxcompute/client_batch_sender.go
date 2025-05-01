@@ -3,7 +3,6 @@ package maxcompute
 import (
 	errs "errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -29,7 +28,6 @@ type recordWriterPool struct {
 	batchSizeInBytes int64
 	mutexes          []sync.Mutex
 	recordWriters    []*tunnel.RecordProtocWriter
-	closers          []io.Closer
 	blockIds         []int
 }
 
@@ -40,7 +38,6 @@ func newRecordWriterPool(l *slog.Logger, session *tunnel.UploadSession, batchSiz
 		batchSizeInBytes: batchSizeInBytes,
 		mutexes:          make([]sync.Mutex, concurrency),
 		recordWriters:    make([]*tunnel.RecordProtocWriter, concurrency),
-		closers:          make([]io.Closer, concurrency),
 		blockIds:         make([]int, concurrency),
 	}
 	// initialize values
@@ -50,7 +47,6 @@ func newRecordWriterPool(l *slog.Logger, session *tunnel.UploadSession, batchSiz
 			return nil, errors.WithStack(err)
 		}
 		wp.recordWriters[i] = recordWriter
-		wp.closers[i] = recordWriter
 		wp.blockIds[i] = i
 	}
 	return wp, nil
@@ -70,7 +66,12 @@ func (p *recordWriterPool) send(record *model.Record) error {
 
 	// create new recordWriter if bytes count hits batch size limit
 	if p.recordWriters[i].BytesCount() >= p.batchSizeInBytes {
-		rw, err := p.newRecordWriter(i)
+		// close the current record writer
+		if err := p.recordWriters[i].Close(); err != nil {
+			return errors.WithStack(err)
+		}
+		// and create a new one
+		rw, err := p.newRecordWriter()
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -83,7 +84,7 @@ func (p *recordWriterPool) send(record *model.Record) error {
 	return nil
 }
 
-func (p *recordWriterPool) newRecordWriter(i uint32) (*tunnel.RecordProtocWriter, error) {
+func (p *recordWriterPool) newRecordWriter() (*tunnel.RecordProtocWriter, error) {
 	// create new record writer
 	blockId := len(p.blockIds)
 	if blockId >= maxBlockId {
@@ -96,21 +97,20 @@ func (p *recordWriterPool) newRecordWriter(i uint32) (*tunnel.RecordProtocWriter
 	p.l.Info(fmt.Sprintf("created new record writer with blockId %d", blockId))
 
 	// update record writer pool
-	p.recordWriters[i] = rw
 	p.blockIds = append(p.blockIds, blockId)
-	p.closers = append(p.closers, rw)
 
 	return rw, nil
 }
 
 func (p *recordWriterPool) close() error {
 	var e error
-	for _, closer := range p.closers {
-		if err := closer.Close(); err != nil {
+	// close remaining record writers
+	for _, rw := range p.recordWriters {
+		if err := rw.Close(); err != nil {
 			e = errs.Join(e, err)
 		}
 	}
-	return e
+	return errors.WithStack(e)
 }
 
 func (p *recordWriterPool) commit() error {
@@ -119,7 +119,11 @@ func (p *recordWriterPool) commit() error {
 		blockIds = append(blockIds, fmt.Sprintf("%d", blockId))
 	}
 	p.l.Info(fmt.Sprintf("commit %d blocks: %s", len(p.blockIds), strings.Join(blockIds, ",")))
-	return p.session.Commit(p.blockIds)
+	if err := p.session.Commit(p.blockIds); err != nil {
+		return errors.WithStack(err)
+	}
+	p.l.Info(fmt.Sprintf("committed %d blocks", len(p.blockIds)))
+	return nil
 }
 
 type mcBatchRecordSender struct {
@@ -183,7 +187,7 @@ func (s *mcBatchRecordSender) Close() error {
 		s.errM.Lock()
 		s.err = errors.WithStack(err)
 		s.errM.Unlock()
-		return err
+		return s.err
 	}
 	return s.commit()
 }
