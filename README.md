@@ -106,8 +106,8 @@ It applies when sink and source are in the same environment. For example, transf
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
-| | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: STREAM) |
-| | MC__CONCURRENCY | Concurrency number for REGULAR upload mode. (default: 1) |
+| | MC__UPLOAD_MODE | Upload mode availability: STREAM, REGULAR. (default: REGULAR) |
+| | MC__CONCURRENCY | Concurrency number for REGULAR upload mode. (default: 4) |
 | | MC__BATCH_SIZE_IN_MB | Batch size for the file upload. (default: 64) |
 | | MC__ALLOW_SCHEMA_MISMATCH | Allow schema mismatch. (default: false) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
@@ -172,10 +172,10 @@ It applies when sink and source are in the same environment. For example, transf
 | Configuration | Description |
 |---|---|
 | LOG_LEVEL | Log level for the application. (default: INFO) |
-| BACKEND | Backend to be used, CHANNEL / IO (default: CHANNEL) |
+| BACKEND | Backend to be used, CHANNEL / IO (default: IO) |
+| BUFFER_SIZE | Buffer size for the data transfer. (default: 0 / no buffer) |
 | OTEL_COLLECTOR_GRPC_ENDPOINT | OpenTelemetry collector gRPC endpoint. |
 | OTEL_ATTRIBUTES | OpenTelemetry attributes for tracing. key=value with comma separated. |
-| BUFFER_SIZE | Buffer size for the data transfer. (default: 0 / no buffer) |
 | METADATA_PREFIX | Metadata prefix for the data transfer. (default: __METADATA__) |
 | RETRY_MAX | Maximum number of retries for the data transfer. (default: 3) |
 | RETRY_BACKOFF_MS | Backoff time in milliseconds for the retry. (default: 1000) |
