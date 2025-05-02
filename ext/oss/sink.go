@@ -25,8 +25,7 @@ type OSSSink struct {
 
 	client                  *oss.Client
 	destinationURITemplate  *template.Template
-	writeHandlers           map[string]xio.WriteFlusher // tmp write handler
-	ossHandlers             map[string]io.WriteCloser
+	writeHandlers           map[string]xio.WriteFlushCloser
 	fileRecordCounters      map[string]int
 	batchSize               int
 	enableOverwrite         bool
@@ -59,8 +58,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                    commonSink,
 		client:                  client,
 		destinationURITemplate:  tmpl,
-		writeHandlers:           make(map[string]xio.WriteFlusher),
-		ossHandlers:             make(map[string]io.WriteCloser),
+		writeHandlers:           make(map[string]xio.WriteFlushCloser),
 		fileRecordCounters:      make(map[string]int),
 		batchSize:               batchSize,
 		enableOverwrite:         enableOverwrite,
@@ -72,7 +70,7 @@ func NewSink(commonSink common.Sink,
 	commonSink.AddCleanFunc(func() error {
 		o.Logger().Info("closing oss writers")
 		var e error
-		for destURI, wh := range o.ossHandlers {
+		for destURI, wh := range o.writeHandlers {
 			o.Logger().Debug(fmt.Sprintf("close handlers: %s", destURI))
 			err := wh.Close()
 			e = errs.Join(e, err)
@@ -143,9 +141,6 @@ func (o *OSSSink) process() error {
 				return errors.WithStack(err)
 			}
 
-			// store in both write handlers & oss handlers
-			// so that OSS write handler can be closed
-			o.ossHandlers[destinationURI] = oh
 			o.writeHandlers[destinationURI] = xio.NewChunkWriter(
 				o.Logger(), oh,
 				xio.WithExtension(filepath.Ext(destinationURI)),

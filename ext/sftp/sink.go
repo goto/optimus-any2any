@@ -2,7 +2,6 @@ package sftp
 
 import (
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -25,8 +24,7 @@ type SFTPSink struct {
 
 	client                 *sftp.Client
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]xio.WriteFlusher
-	sftpFileHandlers       map[string]io.WriteCloser
+	fileHandlers           map[string]xio.WriteFlushCloser
 	recordCounter          int
 }
 
@@ -63,8 +61,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                   commonSink,
 		client:                 client,
 		destinationURITemplate: t,
-		fileHandlers:           map[string]xio.WriteFlusher{},
-		sftpFileHandlers:       map[string]io.WriteCloser{},
+		fileHandlers:           map[string]xio.WriteFlushCloser{},
 	}
 
 	// add clean func
@@ -73,7 +70,7 @@ func NewSink(commonSink common.Sink,
 		return s.client.Close()
 	})
 	commonSink.AddCleanFunc(func() error {
-		for _, fh := range s.sftpFileHandlers {
+		for _, fh := range s.fileHandlers {
 			fh.Close()
 		}
 		s.Logger().Info("file handlers closed")
@@ -115,7 +112,6 @@ func (s *SFTPSink) process() error {
 				return errors.WithStack(err)
 			}
 
-			s.sftpFileHandlers[destinationURI] = sfh
 			s.fileHandlers[destinationURI] = xio.NewChunkWriter(
 				s.Logger(), sfh,
 				xio.WithExtension(filepath.Ext(destinationURI)),

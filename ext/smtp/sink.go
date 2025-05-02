@@ -64,20 +64,13 @@ type emailMetadata struct {
 
 type emailHandler struct {
 	emailMetadata emailMetadata
-	writeHandlers map[string]xio.WriteFlusher
+	writeHandlers map[string]xio.WriteFlushCloser
 }
 
 type emailWithAttachment struct {
 	emailMetadata emailMetadata
 	// map filename to url path
 	attachments []string
-}
-
-type fileHandler struct {
-	tmpPath    string
-	tmpHandler xio.WriteFlusher
-	ossPath    string
-	ossHandler io.WriteCloser
 }
 
 type SMTPSink struct {
@@ -89,8 +82,7 @@ type SMTPSink struct {
 
 	// TODO move this to shared package
 	ossclient            *oss.Client
-	writeHandlers        map[string]xio.WriteFlusher // tmp write handler
-	ossHandlers          map[string]io.WriteCloser
+	writeHandlers        map[string]xio.WriteFlushCloser
 	fileRecordCounters   map[string]int
 	enableOverwrite      bool
 	skipHeader           bool
@@ -158,9 +150,8 @@ func NewSink(commonSink common.Sink,
 		client:                client,
 		emailMetadataTemplate: m,
 		emailHandlers:         make(map[string]emailHandler),
-		writeHandlers:         make(map[string]xio.WriteFlusher),
+		writeHandlers:         make(map[string]xio.WriteFlushCloser),
 		emailWithAttachments:  make(map[string]emailWithAttachment),
-		ossHandlers:           make(map[string]io.WriteCloser),
 		fileRecordCounters:    make(map[string]int),
 		// skipheader is set to false by default
 		skipHeader: false,
@@ -188,7 +179,7 @@ func NewSink(commonSink common.Sink,
 		commonSink.AddCleanFunc(func() error {
 			s.Logger().Info("close oss files")
 			var e error
-			for destinationURI, oh := range s.ossHandlers {
+			for destinationURI, oh := range s.writeHandlers {
 				s.Logger().Debug(fmt.Sprintf("close file: %s", destinationURI))
 				err := oh.Close()
 				e = errs.Join(e, err)
@@ -333,7 +324,7 @@ func (s *SMTPSink) processWithOSS() error {
 				xio.WithExtension(filepath.Ext(ossPath)),
 				xio.WithCSVSkipHeader(s.skipHeader),
 			)
-			s.ossHandlers[ossPath] = oh
+
 			s.writeHandlers[ossPath] = wh
 			s.emailWithAttachments[hash] = eh
 		}
@@ -484,7 +475,7 @@ func (s *SMTPSink) process() error {
 		if !ok {
 			s.emailHandlers[hash] = emailHandler{
 				emailMetadata: m,
-				writeHandlers: make(map[string]xio.WriteFlusher),
+				writeHandlers: make(map[string]xio.WriteFlushCloser),
 			}
 			eh = s.emailHandlers[hash]
 		}

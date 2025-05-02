@@ -26,6 +26,7 @@ type chunkWriter struct {
 
 var _ io.WriteCloser = (*chunkWriter)(nil)
 var _ WriteFlusher = (*chunkWriter)(nil)
+var _ WriteFlushCloser = (*chunkWriter)(nil)
 
 // NewChunkWriter creates a new chunk writer with the specified chunk size and extension
 func NewChunkWriter(l *slog.Logger, writer io.Writer, opts ...Option) *chunkWriter {

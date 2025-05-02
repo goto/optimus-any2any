@@ -26,8 +26,7 @@ type S3Sink struct {
 
 	client                  *S3Client
 	destinationURITemplate  *template.Template
-	writeHandlers           map[string]xio.WriteFlusher // tmp write handler
-	s3Handlers              map[string]io.WriteCloser
+	writeHandlers           map[string]xio.WriteFlushCloser
 	fileRecordCounters      map[string]int
 	batchSize               int
 	enableOverwrite         bool
@@ -76,8 +75,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                    commonSink,
 		client:                  client,
 		destinationURITemplate:  tmpl,
-		writeHandlers:           make(map[string]xio.WriteFlusher),
-		s3Handlers:              make(map[string]io.WriteCloser),
+		writeHandlers:           make(map[string]xio.WriteFlushCloser),
 		fileRecordCounters:      make(map[string]int),
 		batchSize:               batchSize,
 		enableOverwrite:         enableOverwrite,
@@ -89,7 +87,7 @@ func NewSink(commonSink common.Sink,
 	commonSink.AddCleanFunc(func() error {
 		s3.Logger().Info("closing S3 files")
 		var e error
-		for _, handler := range s3.s3Handlers {
+		for _, handler := range s3.writeHandlers {
 			err := handler.Close()
 			e = errs.Join(e, err)
 		}
@@ -137,7 +135,7 @@ func (s3 *S3Sink) process() error {
 				return errors.WithStack(err)
 			}
 			// remove object if overwrite is enabled
-			if _, ok := s3.s3Handlers[destinationURI]; !ok && s3.enableOverwrite {
+			if s3.enableOverwrite {
 				s3.Logger().Info(fmt.Sprintf("remove object: %s", destinationURI))
 				if err := s3.Retry(func() error {
 					return s3.client.DeleteObject(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
@@ -146,11 +144,9 @@ func (s3 *S3Sink) process() error {
 					return errors.WithStack(err)
 				}
 			}
+
 			var sh io.WriteCloser = s3.client.GetUploadWriter(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 
-			// store in both write handlers & s3 handlers
-			// so that s3 write handler can be closed
-			s3.s3Handlers[destinationURI] = sh
 			s3.writeHandlers[destinationURI] = xio.NewChunkWriter(
 				s3.Logger(), sh,
 				xio.WithExtension(filepath.Ext(destinationURI)),
@@ -181,15 +177,6 @@ func (s3 *S3Sink) process() error {
 	if recordCounter == 0 {
 		s3.Logger().Info(fmt.Sprintf("no records to write"))
 		return nil
-	}
-
-	// flush remaining tmp files
-	for tmpPath, wh := range s3.writeHandlers {
-		if err := wh.Flush(); err != nil {
-			s3.Logger().Error(fmt.Sprintf("failed to flush tmp file: %s", tmpPath))
-			return errors.WithStack(err)
-		}
-		s3.Logger().Info(fmt.Sprintf("flushed tmp file: %s", tmpPath))
 	}
 
 	// flush remaining records concurrently
