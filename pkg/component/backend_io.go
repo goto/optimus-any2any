@@ -7,6 +7,7 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
@@ -14,9 +15,10 @@ import (
 )
 
 type backendIO struct {
-	l *slog.Logger
-	w io.WriteCloser
-	r io.ReadCloser
+	l        *slog.Logger
+	w        io.WriteCloser
+	r        io.ReadCloser
+	isClosed atomic.Bool
 }
 
 var _ flow.Inlet = (*backendIO)(nil)
@@ -60,6 +62,9 @@ func (b *backendIO) In(v []byte) {
 		// skip
 		return
 	}
+	if b.isClosed.Load() {
+		return
+	}
 	_, err := b.w.Write(append(v, '\n'))
 	if err != nil && !errs.Is(err, io.ErrClosedPipe) {
 		b.l.Warn(fmt.Sprintf("failed to write to sink: %s", err.Error()))
@@ -67,5 +72,6 @@ func (b *backendIO) In(v []byte) {
 }
 
 func (b *backendIO) CloseInlet() error {
+	b.isClosed.Store(true)
 	return b.w.Close()
 }

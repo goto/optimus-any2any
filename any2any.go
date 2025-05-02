@@ -13,7 +13,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/component"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
-	"github.com/goto/optimus-any2any/pkg/connector"
+	pkgcomponent "github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
 	"github.com/pkg/errors"
@@ -82,7 +82,7 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 			return []error{errors.WithStack(err)}
 		}
 		// run with pipeline
-		p = pipeline.NewMultiSinkPipeline(l, source, connector.GetConnector(ctx, cancelCauseFn, l, jqQuery), sinks...)
+		p = pipeline.NewMultiSinkPipeline(l, source, pkgcomponent.NewConnector(ctx, cancelCauseFn, l, jqQuery), sinks...)
 	}
 	defer p.Close()
 

@@ -3,13 +3,15 @@ package component
 import (
 	"iter"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
 type backendChannel struct {
-	l *slog.Logger
-	c chan []byte
+	l        *slog.Logger
+	c        chan []byte
+	isClosed atomic.Bool
 }
 
 var _ flow.Inlet = (*backendChannel)(nil)
@@ -41,10 +43,14 @@ func (b *backendChannel) In(v []byte) {
 		// skip
 		return
 	}
+	if b.isClosed.Load() {
+		return
+	}
 	b.c <- v
 }
 
 func (b *backendChannel) CloseInlet() error {
+	b.isClosed.Store(true)
 	close(b.c)
 	return nil
 }
