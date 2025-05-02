@@ -8,6 +8,7 @@ type Config struct {
 	BufferSize                int    `env:"BUFFER_SIZE"`
 	Backend                   string `env:"BACKEND" envDefault:"channel"`
 	MetadataPrefix            string `env:"METADATA_PREFIX" envDefault:"__METADATA__"`
+	DryRun                    bool   `env:"DRY_RUN" envDefault:"false"`
 	RetryMax                  int    `env:"RETRY_MAX" envDefault:"3"`
 	RetryBackoffMs            int64  `env:"RETRY_BACKOFF_MS" envDefault:"1000"`
 	EnablePprof               bool   `env:"ENABLE_PPROF" envDefault:"false"`

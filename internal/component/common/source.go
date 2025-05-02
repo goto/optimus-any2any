@@ -27,6 +27,7 @@ type Source interface {
 	// helpers
 	RecordHelper
 	Retrier
+	DryRunabler
 	ConcurrentLimiter
 }
 

@@ -94,26 +94,36 @@ func (fs *FileSink) Process() error {
 			return errors.WithStack(err)
 		}
 
-		fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
-		_, err = wh.Write(append(raw, '\n'))
+		// write to file
+		err = fs.DryRunable(func() error {
+			fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
+			_, err := wh.Write(append(raw, '\n'))
+			if err != nil {
+				fs.Logger().Error(fmt.Sprintf("failed to write to file"))
+				return errors.WithStack(err)
+			}
+			recordCounter++
+			fs.FileRecordCounters[destinationURI]++
+			if fs.FileRecordCounters[destinationURI]%logCheckPoint == 0 {
+				fs.Logger().Info(fmt.Sprintf("written %d records to file: %s", fs.FileRecordCounters[destinationURI], destinationURI))
+			}
+			return nil
+		})
 		if err != nil {
-			fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 			return errors.WithStack(err)
-		}
-		recordCounter++
-		fs.FileRecordCounters[destinationURI]++
-		if fs.FileRecordCounters[destinationURI]%logCheckPoint == 0 {
-			fs.Logger().Info(fmt.Sprintf("written %d records to file: %s", fs.FileRecordCounters[destinationURI], destinationURI))
 		}
 	}
 	// flush all write handlers
-	for _, wh := range fs.WriteHandlers {
-		if err := wh.Flush(); err != nil {
-			fs.Logger().Error(fmt.Sprintf("failed to flush write handler: %s", err.Error()))
-			return errors.WithStack(err)
+	err := fs.DryRunable(func() error {
+		for _, wh := range fs.WriteHandlers {
+			if err := wh.Flush(); err != nil {
+				fs.Logger().Error(fmt.Sprintf("failed to flush write handler: %s", err.Error()))
+				return errors.WithStack(err)
+			}
 		}
-	}
-	fs.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
+		fs.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
+		return nil
+	})
 
-	return nil
+	return errors.WithStack(err)
 }

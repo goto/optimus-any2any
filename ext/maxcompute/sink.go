@@ -46,13 +46,19 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
-	if loadMethod == LOAD_METHOD_REPLACE {
-		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
-		commonSink.Logger().Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
-		if err := createTempTable(commonSink.Logger(), client.Odps, tableID, tableIDDestination, 1); err != nil {
-			return nil, errors.WithStack(err)
+	err = commonSink.DryRunable(func() error {
+		if loadMethod == LOAD_METHOD_REPLACE {
+			tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
+			commonSink.Logger().Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
+			if err := createTempTable(commonSink.Logger(), client.Odps, tableID, tableIDDestination, 1); err != nil {
+				return errors.WithStack(err)
+			}
+			commonSink.Logger().Info(fmt.Sprintf("temporary table created: %s", tableID))
 		}
-		commonSink.Logger().Info(fmt.Sprintf("temporary table created: %s", tableID))
+		return nil
+	})
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
 
 	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
@@ -111,7 +117,9 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			mc.Logger().Info(fmt.Sprintf("load method is replace, deleting temporary table: %s", mc.tableIDTransition))
 			return mc.Retry(func() error {
-				return dropTable(mc.Logger(), client.Odps, mc.tableIDTransition)
+				return mc.DryRunable(func() error {
+					return dropTable(mc.Logger(), client.Odps, mc.tableIDTransition)
+				})
 			})
 		}
 		return nil
@@ -155,15 +163,22 @@ func (mc *MaxcomputeSink) process() error {
 		}
 		record = mc.RecordWithoutMetadata(record)
 
-		if err := mc.Retry(func() error {
-			return sender.SendRecord(record)
-		}); err != nil {
-			return errors.WithStack(err)
-		}
-		countRecord++
+		// send record to maxcompute
+		err = mc.DryRunable(func() error {
+			if err := mc.Retry(func() error {
+				return sender.SendRecord(record)
+			}); err != nil {
+				return errors.WithStack(err)
+			}
+			countRecord++
 
-		if countRecord%logCheckpoint == 0 {
-			mc.Logger().Info(fmt.Sprintf("send %d records", countRecord))
+			if countRecord%logCheckpoint == 0 {
+				mc.Logger().Info(fmt.Sprintf("send %d records", countRecord))
+			}
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	}
 
@@ -171,19 +186,22 @@ func (mc *MaxcomputeSink) process() error {
 		mc.Logger().Info(fmt.Sprintf("write %d records", countRecord))
 	}
 
-	if err := closer.Close(); err != nil {
+	if err := mc.DryRunable(closer.Close); err != nil {
 		return errors.WithStack(err)
 	}
 
-	if mc.loadMethod == LOAD_METHOD_REPLACE {
-		mc.Logger().Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
-		if err := mc.Retry(func() error {
-			return insertOverwrite(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
-		}); err != nil {
-			mc.Logger().Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
-			return errors.WithStack(err)
+	err = mc.DryRunable(func() error {
+		if mc.loadMethod == LOAD_METHOD_REPLACE {
+			mc.Logger().Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
+			if err := mc.Retry(func() error {
+				return insertOverwrite(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
+			}); err != nil {
+				mc.Logger().Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+			mc.Logger().Info(fmt.Sprintf("load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
 		}
-		mc.Logger().Info(fmt.Sprintf("load method is replace, data successfully loaded to destination table: %s", mc.tableIDDestination))
-	}
-	return nil
+		return nil
+	})
+	return errors.WithStack(err)
 }

@@ -135,18 +135,19 @@ func (p *PGSink) flush() error {
 	}
 	defer func() {
 		cleanUpFn()
-		// r.Close()
 	}()
 
-	// piping the records to pg
-	query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
-	p.Logger().Info(fmt.Sprintf("start writing %d records to pg", p.fileRecordCounter))
-	p.Logger().Debug(fmt.Sprintf("query: %s", query))
-	t, err := p.conn.PgConn().CopyFrom(p.Context(), r, query)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	p.Logger().Info(fmt.Sprintf("done writing %d records to pg", t.RowsAffected()))
-
-	return nil
+	err = p.DryRunable(func() error {
+		// piping the records to pg
+		query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
+		p.Logger().Info(fmt.Sprintf("start writing %d records to pg", p.fileRecordCounter))
+		p.Logger().Debug(fmt.Sprintf("query: %s", query))
+		t, err := p.conn.PgConn().CopyFrom(p.Context(), r, query)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		p.Logger().Info(fmt.Sprintf("done writing %d records to pg", t.RowsAffected()))
+		return nil
+	})
+	return errors.WithStack(err)
 }

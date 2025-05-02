@@ -81,15 +81,18 @@ func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
 func (fs *FileSource) Process() error {
 	// read files
 	for _, f := range fs.Readers {
-		sc := bufio.NewScanner(f)
-		for sc.Scan() {
-			// read line
-			raw := sc.Bytes()
-			line := make([]byte, len(raw)) // Important: make a copy of the line before sending
-			copy(line, raw)
-			// send to channel
-			fs.Send(line)
-		}
+		_ = fs.DryRunable(func() error {
+			sc := bufio.NewScanner(f)
+			for sc.Scan() {
+				// read line
+				raw := sc.Bytes()
+				line := make([]byte, len(raw)) // Important: make a copy of the line before sending
+				copy(line, raw)
+				// send to channel
+				fs.Send(line)
+			}
+			return nil
+		})
 	}
 	return nil
 }

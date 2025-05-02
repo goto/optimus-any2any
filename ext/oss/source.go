@@ -69,10 +69,20 @@ func NewSource(commonSource common.Source, creds string,
 func (o *OSSSource) process() error {
 	logCheckPoint := 1000
 	recordCounter := 0
+
 	// list objects
-	objectResult, err := o.client.ListObjects(o.Context(), &oss.ListObjectsRequest{
-		Bucket: oss.Ptr(o.bucket),
-		Prefix: oss.Ptr(o.path),
+	var objectResult *oss.ListObjectsResult
+	var err error
+	err = o.DryRunable(func() error {
+		objectResult, err = o.client.ListObjects(o.Context(), &oss.ListObjectsRequest{
+			Bucket: oss.Ptr(o.bucket),
+			Prefix: oss.Ptr(o.path),
+		})
+		return errors.WithStack(err)
+	}, func() error {
+		// use empty result for dry run
+		objectResult = &oss.ListObjectsResult{}
+		return nil
 	})
 	if err != nil {
 		o.Logger().Error(fmt.Sprintf("failed to list objects in bucket: %s", o.bucket))

@@ -114,7 +114,7 @@ func (s *HTTPSink) process() error {
 		if !ok {
 			s.httpHandlers[hash] = httpHandler{
 				httpMetadata: m,
-				records:      make([]*model.Record, 0, s.batchSize),
+				records:      make([]*model.Record, 0, s.batchSize), // TODO: use storage instead of in-memory
 			}
 		}
 
@@ -140,7 +140,10 @@ func (s *HTTPSink) process() error {
 		recordCounter++
 
 		if s.batchSize == 1 && recordCounter%logCheckPoint == 0 {
-			s.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))
+			_ = s.DryRunable(func() error { // ignore log when dry run
+				s.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))
+				return nil
+			})
 		}
 	}
 
@@ -157,8 +160,10 @@ func (s *HTTPSink) process() error {
 			return errors.WithStack(err)
 		}
 	}
-
-	s.Logger().Info(fmt.Sprintf("successfully sent %d records in total", recordCounter))
+	_ = s.DryRunable(func() error { // ignore log when dry run
+		s.Logger().Info(fmt.Sprintf("successfully sent %d records in total", recordCounter))
+		return nil
+	})
 
 	return nil
 }
@@ -191,21 +196,24 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 		ContentLength: int64(len([]byte(body))),
 		Body:          io.NopCloser(strings.NewReader(body)),
 	}
-	resp, err := s.client.Do(req.WithContext(s.Context()))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer resp.Body.Close()
+	err = s.DryRunable(func() error {
+		resp, err := s.client.Do(req.WithContext(s.Context()))
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		}
 
-	if s.batchSize > 1 {
-		s.Logger().Info(fmt.Sprintf("successfully sent %d records in batch to %s", recordCount, m.endpoint))
-	}
+		if s.batchSize > 1 {
+			s.Logger().Info(fmt.Sprintf("successfully sent %d records in batch to %s", recordCount, m.endpoint))
+		}
+		return nil
+	})
 
-	return nil
+	return errors.WithStack(err)
 }
 
 func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata, error) {

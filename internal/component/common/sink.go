@@ -28,6 +28,7 @@ type Sink interface {
 	// helpers
 	RecordHelper
 	Retrier
+	DryRunabler
 	ConcurrentLimiter
 }
 

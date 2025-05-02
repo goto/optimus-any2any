@@ -261,6 +261,7 @@ func getOpts(ctx context.Context, cfg *config.Config) []common.Option {
 		common.SetupBackend(cfg.Backend),
 		common.SetupOtelSDK(ctx, cfg.OtelCollectorGRPCEndpoint, cfg.OtelAttributes),
 		common.SetupRetry(cfg.RetryMax, cfg.RetryBackoffMs),
+		common.SetupDryRun(cfg.DryRun),
 		common.SetupMetadataPrefix(cfg.MetadataPrefix),
 	}
 }
