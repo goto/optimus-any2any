@@ -37,6 +37,7 @@ func NewSink(commonSink common.Sink,
 	commonSink.Logger().Debug(fmt.Sprintf("connection DSN: %s", connectionDSN))
 	parsedConnection, err := url.Parse(connectionDSN)
 	if err != nil {
+		err = fmt.Errorf("error parsing connection dsn")
 		return nil, errors.WithStack(err)
 	}
 	if parsedConnection.Scheme != "redis" && parsedConnection.Scheme != "rediss" {

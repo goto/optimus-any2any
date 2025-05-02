@@ -20,6 +20,7 @@ type SMTPClient struct {
 func NewSMTPClient(connectionDSN string) (*SMTPClient, error) {
 	dsn, err := url.Parse(connectionDSN)
 	if err != nil {
+		err = fmt.Errorf("error parsing connection dsn")
 		return nil, errors.WithStack(err)
 	}
 	if dsn.Scheme != "smtp" {
