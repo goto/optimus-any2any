@@ -59,9 +59,11 @@ func (w *chunkWriter) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 	w.size += n
+	w.l.Debug(fmt.Sprintf("write %d bytes to temporary writer", n))
 
 	// if the size exceeds the chunk size, write to the actual writer
 	if w.size >= w.chunkSize {
+		w.l.Debug(fmt.Sprintf("chunk size reached: %d bytes. Flushing to destination writer", w.size))
 		if err := w.Flush(); err != nil {
 			return n, err
 		}
@@ -92,6 +94,7 @@ func (w *chunkWriter) Flush() error {
 		return err
 	}
 	w.written += n
+	w.l.Debug(fmt.Sprintf("flushed %d bytes to destination writer", n))
 
 	// reset
 	w.size = 0
