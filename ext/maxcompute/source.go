@@ -116,7 +116,7 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 		mc.Logger().Debug(fmt.Sprintf("cleaning up"))
 		var e error
 		for _, closer := range mc.closers {
-			if err := closer.Close(); err != nil {
+			if err := mc.DryRunable(closer.Close); err != nil {
 				mc.Logger().Error(fmt.Sprintf("failed to close closer: %s", err.Error()))
 				e = errs.Join(e, errors.WithStack(err))
 			}
@@ -145,6 +145,7 @@ func (mc *MaxcomputeSource) Process() error {
 		return nil
 	}, func() error {
 		// use empty query for dry run
+		mc.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", mc.PreQuery))
 		preRecordReader, _ = mc.Client.QueryReader("")
 		return nil
 	})
@@ -184,6 +185,7 @@ func (mc *MaxcomputeSource) Process() error {
 				return nil
 			}, func() error {
 				// use empty query for dry run
+				mc.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", query))
 				recordReader, _ = mc.Client.QueryReader("")
 				return nil
 			})

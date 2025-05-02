@@ -24,7 +24,7 @@ type SFTPSink struct {
 
 	client                 *sftp.Client
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]xio.WriteFlushCloser
+	writerHandlers         map[string]xio.WriteFlushCloser
 	recordCounter          int
 }
 
@@ -61,7 +61,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                   commonSink,
 		client:                 client,
 		destinationURITemplate: t,
-		fileHandlers:           map[string]xio.WriteFlushCloser{},
+		writerHandlers:         map[string]xio.WriteFlushCloser{},
 	}
 
 	// add clean func
@@ -70,7 +70,7 @@ func NewSink(commonSink common.Sink,
 		return s.client.Close()
 	})
 	commonSink.AddCleanFunc(func() error {
-		for _, fh := range s.fileHandlers {
+		for _, fh := range s.writerHandlers {
 			fh.Close()
 		}
 		s.Logger().Info("file handlers closed")
@@ -94,7 +94,7 @@ func (s *SFTPSink) process() error {
 			return errors.WithStack(err)
 		}
 		s.Logger().Debug(fmt.Sprintf("destination URI: %s", destinationURI))
-		fh, ok := s.fileHandlers[destinationURI]
+		wh, ok := s.writerHandlers[destinationURI]
 		if !ok {
 			targetURI, err := url.Parse(destinationURI)
 			if err != nil {
@@ -112,10 +112,11 @@ func (s *SFTPSink) process() error {
 				return errors.WithStack(err)
 			}
 
-			s.fileHandlers[destinationURI] = xio.NewChunkWriter(
+			wh = xio.NewChunkWriter(
 				s.Logger(), sfh,
 				xio.WithExtension(filepath.Ext(destinationURI)),
 			)
+			s.writerHandlers[destinationURI] = wh
 		}
 
 		raw, err := json.Marshal(record)
@@ -124,24 +125,33 @@ func (s *SFTPSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		_, err = fh.Write(append(raw, '\n'))
+		err = s.DryRunable(func() error {
+			_, err = wh.Write(append(raw, '\n'))
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to write data"))
+				return errors.WithStack(err)
+			}
+
+			s.recordCounter++
+			return nil
+		})
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to write data"))
 			return errors.WithStack(err)
 		}
-
-		s.recordCounter++
 	}
 
 	// flush remaining records
-	for destinationURI, fh := range s.fileHandlers {
-		if err := fh.Flush(); err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
-			return errors.WithStack(err)
+	err := s.DryRunable(func() error {
+		for destinationURI, fh := range s.writerHandlers {
+			if err := fh.Flush(); err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
+				return errors.WithStack(err)
+			}
+			s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
 		}
-		s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
-	}
 
-	s.Logger().Info(fmt.Sprintf("successfully written %d records total to destination", s.recordCounter))
-	return nil
+		s.Logger().Info(fmt.Sprintf("successfully written %d records total to destination", s.recordCounter))
+		return nil
+	})
+	return errors.WithStack(err)
 }

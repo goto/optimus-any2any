@@ -72,7 +72,7 @@ func NewSink(commonSink common.Sink,
 		var e error
 		for destURI, wh := range o.writeHandlers {
 			o.Logger().Debug(fmt.Sprintf("close handlers: %s", destURI))
-			err := wh.Close()
+			err := o.DryRunable(wh.Close)
 			e = errs.Join(e, err)
 		}
 		return e
@@ -141,11 +141,12 @@ func (o *OSSSink) process() error {
 				return errors.WithStack(err)
 			}
 
-			o.writeHandlers[destinationURI] = xio.NewChunkWriter(
+			wh = xio.NewChunkWriter(
 				o.Logger(), oh,
 				xio.WithExtension(filepath.Ext(destinationURI)),
 				xio.WithCSVSkipHeader(o.skipHeader),
 			)
+			o.writeHandlers[destinationURI] = wh
 		}
 
 		// record without metadata
@@ -156,16 +157,22 @@ func (o *OSSSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		_, err = wh.Write(append(raw, '\n'))
-		if err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to write to file"))
-			return errors.WithStack(err)
-		}
+		err = o.DryRunable(func() error {
+			_, err = wh.Write(append(raw, '\n'))
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to write to file"))
+				return errors.WithStack(err)
+			}
 
-		recordCounter++
-		o.fileRecordCounters[destinationURI]++
-		if recordCounter%logCheckPoint == 0 {
-			o.Logger().Info(fmt.Sprintf("written %d records to file writer: %s", o.fileRecordCounters[destinationURI], destinationURI))
+			recordCounter++
+			o.fileRecordCounters[destinationURI]++
+			if recordCounter%logCheckPoint == 0 {
+				o.Logger().Info(fmt.Sprintf("written %d records to file writer: %s", o.fileRecordCounters[destinationURI], destinationURI))
+			}
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	}
 
@@ -178,26 +185,38 @@ func (o *OSSSink) process() error {
 	funcs := []func() error{}
 	for destinationURI, wh := range o.writeHandlers {
 		funcs = append(funcs, func() error {
-			if err := wh.Flush(); err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			o.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
-			return nil
+			err := o.DryRunable(func() error {
+				if err := wh.Flush(); err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
+					return errors.WithStack(err)
+				}
+				o.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+				return nil
+			})
+			return errors.WithStack(err)
 		})
 	}
 	if err := o.ConcurrentTasks(o.Context(), 4, funcs); err != nil {
 		return errors.WithStack(err)
 	}
 
-	o.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
+	_ = o.DryRunable(func() error { // ignore log when dry run
+		o.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
+		return nil
+	})
 	return nil
 }
 
 func (o *OSSSink) remove(bucket, path string) error {
-	response, err := o.client.DeleteObject(o.Context(), &oss.DeleteObjectRequest{
-		Bucket: oss.Ptr(bucket),
-		Key:    oss.Ptr(path),
+	var response *oss.DeleteObjectResult
+	var err error
+	// remove object
+	err = o.DryRunable(func() error {
+		response, err = o.client.DeleteObject(o.Context(), &oss.DeleteObjectRequest{
+			Bucket: oss.Ptr(bucket),
+			Key:    oss.Ptr(path),
+		})
+		return errors.WithStack(err)
 	})
 	if err != nil {
 		return errors.WithStack(err)

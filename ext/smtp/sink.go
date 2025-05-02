@@ -299,12 +299,18 @@ func (s *SMTPSink) processWithOSS() error {
 			}
 			// remove object if overwrite is enabled
 			if s.enableOverwrite {
-				s.Logger().Info(fmt.Sprintf("remove object: %s", ossPath))
-				if err := s.Retry(func() error {
-					err := s.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-					return err
-				}); err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to remove object: %s", ossPath))
+				err = s.DryRunable(func() error {
+					s.Logger().Info(fmt.Sprintf("remove object: %s", ossPath))
+					if err := s.Retry(func() error {
+						err := s.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+						return err
+					}); err != nil {
+						s.Logger().Error(fmt.Sprintf("failed to remove object: %s", ossPath))
+						return errors.WithStack(err)
+					}
+					return nil
+				})
+				if err != nil {
 					return errors.WithStack(err)
 				}
 			}
@@ -317,8 +323,6 @@ func (s *SMTPSink) processWithOSS() error {
 				return errors.WithStack(err)
 			}
 
-			// store in both write handlers & oss handlers
-			// so that OSS write handler can be closed
 			wh = xio.NewChunkWriter(
 				s.Logger(), oh,
 				xio.WithExtension(filepath.Ext(ossPath)),
@@ -336,15 +340,22 @@ func (s *SMTPSink) processWithOSS() error {
 			return errors.WithStack(err)
 		}
 
-		if _, err = wh.Write(append(raw, '\n')); err != nil {
-			s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
-			return errors.WithStack(err)
-		}
+		err = s.DryRunable(func() error {
+			if _, err = wh.Write(append(raw, '\n')); err != nil {
+				s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
 
-		recordCounter++
-		s.fileRecordCounters[ossPath]++
-		if recordCounter%logCheckPoint == 0 {
-			s.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", s.fileRecordCounters[ossPath], ossPath))
+			recordCounter++
+			s.fileRecordCounters[ossPath]++
+			if recordCounter%logCheckPoint == 0 {
+				s.Logger().Info(fmt.Sprintf("written %d records to tmp file: %s", s.fileRecordCounters[ossPath], ossPath))
+			}
+
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	}
 
@@ -357,12 +368,15 @@ func (s *SMTPSink) processWithOSS() error {
 	funcs := []func() error{}
 	for destinationURI, wh := range s.writeHandlers {
 		funcs = append(funcs, func() error {
-			if err := wh.Flush(); err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
-			return nil
+			err := s.DryRunable(func() error {
+				if err := wh.Flush(); err != nil {
+					s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
+					return errors.WithStack(err)
+				}
+				s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+				return nil
+			})
+			return errors.WithStack(err)
 		})
 	}
 	if err := s.ConcurrentTasks(s.Context(), 4, funcs); err != nil {
@@ -385,17 +399,24 @@ func (s *SMTPSink) processWithOSS() error {
 			return errors.WithStack(err)
 		}
 
-		presignedURL, err := s.ossclient.Presign(s.Context(), &oss.GetObjectRequest{
-			Bucket: oss.Ptr(targetDestinationURI.Host),
-			Key:    oss.Ptr(strings.TrimLeft(targetDestinationURI.Path, "/")),
-		}, oss.PresignExpiration(time.Now().Add(24*7*time.Hour))) // 7 days
+		// generate presigned URL
+		err = s.DryRunable(func() error {
+			presignedURL, err := s.ossclient.Presign(s.Context(), &oss.GetObjectRequest{
+				Bucket: oss.Ptr(targetDestinationURI.Host),
+				Key:    oss.Ptr(strings.TrimLeft(targetDestinationURI.Path, "/")),
+			}, oss.PresignExpiration(time.Now().Add(24*7*time.Hour))) // 7 days
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to generate presigned URL for: %s", uri))
+				return errors.WithStack(err)
+			}
+
+			presignedURLs[uri] = presignedURL.URL
+			s.Logger().Info(fmt.Sprintf("generated presigned URL for %s: %s", uri, presignedURL.URL))
+			return nil
+		})
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to generate presigned URL for: %s", uri))
 			return errors.WithStack(err)
 		}
-
-		presignedURLs[uri] = presignedURL.URL
-		s.Logger().Info(fmt.Sprintf("generated presigned URL for %s: %s", uri, presignedURL.URL))
 	}
 
 	// send email
@@ -425,15 +446,17 @@ func (s *SMTPSink) processWithOSS() error {
 		}
 
 		if err := s.Retry(func() error {
-			return s.client.SendMail(
-				eh.emailMetadata.from,
-				eh.emailMetadata.to,
-				eh.emailMetadata.cc,
-				eh.emailMetadata.bcc,
-				eh.emailMetadata.subject,
-				newBody,
-				nil,
-			)
+			return s.DryRunable(func() error {
+				return s.client.SendMail(
+					eh.emailMetadata.from,
+					eh.emailMetadata.to,
+					eh.emailMetadata.cc,
+					eh.emailMetadata.bcc,
+					eh.emailMetadata.subject,
+					newBody,
+					nil,
+				)
+			})
 		}); err != nil {
 			s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
 			return errors.WithStack(err)
@@ -443,9 +466,15 @@ func (s *SMTPSink) processWithOSS() error {
 }
 
 func (s *SMTPSink) remove(bucket, path string) error {
-	response, err := s.ossclient.DeleteObject(s.Context(), &oss.DeleteObjectRequest{
-		Bucket: oss.Ptr(bucket),
-		Key:    oss.Ptr(path),
+	var response *oss.DeleteObjectResult
+	var err error
+	// remove object
+	err = s.DryRunable(func() error {
+		response, err = s.ossclient.DeleteObject(s.Context(), &oss.DeleteObjectRequest{
+			Bucket: oss.Ptr(bucket),
+			Key:    oss.Ptr(path),
+		})
+		return errors.WithStack(err)
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -507,8 +536,14 @@ func (s *SMTPSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		if _, err = wh.Write(append(raw, '\n')); err != nil {
-			s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
+		err = s.DryRunable(func() error {
+			if _, err = wh.Write(append(raw, '\n')); err != nil {
+				s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -519,7 +554,7 @@ func (s *SMTPSink) process() error {
 
 		for attachment, wh := range eh.writeHandlers {
 			// flush write handler first
-			if err := wh.Flush(); err != nil {
+			if err := s.DryRunable(wh.Flush); err != nil {
 				s.Logger().Error(fmt.Sprintf("flush write handler error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
@@ -537,15 +572,17 @@ func (s *SMTPSink) process() error {
 
 		s.Logger().Info(fmt.Sprintf("send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
 		if err := s.Retry(func() error {
-			return s.client.SendMail(
-				eh.emailMetadata.from,
-				eh.emailMetadata.to,
-				eh.emailMetadata.cc,
-				eh.emailMetadata.bcc,
-				eh.emailMetadata.subject,
-				eh.emailMetadata.body,
-				attachmentReaders,
-			)
+			return s.DryRunable(func() error {
+				return s.client.SendMail(
+					eh.emailMetadata.from,
+					eh.emailMetadata.to,
+					eh.emailMetadata.cc,
+					eh.emailMetadata.bcc,
+					eh.emailMetadata.subject,
+					eh.emailMetadata.body,
+					attachmentReaders,
+				)
+			})
 		}); err != nil {
 			s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
 			return errors.WithStack(err)

@@ -114,7 +114,7 @@ func (s *HTTPSink) process() error {
 		if !ok {
 			s.httpHandlers[hash] = httpHandler{
 				httpMetadata: m,
-				records:      make([]*model.Record, 0, s.batchSize),
+				records:      make([]*model.Record, 0, s.batchSize), // TODO: use storage instead of in-memory
 			}
 		}
 

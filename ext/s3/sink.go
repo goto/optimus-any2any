@@ -136,9 +136,11 @@ func (s3 *S3Sink) process() error {
 			}
 			// remove object if overwrite is enabled
 			if s3.enableOverwrite {
-				s3.Logger().Info(fmt.Sprintf("remove object: %s", destinationURI))
 				if err := s3.Retry(func() error {
-					return s3.client.DeleteObject(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+					return s3.DryRunable(func() error {
+						s3.Logger().Info(fmt.Sprintf("remove object: %s", destinationURI))
+						return s3.client.DeleteObject(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+					})
 				}); err != nil {
 					s3.Logger().Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
 					return errors.WithStack(err)
@@ -147,11 +149,12 @@ func (s3 *S3Sink) process() error {
 
 			var sh io.WriteCloser = s3.client.GetUploadWriter(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 
-			s3.writeHandlers[destinationURI] = xio.NewChunkWriter(
+			wh = xio.NewChunkWriter(
 				s3.Logger(), sh,
 				xio.WithExtension(filepath.Ext(destinationURI)),
 				xio.WithCSVSkipHeader(s3.skipHeader),
 			)
+			s3.writeHandlers[destinationURI] = wh
 		}
 
 		// record without metadata
@@ -162,16 +165,22 @@ func (s3 *S3Sink) process() error {
 			return errors.WithStack(err)
 		}
 
-		_, err = wh.Write(append(raw, '\n'))
-		if err != nil {
-			s3.Logger().Error(fmt.Sprintf("failed to write to file"))
-			return errors.WithStack(err)
-		}
+		err = s3.DryRunable(func() error {
+			_, err = wh.Write(append(raw, '\n'))
+			if err != nil {
+				s3.Logger().Error(fmt.Sprintf("failed to write to file"))
+				return errors.WithStack(err)
+			}
 
-		recordCounter++
-		s3.fileRecordCounters[destinationURI]++
-		if recordCounter%logCheckPoint == 0 {
-			s3.Logger().Info(fmt.Sprintf("written %d records to file writer: %s", s3.fileRecordCounters[destinationURI], destinationURI))
+			recordCounter++
+			s3.fileRecordCounters[destinationURI]++
+			if recordCounter%logCheckPoint == 0 {
+				s3.Logger().Info(fmt.Sprintf("written %d records to file writer: %s", s3.fileRecordCounters[destinationURI], destinationURI))
+			}
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
 		}
 	}
 	if recordCounter == 0 {
@@ -183,12 +192,15 @@ func (s3 *S3Sink) process() error {
 	funcs := []func() error{}
 	for destinationURI, wh := range s3.writeHandlers {
 		funcs = append(funcs, func() error {
-			if err := wh.Flush(); err != nil {
-				s3.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			s3.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
-			return nil
+			err := s3.DryRunable(func() error {
+				if err := wh.Flush(); err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
+					return errors.WithStack(err)
+				}
+				s3.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+				return nil
+			})
+			return errors.WithStack(err)
 		})
 	}
 	if err := s3.ConcurrentTasks(s3.Context(), 4, funcs); err != nil {

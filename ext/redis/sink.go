@@ -23,7 +23,7 @@ type RedisSink struct {
 
 	recordKeyTemplate   *template.Template
 	recordValueTemplate *template.Template
-	records             []interface{}
+	records             []interface{} // TODO: use storage instead of in-memory
 }
 
 var _ flow.Sink = (*RedisSink)(nil)
@@ -140,10 +140,13 @@ func (s *RedisSink) process() error {
 }
 
 func (s *RedisSink) flush() error {
-	s.Logger().Info(fmt.Sprintf("flushing %d records", len(s.records)/2))
-	if err := s.client.MSet(s.Context(), s.records...).Err(); err != nil {
-		return err
-	}
+	err := s.DryRunable(func() error {
+		s.Logger().Info(fmt.Sprintf("flushing %d records", len(s.records)/2))
+		if err := s.client.MSet(s.Context(), s.records...).Err(); err != nil {
+			return errors.WithStack(err)
+		}
+		return nil
+	})
 
-	return nil
+	return errors.WithStack(err)
 }
