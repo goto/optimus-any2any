@@ -22,7 +22,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (io.ReadSeekCloser, func() error, error) {
+func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeeker, skipHeader bool) (io.Reader, func() error, error) {
 	r, c, err := FromJSONToCSV(l, reader, skipHeader)
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to convert json to csv: %v, skip converting", err))
@@ -44,6 +44,7 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (
 		f.Close()
 		os.Remove(f.Name())
 		xlsxFile.Close()
+		l.Info(fmt.Sprintf("clean up tmp file: %s", f.Name()))
 		return nil
 	}
 
@@ -88,7 +89,7 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool) (
 	return f, cleanUpFn, nil
 }
 
-func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, delimiter ...rune) (io.ReadSeekCloser, func() error, error) {
+func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimiter ...rune) (io.Reader, func() error, error) {
 	cleanUpFn := func() error { return nil }
 	f, err := os.CreateTemp(os.TempDir(), "csv-*")
 	if err != nil {
@@ -106,10 +107,10 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeekCloser, skipHeader bool, de
 		f.Close()
 		return reader, cleanUpFn, errors.WithStack(err)
 	}
-	reader.Close() // close the original reader
 	cleanUpFn = func() error {
 		f.Close()
 		os.Remove(f.Name())
+		l.Info(fmt.Sprintf("clean up tmp file: %s", f.Name()))
 		return nil
 	}
 	return f, cleanUpFn, nil

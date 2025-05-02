@@ -15,6 +15,11 @@ type WriteFlusher interface {
 	Flush() error
 }
 
+type WriteFlushCloser interface {
+	WriteFlusher
+	io.Closer
+}
+
 type BufferedWriter struct {
 	*bufio.Writer
 }

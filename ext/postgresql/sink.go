@@ -135,7 +135,7 @@ func (p *PGSink) flush() error {
 	}
 	defer func() {
 		cleanUpFn()
-		r.Close()
+		// r.Close()
 	}()
 
 	// piping the records to pg

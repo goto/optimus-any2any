@@ -3,6 +3,7 @@ package file
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"text/template"
 
 	"github.com/goccy/go-json"
@@ -19,7 +20,6 @@ import (
 type FileSink struct {
 	common.Sink
 	DestinationURITemplate *template.Template
-	WriterFactory          func(string) (xio.WriteFlusher, error)
 	WriteHandlers          map[string]xio.WriteFlusher
 	FileRecordCounters     map[string]int
 }
@@ -36,11 +36,8 @@ func NewSink(commonSink common.Sink, destinationURI string, opts ...common.Optio
 	fs := &FileSink{
 		Sink:                   commonSink,
 		DestinationURITemplate: tmpl,
-		WriterFactory: func(s string) (xio.WriteFlusher, error) {
-			return xio.NewWriteHandler(commonSink.Logger(), s)
-		},
-		WriteHandlers:      make(map[string]xio.WriteFlusher),
-		FileRecordCounters: make(map[string]int),
+		WriteHandlers:          make(map[string]xio.WriteFlusher),
+		FileRecordCounters:     make(map[string]int),
 	}
 
 	// add clean func
@@ -79,11 +76,13 @@ func (fs *FileSink) Process() error {
 				fs.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetURI.Scheme))
 				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 			}
-			wh, err = fs.WriterFactory(targetURI.Path)
+			w, err := xio.NewWriteHandler(fs.Logger(), targetURI.Path)
 			if err != nil {
 				fs.Logger().Error(fmt.Sprintf("failed to create write handler: %s", err.Error()))
-				return errors.WithStack(err)
+				return errors.WithStack((err))
 			}
+			ext := filepath.Ext(destinationURI)
+			wh = xio.NewChunkWriter(fs.Logger(), w, xio.WithExtension(ext))
 			fs.WriteHandlers[destinationURI] = wh
 			fs.FileRecordCounters[destinationURI] = 0
 		}

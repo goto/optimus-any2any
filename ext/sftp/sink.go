@@ -2,15 +2,16 @@ package sftp
 
 import (
 	"fmt"
-	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"text/template"
 
 	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -23,7 +24,8 @@ type SFTPSink struct {
 
 	client                 *sftp.Client
 	destinationURITemplate *template.Template
-	fileHandlers           map[string]io.WriteCloser
+	fileHandlers           map[string]xio.WriteFlushCloser
+	recordCounter          int
 }
 
 var _ flow.Sink = (*SFTPSink)(nil)
@@ -59,7 +61,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                   commonSink,
 		client:                 client,
 		destinationURITemplate: t,
-		fileHandlers:           map[string]io.WriteCloser{},
+		fileHandlers:           map[string]xio.WriteFlushCloser{},
 	}
 
 	// add clean func
@@ -103,25 +105,43 @@ func (s *SFTPSink) process() error {
 				s.Logger().Error(fmt.Sprintf("invalid scheme"))
 				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 			}
-			fh, err = s.client.OpenFile(targetURI.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+
+			sfh, err := s.client.OpenFile(targetURI.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			s.fileHandlers[destinationURI] = fh
+
+			s.fileHandlers[destinationURI] = xio.NewChunkWriter(
+				s.Logger(), sfh,
+				xio.WithExtension(filepath.Ext(destinationURI)),
+			)
 		}
+
 		raw, err := json.Marshal(record)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)
 		}
-		if err := s.Retry(func() error {
-			_, err := fh.Write(append(raw, '\n'))
-			return err
-		}); err != nil {
+
+		_, err = fh.Write(append(raw, '\n'))
+		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to write data"))
 			return errors.WithStack(err)
 		}
+
+		s.recordCounter++
 	}
+
+	// flush remaining records
+	for destinationURI, fh := range s.fileHandlers {
+		if err := fh.Flush(); err != nil {
+			s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
+			return errors.WithStack(err)
+		}
+		s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+	}
+
+	s.Logger().Info(fmt.Sprintf("successfully written %d records total to destination", s.recordCounter))
 	return nil
 }
