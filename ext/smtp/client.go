@@ -77,8 +77,11 @@ func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string,
 
 	// dial and send the email
 	// this will close the connection after sending
-	if err := c.dialer.DialAndSend(m); err != nil {
-		return errors.WithStack(err)
+	s, err := c.dialer.Dial()
+	if err != nil {
+		return err
 	}
-	return nil
+	defer s.Close()
+	// send the email
+	return errors.WithStack(s.Send(from, to, m))
 }
