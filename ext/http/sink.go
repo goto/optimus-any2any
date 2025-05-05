@@ -13,6 +13,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
+	xnet "github.com/goto/optimus-any2any/internal/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -211,6 +212,10 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 			s.Logger().Info(fmt.Sprintf("successfully sent %d records in batch to %s", recordCount, m.endpoint))
 		}
 		return nil
+	}, func() error {
+		// in dry run mode, we don't need to send the request
+		// we just need to check the endpoint connectivity
+		return xnet.ConnCheck(m.endpoint)
 	})
 
 	return errors.WithStack(err)

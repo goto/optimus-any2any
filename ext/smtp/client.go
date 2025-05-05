@@ -13,7 +13,7 @@ import (
 
 // SMTPClient is a wrapper around gomail.SendCloser
 type SMTPClient struct {
-	dialer *gomail.Dialer
+	*gomail.Dialer
 }
 
 // NewSMTPClient creates a new SMTPClient
@@ -42,9 +42,7 @@ func NewSMTPClient(connectionDSN string) (*SMTPClient, error) {
 	}
 
 	dialer := gomail.NewDialer(host, port, username, password)
-	return &SMTPClient{
-		dialer: dialer,
-	}, nil
+	return &SMTPClient{dialer}, nil
 }
 
 // Close closes the underlying connection
@@ -77,7 +75,7 @@ func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string,
 
 	// dial and send the email
 	// this will close the connection after sending
-	s, err := c.dialer.Dial()
+	s, err := c.Dial()
 	if err != nil {
 		return err
 	}

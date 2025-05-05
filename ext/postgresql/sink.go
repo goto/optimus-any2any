@@ -7,6 +7,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/helper"
 	xio "github.com/goto/optimus-any2any/internal/io"
+	xnet "github.com/goto/optimus-any2any/internal/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
@@ -148,6 +149,11 @@ func (p *PGSink) flush() error {
 		}
 		p.Logger().Info(fmt.Sprintf("done writing %d records to pg", t.RowsAffected()))
 		return nil
+	}, func() error {
+		// in dry run mode, we don't need to send the request
+		// we just need to check the endpoint connectivity
+		address := fmt.Sprintf("%s:%d", p.conn.Config().Host, p.conn.Config().Port)
+		return xnet.ConnCheck(address)
 	})
 	return errors.WithStack(err)
 }
