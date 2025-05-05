@@ -93,7 +93,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		// generate log view
 		var url string
 		if err := r.retryFunc(func() (err error) {
-			url, err = odps.NewLogView(r.client).GenerateLogView(instance, r.logViewRetentionInDays*24)
+			url, err = generateLogView(r.l, r.client, instance, r.logViewRetentionInDays)
 			return
 		}); err != nil {
 			r.l.Error(fmt.Sprintf("reader(%s): failed to generate log view", r.readerId))

@@ -4,6 +4,7 @@ import (
 	errs "errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,29 @@ func init() {
 	for _, keyword := range reservedKeywordsList {
 		reservedKeywords[keyword] = true
 	}
+}
+
+// generateLogView generates a log view for the given task instance
+func generateLogView(l *slog.Logger, c *odps.Odps, taskIns *odps.Instance, logViewRetentionInDays int) (string, error) {
+	u, err := c.LogView().GenerateLogView(taskIns, logViewRetentionInDays*24)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	l.Debug(fmt.Sprintf("origin log view url: %s", u))
+
+	// change query parameter h to http://service.id-all.maxcompute.aliyun-inc.com
+	parsedURL, err := url.Parse(u)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	q := parsedURL.Query()
+	q.Set("h", "http://service.id-all.maxcompute.aliyun-inc.com/api")
+
+	// reconstruct the URL with the new query parameter
+	parsedURL.RawQuery = q.Encode()
+	u = parsedURL.String()
+
+	return u, nil
 }
 
 func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sourceTableID string) error {

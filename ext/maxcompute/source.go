@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"maps"
@@ -145,9 +146,14 @@ func (mc *MaxcomputeSource) Process() error {
 		return nil
 	}, func() error {
 		// use empty query for dry run
-		mc.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", mc.PreQuery))
+		if mc.PreQuery != "" {
+			mc.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", mc.PreQuery))
+		}
 		preRecordReader, _ = mc.Client.QueryReader("")
 		return nil
+	}, func() error {
+		// explain pre-query
+		return errors.WithStack(mc.executeQueryExplain(mc.PreQuery))
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -185,9 +191,14 @@ func (mc *MaxcomputeSource) Process() error {
 				return nil
 			}, func() error {
 				// use empty query for dry run
-				mc.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", query))
+				if query != "" {
+					mc.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", query))
+				}
 				recordReader, _ = mc.Client.QueryReader("")
 				return nil
+			}, func() error {
+				// explain query
+				return errors.WithStack(mc.executeQueryExplain(query))
 			})
 			if err != nil {
 				return errors.WithStack(err)
@@ -220,6 +231,28 @@ func (mc *MaxcomputeSource) Process() error {
 		}
 	}
 	return mc.ConcurrentTasks(mc.Context(), 4, recordReaderTasks)
+}
+
+func (mc *MaxcomputeSource) executeQueryExplain(query string) error {
+	if query == "" {
+		return nil
+	}
+	// get query explain
+	queryExplain := fmt.Sprintf("explain %s", query)
+	hints := map[string]string{}
+	if strings.Contains(query, ";") {
+		hints["odps.sql.submit.mode"] = "script"
+	}
+	ins, err := mc.Client.ExecSQl(queryExplain, hints)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// wait for success
+	if err := ins.WaitForSuccess(); err != nil {
+		return errors.WithStack(err)
+	}
+	mc.Logger().Info("query explain verified")
+	return nil
 }
 
 func getRawQueries(queryFilePath string) (map[string][]byte, error) {
