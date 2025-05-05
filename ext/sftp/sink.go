@@ -40,6 +40,7 @@ func NewSink(commonSink common.Sink,
 	// set up SFTP client
 	urlParsed, err := url.Parse(destinationURI)
 	if err != nil {
+		err = fmt.Errorf("error parsing destination uri")
 		return nil, errors.WithStack(err)
 	}
 	if urlParsed.Scheme != "sftp" {
