@@ -456,6 +456,15 @@ func (s *SMTPSink) processWithOSS() error {
 					newBody,
 					nil,
 				)
+			}, func() error {
+				// in dry run mode, we don't need to send the request
+				// we just need to check the endpoint connectivity
+				c, err := s.client.Dial()
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				defer c.Close()
+				return nil
 			})
 		}); err != nil {
 			s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
@@ -582,6 +591,15 @@ func (s *SMTPSink) process() error {
 					eh.emailMetadata.body,
 					attachmentReaders,
 				)
+			}, func() error {
+				// in dry run mode, we don't need to send the request
+				// we just need to check the endpoint connectivity
+				c, err := s.client.Dial()
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				defer c.Close()
+				return nil
 			})
 		}); err != nil {
 			s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))

@@ -2,6 +2,7 @@ package redis
 
 import (
 	"crypto/tls"
+	errs "errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
+	xnet "github.com/goto/optimus-any2any/internal/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
@@ -19,7 +21,8 @@ import (
 
 type RedisSink struct {
 	common.Sink
-	client redis.Cmdable
+	addresses []string
+	client    redis.Cmdable
 
 	recordKeyTemplate   *template.Template
 	recordValueTemplate *template.Template
@@ -82,6 +85,7 @@ func NewSink(commonSink common.Sink,
 
 	s := &RedisSink{
 		Sink:                commonSink,
+		addresses:           addresses,
 		client:              client,
 		recordKeyTemplate:   recordKeyTemplate,
 		recordValueTemplate: recordValueTemplate,
@@ -146,6 +150,15 @@ func (s *RedisSink) flush() error {
 			return errors.WithStack(err)
 		}
 		return nil
+	}, func() error {
+		// in dry run mode, we don't need to send the request
+		// we just need to check the endpoint connectivity
+		var e error
+		for _, address := range s.addresses {
+			// check connectivity
+			e = errs.Join(e, xnet.ConnCheck(address))
+		}
+		return e
 	})
 
 	return errors.WithStack(err)

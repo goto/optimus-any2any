@@ -13,6 +13,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
+	xnet "github.com/goto/optimus-any2any/internal/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/pkg/sftp"
@@ -134,6 +135,11 @@ func (s *SFTPSink) process() error {
 
 			s.recordCounter++
 			return nil
+		}, func() error {
+			// in dry run mode, we don't need to send the request
+			// we just need to check the endpoint connectivity
+			targetURI, _ := url.Parse(destinationURI)
+			return xnet.ConnCheck(targetURI.Host)
 		})
 		if err != nil {
 			return errors.WithStack(err)
@@ -151,6 +157,14 @@ func (s *SFTPSink) process() error {
 		}
 
 		s.Logger().Info(fmt.Sprintf("successfully written %d records total to destination", s.recordCounter))
+		return nil
+	}, func() error {
+		// in dry run mode, we don't need to send the request
+		// we just need to check the endpoint connectivity
+		for destinationURI := range s.writerHandlers {
+			targetURI, _ := url.Parse(destinationURI)
+			return xnet.ConnCheck(targetURI.Host)
+		}
 		return nil
 	})
 	return errors.WithStack(err)
