@@ -238,9 +238,10 @@ func (mc *MaxcomputeSource) executeQueryExplain(query string) error {
 		return nil
 	}
 	// get query explain
-	queryExplain := fmt.Sprintf("explain %s", query)
+	queryExplain := getQueryExplain(query)
+
 	hints := map[string]string{}
-	if strings.Contains(query, ";") {
+	if strings.Contains(queryExplain, ";") {
 		hints["odps.sql.submit.mode"] = "script"
 	}
 	ins, err := mc.Client.ExecSQl(queryExplain, hints)
@@ -253,6 +254,26 @@ func (mc *MaxcomputeSource) executeQueryExplain(query string) error {
 	}
 	mc.Logger().Info("query explain verified")
 	return nil
+}
+
+func getQueryExplain(query string) string {
+	// separate headers, variables and udfs from the query
+	hr, query := SeparateHeadersAndQuery(query)
+	varsAndUDFs, query := SeparateVariablesUDFsAndQuery(query)
+	drops, query := SeparateDropsAndQuery(query)
+
+	// construct final query with headers, drops, variables and udfs
+	if hr != "" {
+		hr += "\n"
+	}
+	if drops != "" {
+		drops += "\n"
+	}
+	if varsAndUDFs != "" {
+		varsAndUDFs += "\n"
+	}
+	// construct query explain
+	return fmt.Sprintf("%s\nEXPLAIN\n%s%s%s\n;", hr, drops, varsAndUDFs, query)
 }
 
 func getRawQueries(queryFilePath string) (map[string][]byte, error) {
