@@ -83,7 +83,7 @@ func (b *Base) RegisterProcess(f func() error) {
 	go func() {
 		defer func() {
 			b.postHookProcess()
-			b.done <- 0
+			close(b.done)
 		}()
 
 		// wait until the context is canceled or the process is done
