@@ -73,6 +73,13 @@ func (w *chunkWriter) Write(p []byte) (n int, err error) {
 
 // Flush flushes the data to the actual writer
 func (w *chunkWriter) Flush() error {
+	// there might be case where Flush() is called immediately without Write() before it
+	// and in every Flush, temp writer is set to null. So need this check to avoid nil pointer dereference
+	if w.writerTmp == nil {
+		w.l.Debug("no data to flush")
+		return nil
+	}
+
 	// perform flush on the temporary writer
 	// if it implement Flusher
 	if f, ok := w.writerTmp.(WriteFlusher); ok {
