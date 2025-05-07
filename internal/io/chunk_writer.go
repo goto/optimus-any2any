@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/goto/optimus-any2any/internal/helper"
 )
@@ -138,7 +139,7 @@ func (w *chunkWriter) getConvertedReader() (io.Reader, func() error, error) {
 		return nil, nil, err
 	}
 
-	switch w.extension {
+	switch strings.ToLower(w.extension) {
 	case ".json":
 		return w.writerTmp, func() error { return nil }, nil
 	case ".csv":
