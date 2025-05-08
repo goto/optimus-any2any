@@ -190,7 +190,7 @@ func (o *OSSSink) process() error {
 					o.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
 					return errors.WithStack(err)
 				}
-				o.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+				o.Logger().Info(fmt.Sprintf("flushed %d records to file: %s", o.fileRecordCounters[destinationURI], destinationURI))
 				return nil
 			})
 			return errors.WithStack(err)

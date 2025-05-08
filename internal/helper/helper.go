@@ -33,7 +33,7 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeeker, skipHeader bool) (io.R
 	csvReader.Comma = ','
 
 	f, err := os.CreateTemp(os.TempDir(), "xlsx-*")
-	l.Info(fmt.Sprintf("converting csv to xlsx to tmp file: %s", f.Name()))
+	l.Debug(fmt.Sprintf("converting csv to xlsx to tmp file: %s", f.Name()))
 	if err != nil {
 		l.Error(fmt.Sprintf("failed to create temp file: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
@@ -44,7 +44,7 @@ func FromJSONToXLSX(l *slog.Logger, reader io.ReadSeeker, skipHeader bool) (io.R
 		f.Close()
 		os.Remove(f.Name())
 		xlsxFile.Close()
-		l.Info(fmt.Sprintf("clean up tmp file: %s", f.Name()))
+		l.Debug(fmt.Sprintf("clean up tmp file: %s", f.Name()))
 		return nil
 	}
 
@@ -96,7 +96,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 		l.Error(fmt.Sprintf("failed to open file: %v, skip converting", err))
 		return reader, cleanUpFn, errors.WithStack(err)
 	}
-	l.Info(fmt.Sprintf("converting json to csv to tmp file: %s", f.Name()))
+	l.Debug(fmt.Sprintf("converting json to csv to tmp file: %s", f.Name()))
 	if err := ToCSV(l, f, reader, skipHeader, delimiter...); err != nil {
 		l.Error(fmt.Sprintf("failed to convert json to csv: %v, skip converting", err))
 		f.Close()
@@ -110,7 +110,7 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 	cleanUpFn = func() error {
 		f.Close()
 		os.Remove(f.Name())
-		l.Info(fmt.Sprintf("clean up tmp file: %s", f.Name()))
+		l.Debug(fmt.Sprintf("clean up tmp file: %s", f.Name()))
 		return nil
 	}
 	return f, cleanUpFn, nil

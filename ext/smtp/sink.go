@@ -373,7 +373,7 @@ func (s *SMTPSink) processWithOSS() error {
 					s.Logger().Error(fmt.Sprintf("failed to flush to %s", destinationURI))
 					return errors.WithStack(err)
 				}
-				s.Logger().Info(fmt.Sprintf("flushed file: %s", destinationURI))
+				s.Logger().Info(fmt.Sprintf("flushed %d records to file: %s", s.fileRecordCounters[destinationURI], destinationURI))
 				return nil
 			})
 			return errors.WithStack(err)
