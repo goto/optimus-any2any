@@ -86,10 +86,10 @@ func generateLogView(l *slog.Logger, c *odps.Odps, taskIns *odps.Instance, logVi
 	return u, nil
 }
 
-func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sourceTableID string) error {
+func insertOverwriteQuery(l *slog.Logger, client *odps.Odps, destinationTableID, sourceTableID string) (string, error) {
 	table, err := getTable(l, client, destinationTableID)
 	if err != nil {
-		return errors.WithStack(err)
+		return "", errors.WithStack(err)
 	}
 	orderedColumns := []string{}
 	for _, column := range table.Schema().Columns {
@@ -97,15 +97,7 @@ func insertOverwrite(l *slog.Logger, client *odps.Odps, destinationTableID, sour
 	}
 
 	queryToExecute := fmt.Sprintf("INSERT OVERWRITE TABLE %s SELECT %s FROM %s;", sanitizeTableID(destinationTableID), strings.Join(orderedColumns, ","), sanitizeTableID(sourceTableID))
-	l.Info(fmt.Sprintf("executing query: %s", queryToExecute))
-	instance, err := client.ExecSQl(queryToExecute)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	if err := instance.WaitForSuccess(); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
+	return queryToExecute, nil
 }
 
 func sanitizeName(columnName string) string {

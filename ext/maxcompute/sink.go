@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -194,7 +195,39 @@ func (mc *MaxcomputeSink) process() error {
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			mc.Logger().Info(fmt.Sprintf("load method is replace, load data from temporary table to destination table: %s", mc.tableIDDestination))
 			if err := mc.Retry(func() error {
-				return insertOverwrite(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
+				queryToExecute, err := insertOverwriteQuery(mc.Logger(), mc.Client.Odps, mc.tableIDDestination, mc.tableIDTransition)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				mc.Logger().Info(fmt.Sprintf("executing query: %s", queryToExecute))
+				instance, err := mc.Client.Odps.ExecSQl(queryToExecute)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				// generate logview
+				url, err := generateLogView(mc.Logger(), mc.Client.Odps, instance, 2) // 2 days
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				mc.Logger().Info(fmt.Sprintf("log view url: %s", url))
+
+				// register clean func to terminate instance
+				mc.AddCleanFunc(func() error {
+					if err := mc.Retry(instance.Load); err != nil {
+						return errors.WithStack(err)
+					}
+					if instance.Status() == odps.InstanceTerminated { // instance is terminated, no need to terminate again
+						return nil
+					}
+					if err := mc.Retry(instance.Terminate); err != nil {
+						return errors.WithStack(err)
+					}
+					return nil
+				})
+
+				// wait for instance to finish
+				mc.Logger().Info(fmt.Sprintf("waiting for instance %s to finish...", instance.Id()))
+				return errors.WithStack(instance.WaitForSuccess())
 			}); err != nil {
 				mc.Logger().Error(fmt.Sprintf("insert overwrite error: %s", err.Error()))
 				return errors.WithStack(err)
