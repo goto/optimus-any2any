@@ -91,9 +91,11 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 	case <-p.Run():
 		// if run is completed, it's less likely to return an error
 		// but it's better to return them anyway
+		l.Info("pipeline completed")
 		return p.Errs()
 	// or until context is cancelled
 	case <-ctx.Done():
+		l.Info("pipeline cancelled")
 		if err := context.Cause(ctx); err != nil {
 			return append(p.Errs(), errors.WithStack(err))
 		}

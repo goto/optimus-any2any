@@ -23,7 +23,7 @@ func NewCoreSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slo
 	// special case for source to close the channel
 	// after all processes are done
 	c.Core.postHookProcess = func() error {
-		c.Core.l.Debug(fmt.Sprintf("close inlet"))
+		c.Core.l.Info(fmt.Sprintf("close inlet"))
 		return c.Core.CloseInlet()
 	}
 	return c
