@@ -45,6 +45,7 @@ func (p *MultiSinkPipeline) Run() <-chan uint8 {
 		defer close(done)
 		connect(p.source, sinks...)
 		p.groupSinkWait(p.sinks...)
+		p.logger.Info("all sinks are done")
 	}()
 	return done
 }
@@ -86,9 +87,9 @@ func (p *MultiSinkPipeline) groupSinkWait(sinks ...flow.Sink) {
 	var wg sync.WaitGroup
 	for _, sink := range sinks {
 		wg.Add(1)
-		go func(sink flow.Sink) {
+		go func(s flow.Sink) {
 			defer wg.Done()
-			sink.Wait()
+			s.Wait()
 		}(sink)
 	}
 	wg.Wait()

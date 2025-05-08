@@ -25,7 +25,6 @@ type Base struct {
 	err             error
 	cleanFuncs      []func() error
 	postHookProcess func() error // this is called after all processes are done but before closing
-	done            chan uint8
 }
 
 var _ Registrants = (*Base)(nil)
@@ -39,7 +38,6 @@ func NewBase(ctx context.Context, cleanFn context.CancelCauseFunc, l *slog.Logge
 		err:             nil,
 		cleanFuncs:      make([]func() error, 0),
 		postHookProcess: func() error { return nil },
-		done:            make(chan uint8),
 	}
 	return b
 }
@@ -51,9 +49,7 @@ func (b *Base) Logger() *slog.Logger {
 
 // Close closes the component and runs all clean functions.
 func (b *Base) Close() error {
-	<-b.done
-
-	b.l.Debug("close")
+	b.l.Info("closeing component")
 	var e error
 	for _, clean := range b.cleanFuncs {
 		e = errs.Join(e, clean())
@@ -83,7 +79,6 @@ func (b *Base) RegisterProcess(f func() error) {
 	go func() {
 		defer func() {
 			b.postHookProcess()
-			close(b.done)
 		}()
 
 		// wait until the context is canceled or the process is done
