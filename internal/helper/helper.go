@@ -156,11 +156,11 @@ func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRo
 			recordResult := model.NewRecord()
 			for i, header := range headers {
 				var val interface{}
-				if raw, err := strconv.ParseBool(record[i]); err == nil {
-					val = raw
-				} else if raw, err := strconv.ParseFloat(record[i], 64); err == nil {
+				if raw, err := strconv.ParseFloat(record[i], 64); err == nil {
 					val = raw
 				} else if raw, err := strconv.ParseInt(record[i], 10, 64); err == nil {
+					val = raw
+				} else if raw, err := strconv.ParseBool(record[i]); err == nil {
 					val = raw
 				} else {
 					val = record[i]
