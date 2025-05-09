@@ -307,7 +307,7 @@ func (o *OSSSink) GetArchiver(compressionType, compressionPassword string) (arch
 	switch compressionType {
 	case "gz":
 		mapperFn := func(filePath string) (io.Writer, func() error, error) {
-			fileName := fmt.Sprintf("%s.gzip", filepath.Base(filePath))
+			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
 			archiveDestinationPath := filepath.Join(archiveDir, fileName)
 
 			if o.enableOverwrite {
