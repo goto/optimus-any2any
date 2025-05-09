@@ -49,7 +49,7 @@ func (b *Base) Logger() *slog.Logger {
 
 // Close closes the component and runs all clean functions.
 func (b *Base) Close() error {
-	b.l.Info("closeing component")
+	b.l.Debug("closing component")
 	var e error
 	for _, clean := range b.cleanFuncs {
 		e = errs.Join(e, clean())

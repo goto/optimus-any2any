@@ -24,11 +24,11 @@ func NewCoreSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.
 	// and send done signal
 	// this is to prevent the sink from blocking
 	c.Core.postHookProcess = func() error {
-		c.Core.Logger().Info("skip message")
+		c.Core.Logger().Debug("skip message")
 		for range c.Out() {
 			// drain the channel
 		}
-		c.Core.Logger().Info("post hook process done")
+		c.Core.Logger().Debug("post hook process done")
 		c.done <- 0
 		return nil
 	}
@@ -42,5 +42,5 @@ func (c *CoreSink) Wait() {
 	<-c.done
 	c.Core.Logger().Info("sink finished processing")
 	close(c.done)
-	c.Core.Logger().Info("sink done channel closed")
+	c.Core.Logger().Debug("sink done channel closed")
 }

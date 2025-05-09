@@ -239,6 +239,7 @@ func (mc *MaxcomputeSource) executeQueryExplain(query string) error {
 	}
 	// get query explain
 	queryExplain := getQueryExplain(query)
+	mc.Logger().Debug(fmt.Sprintf("query explain:\n%s", queryExplain))
 
 	hints := map[string]string{}
 	if strings.Contains(queryExplain, ";") {
@@ -273,7 +274,7 @@ func getQueryExplain(query string) string {
 		varsAndUDFs += "\n"
 	}
 	// construct query explain
-	return fmt.Sprintf("%s\nEXPLAIN\n%s%s%s\n;", hr, drops, varsAndUDFs, query)
+	return fmt.Sprintf("%s%s\nEXPLAIN\n%s\n;", hr, varsAndUDFs, query)
 }
 
 func getRawQueries(queryFilePath string) (map[string][]byte, error) {
