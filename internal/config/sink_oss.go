@@ -7,6 +7,8 @@ type SinkOSSConfig struct {
 	EnableOverwrite         bool   `env:"OSS__ENABLE_OVERWRITE" envDefault:"false"`
 	SkipHeader              bool   `env:"OSS__SKIP_HEADER" envDefault:"false"`
 	MaxTempFileRecordNumber int    `env:"OSS__MAX_TEMP_FILE_RECORD_NUMBER" envDefault:"50000"`
+	CompressionType         string `env:"OSS__COMPRESSION_TYPE"`
+	CompressionPassword     string `env:"OSS__COMPRESSION_PASSWORD"`
 }
 
 func SinkOSS(envs ...string) (*SinkOSSConfig, error) {
