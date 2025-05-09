@@ -15,17 +15,19 @@ import (
 )
 
 type FileArchiver struct {
-	l          *slog.Logger
-	extension  string
-	password   string
-	destWriter io.Writer
+	l               *slog.Logger
+	extension       string
+	password        string
+	archiveWriterFn ArchiveWriterFn
 }
 
-func NewFileArchiver(l *slog.Logger, extension string, destWriter io.Writer, opts ...FileArchiverOption) *FileArchiver {
+type ArchiveWriterFn func() (io.Writer, func() error, error)
+
+func NewFileArchiver(l *slog.Logger, extension string, archiveWriterFn ArchiveWriterFn, opts ...FileArchiverOption) *FileArchiver {
 	fa := &FileArchiver{
-		l:          l,
-		extension:  extension,
-		destWriter: destWriter,
+		l:               l,
+		extension:       extension,
+		archiveWriterFn: archiveWriterFn,
 	}
 
 	for _, opt := range opts {
@@ -46,7 +48,16 @@ func (f *FileArchiver) Archive(files []string) error {
 }
 
 func (f *FileArchiver) archiveTarGz(files []string) error {
-	gzWriter := gzip.NewWriter(f.destWriter)
+	destWriter, closeFn, err := f.archiveWriterFn()
+	if err != nil {
+		f.l.Error(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+	if closeFn != nil {
+		defer closeFn()
+	}
+
+	gzWriter := gzip.NewWriter(destWriter)
 	defer gzWriter.Close()
 
 	tarWriter := tar.NewWriter(gzWriter)
@@ -63,7 +74,16 @@ func (f *FileArchiver) archiveTarGz(files []string) error {
 }
 
 func (f *FileArchiver) archiveZip(files []string) error {
-	zipWriter := zip.NewWriter(f.destWriter)
+	destWriter, closeFn, err := f.archiveWriterFn()
+	if err != nil {
+		f.l.Error(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+	if closeFn != nil {
+		defer closeFn()
+	}
+
+	zipWriter := zip.NewWriter(destWriter)
 	defer zipWriter.Close()
 
 	for _, file := range files {
@@ -138,7 +158,6 @@ func (f *FileArchiver) addFileToZipWriter(filePath string, zipWriter *zip.Writer
 		}
 		writer, err = zipWriter.CreateHeader(fh)
 	} else {
-		f.l.Info("using password for encryption")
 		writer, err = zipWriter.Encrypt(filepath.Base(filePath), f.password, zip.AES256Encryption)
 	}
 	if err != nil {

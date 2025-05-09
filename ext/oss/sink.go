@@ -32,8 +32,8 @@ type OSSSink struct {
 	enableOverwrite         bool
 	skipHeader              bool
 	maxTempFileRecordNumber int
-	compressionType         string
-	compressionPassword     string
+	enableArchive           bool
+	archiver                archive.Archiver
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -68,8 +68,15 @@ func NewSink(commonSink common.Sink,
 		enableOverwrite:         enableOverwrite,
 		skipHeader:              skipHeader,
 		maxTempFileRecordNumber: maxTempFileRecordNumber,
-		compressionType:         compressionType,
-		compressionPassword:     compressionPassword,
+	}
+
+	// enable archive if compression type is set
+	if compressionType != "" {
+		o.archiver, err = o.GetArchiver(compressionType, compressionPassword)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get archiver: %w", err)
+		}
+		o.enableArchive = true
 	}
 
 	// add clean func
@@ -129,8 +136,7 @@ func (o *OSSSink) process() error {
 			}
 			// remove object if overwrite is enabled
 			var oh io.Writer
-			if o.compressionType != "" {
-				o.Logger().Info(fmt.Sprintf("compression is enabled, create tmp file: %s", destinationURI))
+			if o.enableArchive {
 				tmpPath, err := getTmpPath(destinationURI)
 				if err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
@@ -221,7 +227,7 @@ func (o *OSSSink) process() error {
 		return errors.WithStack(err)
 	}
 
-	if o.compressionType != "" {
+	if o.enableArchive {
 		err := o.DryRunable(func() error {
 			pathsToArchive := []string{}
 			for destinationURI := range o.writeHandlers {
@@ -235,14 +241,7 @@ func (o *OSSSink) process() error {
 			}
 			o.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
-			// compress files
-			archiver, err := o.GetArchiver()
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to get archiver: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-
-			err = archiver.Archive(pathsToArchive)
+			err := o.archiver.Archive(pathsToArchive)
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
 				return errors.WithStack(err)
@@ -301,15 +300,26 @@ func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize in
 		filepath.Ext(destinationURI)[1:])
 }
 
-func (o *OSSSink) GetArchiver() (archive.Archiver, error) {
+func (o *OSSSink) GetArchiver(compressionType, compressionPassword string) (archive.Archiver, error) {
 	uri, _ := url.Parse(o.destinationURITemplate.Root.String())
 	archiveDir := filepath.Dir(uri.Path)
 
-	switch o.compressionType {
+	switch compressionType {
 	case "gz":
 		mapperFn := func(filePath string) (io.Writer, func() error, error) {
 			fileName := fmt.Sprintf("%s.gzip", filepath.Base(filePath))
 			archiveDestinationPath := filepath.Join(archiveDir, fileName)
+
+			if o.enableOverwrite {
+				o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", archiveDestinationPath))
+				if err := o.Retry(func() error {
+					err := o.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
+					return err
+				}); err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to remove object: %s", archiveDestinationPath))
+					return nil, nil, errors.WithStack(err)
+				}
+			}
 
 			archiveWriter, err := oss.NewAppendFile(o.Context(), o.client, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
 			if err != nil {
@@ -325,35 +335,43 @@ func (o *OSSSink) GetArchiver() (archive.Archiver, error) {
 	case "zip":
 		fallthrough
 	case "tar.gz":
-		re := strings.NewReplacer("{{ ", "", " }}", "", "{{", "", "}}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(uri.Path)), o.compressionType)
-		archiveDestinationPath := filepath.Join(archiveDir, fileName)
+		archiveWriterFn := func() (io.Writer, func() error, error) {
+			// for zip & tar.gz file, the whole file is archived into a single archive file
+			// whose file name is deferred from the destination URI
+			re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
+			fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(uri.Path)), compressionType)
+			archiveDestinationPath := filepath.Join(archiveDir, fileName)
 
-		if o.enableOverwrite {
-			o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", archiveDestinationPath))
-			if err := o.Retry(func() error {
-				err := o.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-				return err
-			}); err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to remove object: %s", archiveDestinationPath))
-				return nil, errors.WithStack(err)
+			if o.enableOverwrite {
+				o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", archiveDestinationPath))
+				if err := o.Retry(func() error {
+					err := o.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
+					return err
+				}); err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to remove object: %s", archiveDestinationPath))
+					return nil, nil, errors.WithStack(err)
+				}
 			}
+
+			// use appender
+			var archiveWriter io.WriteCloser
+			err := o.Retry(func() error {
+				var err error
+				archiveWriter, err = oss.NewAppendFile(o.Context(), o.client, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
+				return errors.WithStack(err)
+			})
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
+				return nil, nil, errors.WithStack(err)
+			}
+
+			return archiveWriter, func() error {
+				return errors.WithStack(archiveWriter.Close())
+			}, nil
 		}
 
-		// use appender
-		var archiveWriter io.Writer
-		err := o.Retry(func() error {
-			var err error
-			archiveWriter, err = oss.NewAppendFile(o.Context(), o.client, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-			return errors.WithStack(err)
-		})
-		if err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
-			return nil, errors.WithStack(err)
-		}
-
-		return archive.NewFileArchiver(o.Logger(), o.compressionType, archiveWriter, archive.WithPassword(o.compressionPassword)), nil
+		return archive.NewFileArchiver(o.Logger(), compressionType, archiveWriterFn, archive.WithPassword(compressionPassword)), nil
 	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", o.compressionType)
+		return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
 	}
 }

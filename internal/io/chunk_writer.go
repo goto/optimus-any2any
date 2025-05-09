@@ -115,7 +115,6 @@ func (w *chunkWriter) Flush() error {
 // Close closes the writer and cleans up the temporary file
 func (w *chunkWriter) Close() error {
 	w.cleanTmp()
-	w.Close()
 	return nil
 }
 
