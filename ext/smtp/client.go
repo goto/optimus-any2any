@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -8,16 +9,17 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"gopkg.in/gomail.v2"
+	"github.com/wneessen/go-mail"
 )
 
 // SMTPClient is a wrapper around gomail.SendCloser
 type SMTPClient struct {
-	*gomail.Dialer
+	*mail.Client
+	ctx context.Context
 }
 
 // NewSMTPClient creates a new SMTPClient
-func NewSMTPClient(connectionDSN string) (*SMTPClient, error) {
+func NewSMTPClient(ctx context.Context, connectionDSN string) (*SMTPClient, error) {
 	dsn, err := url.Parse(connectionDSN)
 	if err != nil {
 		err = fmt.Errorf("error parsing connection dsn")
@@ -41,8 +43,22 @@ func NewSMTPClient(connectionDSN string) (*SMTPClient, error) {
 		port = p
 	}
 
-	dialer := gomail.NewDialer(host, port, username, password)
-	return &SMTPClient{dialer}, nil
+	client, err := mail.NewClient(host,
+		mail.WithTLSPortPolicy(mail.TLSMandatory),
+		mail.WithSMTPAuth(mail.SMTPAuthPlain),
+		mail.WithUsername(username),
+		mail.WithPassword(password),
+		mail.WithPort(port),
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// dialer := gomail.NewDialer(host, port, username, password)
+	return &SMTPClient{
+		Client: client,
+		ctx:    ctx,
+	}, nil
 }
 
 // Close closes the underlying connection
@@ -53,33 +69,21 @@ func (c *SMTPClient) Close() error {
 
 // SendMail sends an email
 func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string, msg string, readers map[string]io.Reader) error {
-	m := gomail.NewMessage()
-	m.SetHeader("From", from)
-	m.SetHeader("To", to...)
+	m := mail.NewMsg()
+	m.From(from)
+	m.To(to...)
 	if len(cc) > 0 {
-		m.SetHeader("Cc", cc...)
+		m.Cc(cc...)
 	}
 	if len(bcc) > 0 {
-		m.SetHeader("Bcc", bcc...)
+		m.Bcc(bcc...)
 	}
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", msg)
-
+	m.Subject(subject)
+	m.SetBodyString(mail.TypeTextHTML, msg)
 	// attach file from readers
 	for attachment, reader := range readers {
-		m.Attach(attachment, gomail.SetCopyFunc(func(w io.Writer) error {
-			_, err := io.Copy(w, reader)
-			return err
-		}))
+		m.AttachReader(attachment, reader)
 	}
 
-	// dial and send the email
-	// this will close the connection after sending
-	s, err := c.Dial()
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	// send the email
-	return errors.WithStack(s.Send(from, to, m))
+	return errors.WithStack(c.DialAndSendWithContext(c.ctx, m))
 }

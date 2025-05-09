@@ -98,7 +98,7 @@ func NewSink(commonSink common.Sink,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create SMTP client
-	client, err := NewSMTPClient(connectionDSN)
+	client, err := NewSMTPClient(commonSink.Context(), connectionDSN)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -459,11 +459,11 @@ func (s *SMTPSink) processWithOSS() error {
 			}, func() error {
 				// in dry run mode, we don't need to send the request
 				// we just need to check the endpoint connectivity
-				c, err := s.client.Dial()
+				err := s.client.DialWithContext(s.Context())
 				if err != nil {
 					return errors.WithStack(err)
 				}
-				defer c.Close()
+				defer s.client.Close()
 				return nil
 			})
 		}); err != nil {
@@ -594,11 +594,11 @@ func (s *SMTPSink) process() error {
 			}, func() error {
 				// in dry run mode, we don't need to send the request
 				// we just need to check the endpoint connectivity
-				c, err := s.client.Dial()
+				err := s.client.DialWithContext(s.Context())
 				if err != nil {
 					return errors.WithStack(err)
 				}
-				defer c.Close()
+				defer s.client.Close()
 				return nil
 			})
 		}); err != nil {
