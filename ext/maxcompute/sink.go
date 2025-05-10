@@ -47,19 +47,13 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
-	err = commonSink.DryRunable(func() error {
-		if loadMethod == LOAD_METHOD_REPLACE {
-			tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
-			commonSink.Logger().Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
-			if err := createTempTable(commonSink.Logger(), client.Odps, tableID, tableIDDestination, 1); err != nil {
-				return errors.WithStack(err)
-			}
-			commonSink.Logger().Info(fmt.Sprintf("temporary table created: %s", tableID))
+	if loadMethod == LOAD_METHOD_REPLACE {
+		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
+		commonSink.Logger().Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
+		if err := createTempTable(commonSink.Logger(), client.Odps, tableID, tableIDDestination, 1); err != nil {
+			return nil, errors.WithStack(err)
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, errors.WithStack(err)
+		commonSink.Logger().Info(fmt.Sprintf("temporary table created: %s", tableID))
 	}
 
 	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
@@ -118,9 +112,7 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			mc.Logger().Info(fmt.Sprintf("load method is replace, deleting temporary table: %s", mc.tableIDTransition))
 			return mc.Retry(func() error {
-				return mc.DryRunable(func() error {
-					return dropTable(mc.Logger(), client.Odps, mc.tableIDTransition)
-				})
+				return dropTable(mc.Logger(), client.Odps, mc.tableIDTransition)
 			})
 		}
 		return nil
