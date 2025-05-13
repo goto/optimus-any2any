@@ -163,7 +163,9 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 
 		return smtp.NewSink(commonSink,
 			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
-			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, storageCfg, opts...)
+			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, storageCfg,
+			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)
 		if err != nil {
