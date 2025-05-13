@@ -50,7 +50,7 @@ func (f *FileArchiver) Archive(files []string) error {
 func (f *FileArchiver) archiveTarGz(files []string) error {
 	destWriter, closeFn, err := f.archiveWriterFn()
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 	if closeFn != nil {
@@ -76,7 +76,7 @@ func (f *FileArchiver) archiveTarGz(files []string) error {
 func (f *FileArchiver) archiveZip(files []string) error {
 	destWriter, closeFn, err := f.archiveWriterFn()
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 	if closeFn != nil {
@@ -99,14 +99,14 @@ func (f *FileArchiver) archiveZip(files []string) error {
 func (f *FileArchiver) addFileToTarWriter(filePath string, tarWriter *tar.Writer) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to open file: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to open file: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to get file info: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to get file info: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 
@@ -117,14 +117,17 @@ func (f *FileArchiver) addFileToTarWriter(filePath string, tarWriter *tar.Writer
 	}
 
 	if err := tarWriter.WriteHeader(header); err != nil {
-		f.l.Error(fmt.Sprintf("failed to write tar header: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to write tar header: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 
-	if _, err := io.Copy(tarWriter, file); err != nil {
-		f.l.Error(fmt.Sprintf("failed to copy file to tar: %s", err.Error()))
+	n, err := io.Copy(tarWriter, file)
+	if err != nil {
+		f.l.Debug(fmt.Sprintf("failed to copy file to tar: %s", err.Error()))
 		return errors.WithStack(err)
 	}
+
+	f.l.Debug(fmt.Sprintf("wrote %d bytes to tar.gz file", n))
 
 	return nil
 }
@@ -132,20 +135,20 @@ func (f *FileArchiver) addFileToTarWriter(filePath string, tarWriter *tar.Writer
 func (f *FileArchiver) addFileToZipWriter(filePath string, zipWriter *zip.Writer) error {
 	file, err := os.Open(filePath)
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to open file: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to open file: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 	defer file.Close()
 
 	fileInfo, err := file.Stat()
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to get file info: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to get file info: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 
 	header, err := zip.FileInfoHeader(fileInfo)
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to create zip header: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to create zip header: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 	header.Name = filepath.Base(filePath)
@@ -161,14 +164,17 @@ func (f *FileArchiver) addFileToZipWriter(filePath string, zipWriter *zip.Writer
 		writer, err = zipWriter.Encrypt(filepath.Base(filePath), f.password, zip.AES256Encryption)
 	}
 	if err != nil {
-		f.l.Error(fmt.Sprintf("failed to create zip writer: %s", err.Error()))
+		f.l.Debug(fmt.Sprintf("failed to create zip writer: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 
-	if _, err := io.Copy(writer, file); err != nil {
-		f.l.Error(fmt.Sprintf("failed to copy file to zip: %s", err.Error()))
+	n, err := io.Copy(writer, file)
+	if err != nil {
+		f.l.Debug(fmt.Sprintf("failed to copy file to zip: %s", err.Error()))
 		return errors.WithStack(err)
 	}
+
+	f.l.Debug(fmt.Sprintf("wrote %d bytes to zip file", n))
 
 	return nil
 }

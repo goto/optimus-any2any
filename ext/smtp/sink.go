@@ -788,7 +788,7 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata, compressio
 				return nil, nil, errors.WithStack(err)
 			}
 
-			return archiveWriter, func() error { return nil }, nil
+			return archiveWriter, func() error { return archiveWriter.Flush() }, nil
 		}
 
 		archiver = archive.NewMultiFileArchiver(s.Logger(), "gz", mapperFn)
@@ -808,7 +808,7 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata, compressio
 				return nil, nil, errors.WithStack(err)
 			}
 
-			return archiveWriter, func() error { return nil }, nil
+			return archiveWriter, func() error { return archiveWriter.Flush() }, nil
 		}
 
 		archiver = archive.NewFileArchiver(s.Logger(), compressionType, archiveWriterFn, archive.WithPassword(compressionPassword))
