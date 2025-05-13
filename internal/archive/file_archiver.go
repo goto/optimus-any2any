@@ -15,19 +15,16 @@ import (
 )
 
 type FileArchiver struct {
-	l               *slog.Logger
-	extension       string
-	password        string
-	archiveWriterFn ArchiveWriterFn
+	l         *slog.Logger
+	extension string
+	password  string
 }
 
 type ArchiveWriterFn func() (io.Writer, func() error, error)
 
-func NewFileArchiver(l *slog.Logger, extension string, archiveWriterFn ArchiveWriterFn, opts ...FileArchiverOption) *FileArchiver {
+func NewFileArchiver(l *slog.Logger, opts ...FileArchiverOption) *FileArchiver {
 	fa := &FileArchiver{
-		l:               l,
-		extension:       extension,
-		archiveWriterFn: archiveWriterFn,
+		l: l,
 	}
 
 	for _, opt := range opts {
@@ -36,27 +33,46 @@ func NewFileArchiver(l *slog.Logger, extension string, archiveWriterFn ArchiveWr
 	return fa
 }
 
-func (f *FileArchiver) Archive(files []string) error {
+func (f *FileArchiver) Archive(files []string, destWriter io.Writer) error {
 	switch f.extension {
+	case "gz":
+		return f.archiveGz(files, destWriter)
 	case "tar.gz":
-		return f.archiveTarGz(files)
+		return f.archiveTarGz(files, destWriter)
 	case "zip":
-		return f.archiveZip(files)
+		return f.archiveZip(files, destWriter)
 	default:
 		return fmt.Errorf("unsupported compression type: %s", f.extension)
 	}
 }
 
-func (f *FileArchiver) archiveTarGz(files []string) error {
-	destWriter, closeFn, err := f.archiveWriterFn()
-	if err != nil {
-		f.l.Debug(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
-		return errors.WithStack(err)
-	}
-	if closeFn != nil {
-		defer closeFn()
+func (f *FileArchiver) archiveGz(files []string, destWriter io.Writer) error {
+	if len(files) != 1 {
+		return fmt.Errorf("gzip compression supports only a single file, but got %d files", len(files))
 	}
 
+	file, err := os.Open(files[0])
+	if err != nil {
+		f.l.Debug(fmt.Sprintf("failed to open file: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+	defer file.Close()
+
+	gzWriter := gzip.NewWriter(destWriter)
+	defer gzWriter.Close()
+
+	n, err := io.Copy(gzWriter, file)
+	if err != nil {
+		f.l.Debug(fmt.Sprintf("failed to copy file to gzip: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+
+	f.l.Debug(fmt.Sprintf("wrote %d bytes to gz file", n))
+
+	return nil
+}
+
+func (f *FileArchiver) archiveTarGz(files []string, destWriter io.Writer) error {
 	gzWriter := gzip.NewWriter(destWriter)
 	defer gzWriter.Close()
 
@@ -73,16 +89,7 @@ func (f *FileArchiver) archiveTarGz(files []string) error {
 	return nil
 }
 
-func (f *FileArchiver) archiveZip(files []string) error {
-	destWriter, closeFn, err := f.archiveWriterFn()
-	if err != nil {
-		f.l.Debug(fmt.Sprintf("failed to create archive writer: %s", err.Error()))
-		return errors.WithStack(err)
-	}
-	if closeFn != nil {
-		defer closeFn()
-	}
-
+func (f *FileArchiver) archiveZip(files []string, destWriter io.Writer) error {
 	zipWriter := zip.NewWriter(destWriter)
 	defer zipWriter.Close()
 

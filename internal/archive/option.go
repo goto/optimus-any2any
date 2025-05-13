@@ -9,3 +9,11 @@ func WithPassword(password string) FileArchiverOption {
 		}
 	}
 }
+
+func WithExtension(extension string) FileArchiverOption {
+	return func(f *FileArchiver) {
+		if extension != "" {
+			f.extension = extension
+		}
+	}
+}

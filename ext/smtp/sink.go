@@ -418,7 +418,7 @@ func (s *SMTPSink) processWithOSS() error {
 
 				s.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
-				archivePaths, err := s.archiveToOSS(pathsToArchive, e.emailMetadata, s.compressionType, s.compressionPassword)
+				archivePaths, err := s.archiveToOSS(pathsToArchive, e.emailMetadata)
 				if err != nil {
 					s.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
 					return errors.WithStack(err)
@@ -640,7 +640,7 @@ func (s *SMTPSink) process() error {
 			var archivePaths []string
 			err := s.DryRunable(func() error {
 				var err error
-				archivePaths, err = s.archive(pathsToArchive, eh.emailMetadata, s.compressionType, s.compressionPassword)
+				archivePaths, err = s.archive(pathsToArchive, eh.emailMetadata)
 				if err != nil {
 					s.Logger().Error(fmt.Sprintf("failed to archive files: %s", err.Error()))
 					return errors.WithStack(err)
@@ -771,60 +771,63 @@ func getOSS(em emailMetadata, attachment string, ossDestinationDir string) strin
 	return fmt.Sprintf("%s/%s/%s", strings.TrimRight(ossDestinationDir, "/"), hashMetadata(em), attachment)
 }
 
-func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata, compressionType, compressionPassword string) ([]string, error) {
+func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string, error) {
 	archiveDir := filepath.Join(tmpFolder, hashMetadata(em))
 
 	var archiveDestinationPaths []string
-	var archiver archive.Archiver
-	switch compressionType {
+	switch s.compressionType {
 	case "gz":
-		mapperFn := func(filePath string) (io.Writer, func() error, error) {
+		for _, filePath := range filesToArchive {
 			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
 			archiveDestinationPath := filepath.Join(archiveDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
 			archiveWriter, err := xio.NewWriteHandler(s.Logger(), archiveDestinationPath)
 			if err != nil {
-				return nil, nil, errors.WithStack(err)
+				return archiveDestinationPaths, errors.WithStack(err)
 			}
 
-			return archiveWriter, func() error { return archiveWriter.Flush() }, nil
-		}
+			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension("gz"))
+			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
+				return nil, errors.WithStack(err)
+			}
 
-		archiver = archive.NewMultiFileArchiver(s.Logger(), "gz", mapperFn)
+			if err := archiveWriter.Flush(); err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to flush archive to %s: %s", archiveDestinationPath, err.Error()))
+				return nil, errors.WithStack(err)
+			}
+		}
 	case "zip":
 		fallthrough
 	case "tar.gz":
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), compressionType)
+		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), s.compressionType)
 		archiveDestinationPath := filepath.Join(archiveDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-		archiveWriterFn := func() (io.Writer, func() error, error) {
-			archiveWriter, err := xio.NewWriteHandler(s.Logger(), archiveDestinationPath)
-			if err != nil {
-				return nil, nil, errors.WithStack(err)
-			}
-
-			return archiveWriter, func() error { return archiveWriter.Flush() }, nil
+		archiveWriter, err := xio.NewWriteHandler(s.Logger(), archiveDestinationPath)
+		if err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
 		}
 
-		archiver = archive.NewFileArchiver(s.Logger(), compressionType, archiveWriterFn, archive.WithPassword(compressionPassword))
+		archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType), archive.WithPassword(s.compressionPassword))
+		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
+			return nil, errors.WithStack(err)
+		}
+		if err := archiveWriter.Flush(); err != nil {
+			s.Logger().Error(fmt.Sprintf("failed to flush archive to %s: %s", archiveDestinationPath, err.Error()))
+			return nil, errors.WithStack(err)
+		}
 	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
-	}
-
-	// archive files
-	if err := archiver.Archive(filesToArchive); err != nil {
-		return nil, errors.WithStack(err)
+		return nil, fmt.Errorf("unsupported compression type: %s", s.compressionType)
 	}
 
 	return archiveDestinationPaths, nil
 }
 
-func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata, compressionType, compressionPassword string) ([]string, error) {
+func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]string, error) {
 	uri, err := url.Parse(fmt.Sprintf("%s/%s", s.ossDestinationDir, hashMetadata(em)))
 	if err != nil {
 		s.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", uri))
@@ -833,75 +836,70 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata, compr
 	archiveDir := uri.Path
 
 	var archiveDestinationPaths []string
-	var archiver archive.Archiver
-	switch compressionType {
+	switch s.compressionType {
 	case "gz":
-		mapperFn := func(filePath string) (io.Writer, func() error, error) {
+		for _, filePath := range filesToArchive {
 			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
 			archiveDestinationPath := filepath.Join(archiveDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, fmt.Sprintf("oss://%s/%s", uri.Host, strings.TrimLeft(archiveDestinationPath, "/")))
 
-			var archiveWriter io.WriteCloser
 			if err := s.Retry(func() error {
 				return s.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
 			}); err != nil {
-				return nil, nil, errors.WithStack(err)
+				return archiveDestinationPaths, errors.WithStack(err)
 			}
 
-			archiveWriter, err := oss.NewAppendFile(s.Context(), s.ossclient, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-			if err != nil {
-				return nil, nil, errors.WithStack(err)
+			var archiveWriter io.WriteCloser
+			if err := s.Retry(func() error {
+				var err error
+				archiveWriter, err = oss.NewAppendFile(s.Context(), s.ossclient, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
+				return errors.WithStack(err)
+			}); err != nil {
+				return archiveDestinationPaths, errors.WithStack(err)
 			}
+			defer archiveWriter.Close()
 
-			return archiveWriter, func() error {
-				return errors.WithStack(archiveWriter.Close())
-			}, nil
+			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension("gz"))
+			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
+				return nil, errors.WithStack(err)
+			}
 		}
-
-		archiver = archive.NewMultiFileArchiver(s.Logger(), "gz", mapperFn)
 	case "zip":
 		fallthrough
 	case "tar.gz":
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), compressionType)
+		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), s.compressionType)
 		archiveDestinationPath := filepath.Join(archiveDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, fmt.Sprintf("oss://%s/%s", uri.Host, strings.TrimLeft(archiveDestinationPath, "/")))
 
-		archiveWriterFn := func() (io.Writer, func() error, error) {
-			// remove existing object, by default overwrite is enabled for smtp sink
-			if err := s.Retry(func() error {
-				err := s.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-				return err
-			}); err != nil {
-				return nil, nil, errors.WithStack(err)
-			}
-
-			// use appender
-			var archiveWriter io.WriteCloser
-			err := s.Retry(func() error {
-				var err error
-				archiveWriter, err = oss.NewAppendFile(s.Context(), s.ossclient, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-				return errors.WithStack(err)
-			})
-			if err != nil {
-				return nil, nil, errors.WithStack(err)
-			}
-
-			return archiveWriter, func() error {
-				return errors.WithStack(archiveWriter.Close())
-			}, nil
+		// remove existing object, by default overwrite is enabled for smtp sink
+		if err := s.Retry(func() error {
+			err := s.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
+			return err
+		}); err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
 		}
 
-		archiver = archive.NewFileArchiver(s.Logger(), compressionType, archiveWriterFn, archive.WithPassword(compressionPassword))
-	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
-	}
+		// use appender
+		var archiveWriter io.WriteCloser
+		err := s.Retry(func() error {
+			var err error
+			archiveWriter, err = oss.NewAppendFile(s.Context(), s.ossclient, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
+			return errors.WithStack(err)
+		})
+		if err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
+		}
+		defer archiveWriter.Close()
 
-	// archive files
-	if err := archiver.Archive(filesToArchive); err != nil {
-		return nil, errors.WithStack(err)
+		archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType), archive.WithPassword(s.compressionPassword))
+		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
+			return nil, errors.WithStack(err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported compression type: %s", s.compressionType)
 	}
 
 	return archiveDestinationPaths, nil
