@@ -122,17 +122,6 @@ func (o *OSSSink) process() error {
 		// create file write handlers
 		wh, ok := o.writeHandlers[destinationURI]
 		if !ok {
-			// create new oss write handler
-			targetDestinationURI, err := url.Parse(destinationURI)
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			if targetDestinationURI.Scheme != "oss" {
-				o.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
-				return errors.WithStack(err)
-			}
-			// remove object if overwrite is enabled
 			var oh io.Writer
 			if o.enableArchive {
 				tmpPath, err := getTmpPath(destinationURI)
@@ -147,6 +136,17 @@ func (o *OSSSink) process() error {
 					return errors.WithStack(err)
 				}
 			} else {
+				// create new oss write handler
+				targetDestinationURI, err := url.Parse(destinationURI)
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
+					return errors.WithStack(err)
+				}
+				if targetDestinationURI.Scheme != "oss" {
+					o.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
+					return errors.WithStack(err)
+				}
+				// remove object if overwrite is enabled
 				if o.enableOverwrite {
 					o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", destinationURI))
 					if err := o.Retry(func() error {

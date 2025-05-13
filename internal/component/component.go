@@ -147,7 +147,9 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		}
 		return sftp.NewSink(commonSink,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
-			sinkCfg.DestinationURI, opts...)
+			sinkCfg.DestinationURI,
+			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			opts...)
 	case SMTP:
 		sinkCfg, err := config.SinkSMTP(envs...)
 		if err != nil {
