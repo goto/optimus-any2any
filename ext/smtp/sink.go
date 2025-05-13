@@ -634,6 +634,7 @@ func (s *SMTPSink) process() error {
 				attachmentPath := getAttachmentPath(eh.emailMetadata, attachment)
 				pathsToArchive = append(pathsToArchive, attachmentPath)
 			}
+			s.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
 			// archive files
 			var archivePaths []string
@@ -650,7 +651,6 @@ func (s *SMTPSink) process() error {
 				return errors.WithStack(err)
 			}
 
-			fmt.Println(archivePaths)
 			// upload archive files to oss
 			for _, archivePath := range archivePaths {
 				tmpReader, err := os.OpenFile(archivePath, os.O_RDONLY, 0644)
