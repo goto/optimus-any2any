@@ -130,7 +130,10 @@ func (s *HTTPSink) process() error {
 				return errors.WithStack(err)
 			}
 			hh := s.httpHandlers[hash]
-			hh.records = make([]*model.Record, 0, s.batchSize)
+			for i := range hh.records {
+				hh.records[i] = nil // break references
+			}
+			hh.records = hh.records[:0]
 			s.httpHandlers[hash] = hh
 		}
 
