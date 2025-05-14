@@ -797,9 +797,7 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string,
 				return nil, errors.WithStack(err)
 			}
 		}
-	case "zip":
-		fallthrough
-	case "tar.gz":
+	case "zip", "tar.gz":
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
@@ -864,9 +862,7 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]st
 				return nil, errors.WithStack(err)
 			}
 		}
-	case "zip":
-		fallthrough
-	case "tar.gz":
+	case "zip", "tar.gz":
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
