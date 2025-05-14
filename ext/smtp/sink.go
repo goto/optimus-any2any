@@ -314,36 +314,8 @@ func (s *SMTPSink) processWithOSS() error {
 				}
 			} else {
 				// create new oss write handler
-				targetDestinationURI, err := url.Parse(attachmentPath)
+				oh, err = s.newOSSWriter(attachmentPath, s.enableOverwrite)
 				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", attachmentPath))
-					return errors.WithStack(err)
-				}
-				if targetDestinationURI.Scheme != "oss" {
-					s.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
-					return errors.WithStack(err)
-				}
-
-				if s.enableOverwrite {
-					err = s.DryRunable(func() error {
-						s.Logger().Info(fmt.Sprintf("remove object: %s", attachmentPath))
-						if err := s.Retry(func() error {
-							err := s.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-							return err
-						}); err != nil {
-							s.Logger().Error(fmt.Sprintf("failed to remove object: %s", attachmentPath))
-							return errors.WithStack(err)
-						}
-						return nil
-					})
-					if err != nil {
-						return errors.WithStack(err)
-					}
-				}
-				if err := s.Retry(func() (err error) {
-					oh, err = oss.NewAppendFile(s.Context(), s.ossclient, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-					return
-				}); err != nil {
 					s.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
 					return errors.WithStack(err)
 				}
@@ -502,7 +474,6 @@ func (s *SMTPSink) processWithOSS() error {
 			s.Logger().Warn(fmt.Sprintf("failed to compile body with attachment links: %s. Using previous body email", err.Error()))
 			newBody = eh.emailMetadata.body
 		}
-		s.Logger().Info(fmt.Sprintf("new body: %s", newBody))
 
 		if err := s.Retry(func() error {
 			return s.DryRunable(func() error {
@@ -826,33 +797,18 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string,
 }
 
 func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]string, error) {
-	uri, err := url.Parse(fmt.Sprintf("%s/%s", s.ossDestinationDir, hashMetadata(em)))
-	if err != nil {
-		s.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", uri))
-		return nil, errors.WithStack(err)
-	}
-	archiveDir := uri.Path
+	destinationDir := fmt.Sprintf("%s/%s", s.ossDestinationDir, hashMetadata(em))
 
 	var archiveDestinationPaths []string
 	switch s.compressionType {
 	case "gz":
 		for _, filePath := range filesToArchive {
 			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
-			archiveDestinationPath := filepath.Join(archiveDir, fileName)
-			archiveDestinationPaths = append(archiveDestinationPaths, fmt.Sprintf("oss://%s/%s", uri.Host, strings.TrimLeft(archiveDestinationPath, "/")))
+			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-			if err := s.Retry(func() error {
-				return s.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-			}); err != nil {
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-
-			var archiveWriter io.WriteCloser
-			if err := s.Retry(func() error {
-				var err error
-				archiveWriter, err = oss.NewAppendFile(s.Context(), s.ossclient, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-				return errors.WithStack(err)
-			}); err != nil {
+			archiveWriter, err := s.newOSSWriter(archiveDestinationPath, s.enableOverwrite)
+			if err != nil {
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
 			defer archiveWriter.Close()
@@ -867,24 +823,10 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]st
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
 		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), s.compressionType)
-		archiveDestinationPath := filepath.Join(archiveDir, fileName)
-		archiveDestinationPaths = append(archiveDestinationPaths, fmt.Sprintf("oss://%s/%s", uri.Host, strings.TrimLeft(archiveDestinationPath, "/")))
+		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-		// remove existing object, by default overwrite is enabled for smtp sink
-		if err := s.Retry(func() error {
-			err := s.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-			return err
-		}); err != nil {
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-
-		// use appender
-		var archiveWriter io.WriteCloser
-		err := s.Retry(func() error {
-			var err error
-			archiveWriter, err = oss.NewAppendFile(s.Context(), s.ossclient, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-			return errors.WithStack(err)
-		})
+		archiveWriter, err := s.newOSSWriter(archiveDestinationPath, s.enableOverwrite)
 		if err != nil {
 			return archiveDestinationPaths, errors.WithStack(err)
 		}
@@ -892,11 +834,54 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]st
 
 		archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType), archive.WithPassword(s.compressionPassword))
 		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
-			return nil, errors.WithStack(err)
+			return archiveDestinationPaths, errors.WithStack(err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported compression type: %s", s.compressionType)
 	}
 
 	return archiveDestinationPaths, nil
+}
+
+func (s *SMTPSink) newOSSWriter(fullPath string, shouldOverwrite bool) (io.WriteCloser, error) {
+	// create new oss write handler
+	targetDestinationURI, err := url.Parse(fullPath)
+	if err != nil {
+		s.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", fullPath))
+		return nil, errors.WithStack(err)
+	}
+	if targetDestinationURI.Scheme != "oss" {
+		s.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
+		return nil, errors.WithStack(err)
+	}
+
+	if shouldOverwrite {
+		err = s.DryRunable(func() error {
+			s.Logger().Info(fmt.Sprintf("remove object: %s", fullPath))
+			if err := s.Retry(func() error {
+				err := s.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+				return err
+			}); err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to remove object: %s", fullPath))
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	var oh io.WriteCloser
+	err = s.Retry(func() error {
+		var err error
+		oh, err = oss.NewAppendFile(s.Context(), s.ossclient, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+		return errors.WithStack(err)
+	})
+	if err != nil {
+		s.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
+		return nil, errors.WithStack(err)
+	}
+
+	return oh, nil
 }

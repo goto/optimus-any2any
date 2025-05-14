@@ -137,30 +137,8 @@ func (o *OSSSink) process() error {
 				}
 			} else {
 				// create new oss write handler
-				targetDestinationURI, err := url.Parse(destinationURI)
+				oh, err = o.newOSSWriter(destinationURI, o.enableOverwrite)
 				if err != nil {
-					o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
-					return errors.WithStack(err)
-				}
-				if targetDestinationURI.Scheme != "oss" {
-					o.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
-					return errors.WithStack(err)
-				}
-				// remove object if overwrite is enabled
-				if o.enableOverwrite {
-					o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", destinationURI))
-					if err := o.Retry(func() error {
-						err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-						return err
-					}); err != nil {
-						o.Logger().Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
-						return errors.WithStack(err)
-					}
-				}
-				if err := o.Retry(func() (err error) {
-					oh, err = oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-					return
-				}); err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
 					return errors.WithStack(err)
 				}
@@ -299,34 +277,19 @@ func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize in
 }
 
 func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
-	archiveDestinationPaths := []string{}
-	uri, _ := url.Parse(o.destinationURITemplate.Root.String())
-	archiveDir := filepath.Dir(uri.Path)
+	templateURI := o.destinationURITemplate.Root.String()
+	destinationDir := strings.TrimSuffix(templateURI, filepath.Base(templateURI))
 
+	var archiveDestinationPaths []string
 	switch o.compressionType {
 	case "gz":
 		for _, filePath := range filesToArchive {
 			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
-			archiveDestinationPath := filepath.Join(archiveDir, fileName)
+			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-			if o.enableOverwrite {
-				o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", archiveDestinationPath))
-				if err := o.Retry(func() error {
-					err := o.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-					return err
-				}); err != nil {
-					o.Logger().Error(fmt.Sprintf("failed to remove object: %s", archiveDestinationPath))
-					return nil, errors.WithStack(err)
-				}
-			}
-
-			var archiveWriter io.WriteCloser
-			if err := o.Retry(func() error {
-				var err error
-				archiveWriter, err = oss.NewAppendFile(o.Context(), o.client, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-				return errors.WithStack(err)
-			}); err != nil {
+			archiveWriter, err := o.newOSSWriter(archiveDestinationPath, o.enableOverwrite)
+			if err != nil {
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
 			defer archiveWriter.Close()
@@ -340,30 +303,13 @@ func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(uri.Path)), o.compressionType)
-		archiveDestinationPath := filepath.Join(archiveDir, fileName)
+		fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(templateURI)), o.compressionType)
+		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-		if o.enableOverwrite {
-			o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", archiveDestinationPath))
-			if err := o.Retry(func() error {
-				err := o.remove(uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-				return err
-			}); err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to remove object: %s", archiveDestinationPath))
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-		}
-
 		// use appender
-		var archiveWriter io.WriteCloser
-		err := o.Retry(func() error {
-			var err error
-			archiveWriter, err = oss.NewAppendFile(o.Context(), o.client, uri.Host, strings.TrimLeft(archiveDestinationPath, "/"))
-			return errors.WithStack(err)
-		})
+		archiveWriter, err := o.newOSSWriter(archiveDestinationPath, o.enableOverwrite)
 		if err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
 			return archiveDestinationPaths, errors.WithStack(err)
 		}
 		defer archiveWriter.Close()
@@ -377,4 +323,47 @@ func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 	}
 
 	return archiveDestinationPaths, nil
+}
+
+func (o *OSSSink) newOSSWriter(fullPath string, shouldOverwrite bool) (io.WriteCloser, error) {
+	// create new oss write handler
+	targetDestinationURI, err := url.Parse(fullPath)
+	if err != nil {
+		o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", fullPath))
+		return nil, errors.WithStack(err)
+	}
+	if targetDestinationURI.Scheme != "oss" {
+		o.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
+		return nil, errors.WithStack(err)
+	}
+
+	if shouldOverwrite {
+		err = o.DryRunable(func() error {
+			o.Logger().Info(fmt.Sprintf("remove object: %s", fullPath))
+			if err := o.Retry(func() error {
+				err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+				return err
+			}); err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to remove object: %s", fullPath))
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	var oh io.WriteCloser
+	err = o.Retry(func() error {
+		var err error
+		oh, err = oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+		return errors.WithStack(err)
+	})
+	if err != nil {
+		o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
+		return nil, errors.WithStack(err)
+	}
+
+	return oh, nil
 }
