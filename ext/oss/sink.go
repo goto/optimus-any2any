@@ -12,6 +12,7 @@ import (
 	"github.com/goccy/go-json"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
+	"github.com/goto/optimus-any2any/internal/archive"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
@@ -31,6 +32,11 @@ type OSSSink struct {
 	enableOverwrite         bool
 	skipHeader              bool
 	maxTempFileRecordNumber int
+
+	// archive properties
+	enableArchive       bool
+	compressionType     string
+	compressionPassword string
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -40,6 +46,7 @@ func NewSink(commonSink common.Sink,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	maxTempFileRecordNumber int,
+	compressionType string, compressionPassword string,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
@@ -64,6 +71,10 @@ func NewSink(commonSink common.Sink,
 		enableOverwrite:         enableOverwrite,
 		skipHeader:              skipHeader,
 		maxTempFileRecordNumber: maxTempFileRecordNumber,
+		// archive options
+		enableArchive:       compressionType != "",
+		compressionType:     compressionType,
+		compressionPassword: compressionPassword,
 	}
 
 	// add clean func
@@ -111,34 +122,26 @@ func (o *OSSSink) process() error {
 		// create file write handlers
 		wh, ok := o.writeHandlers[destinationURI]
 		if !ok {
-			// create new oss write handler
-			targetDestinationURI, err := url.Parse(destinationURI)
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			if targetDestinationURI.Scheme != "oss" {
-				o.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
-				return errors.WithStack(err)
-			}
-			// remove object if overwrite is enabled
-			if o.enableOverwrite {
-				o.Logger().Info(fmt.Sprintf("overwrite is enabled, remove object: %s", destinationURI))
-				if err := o.Retry(func() error {
-					err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-					return err
-				}); err != nil {
-					o.Logger().Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
+			var oh io.Writer
+			if o.enableArchive {
+				tmpPath, err := getTmpPath(destinationURI)
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
 					return errors.WithStack(err)
 				}
-			}
-			var oh io.WriteCloser
-			if err := o.Retry(func() (err error) {
-				oh, err = oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-				return
-			}); err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
-				return errors.WithStack(err)
+
+				oh, err = xio.NewWriteHandler(o.Logger(), tmpPath)
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to create write handler: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+			} else {
+				// create new oss write handler
+				oh, err = o.newOSSWriter(destinationURI, o.enableOverwrite)
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
+					return errors.WithStack(err)
+				}
 			}
 
 			wh = xio.NewChunkWriter(
@@ -200,6 +203,35 @@ func (o *OSSSink) process() error {
 		return errors.WithStack(err)
 	}
 
+	if o.enableArchive {
+		err := o.DryRunable(func() error {
+			pathsToArchive := []string{}
+			for destinationURI := range o.writeHandlers {
+				tmpPath, err := getTmpPath(destinationURI)
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
+					return errors.WithStack(err)
+				}
+
+				pathsToArchive = append(pathsToArchive, tmpPath)
+			}
+			o.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
+
+			archivePaths, err := o.archive(pathsToArchive)
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+
+			o.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
+
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
 	_ = o.DryRunable(func() error { // ignore log when dry run
 		o.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
 		return nil
@@ -229,9 +261,109 @@ func (o *OSSSink) remove(bucket, path string) error {
 	return nil
 }
 
+func getTmpPath(destinationURI string) (string, error) {
+	targetURI, err := url.Parse(destinationURI)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
+}
+
 func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize int) string {
 	return fmt.Sprintf("%s.%d.%s",
 		destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
 		int(recordCounter/batchSize)*batchSize,
 		filepath.Ext(destinationURI)[1:])
+}
+
+func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
+	templateURI := o.destinationURITemplate.Root.String()
+	destinationDir := strings.TrimSuffix(templateURI, filepath.Base(templateURI))
+
+	var archiveDestinationPaths []string
+	switch o.compressionType {
+	case "gz":
+		for _, filePath := range filesToArchive {
+			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
+
+			archiveWriter, err := o.newOSSWriter(archiveDestinationPath, o.enableOverwrite)
+			if err != nil {
+				return archiveDestinationPaths, errors.WithStack(err)
+			}
+			defer archiveWriter.Close()
+
+			archiver := archive.NewFileArchiver(o.Logger(), archive.WithExtension("gz"))
+			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
+				return archiveDestinationPaths, errors.WithStack(err)
+			}
+		}
+	case "zip", "tar.gz":
+		// for zip & tar.gz file, the whole file is archived into a single archive file
+		// whose file name is deferred from the destination URI
+		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
+		fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(templateURI)), o.compressionType)
+		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
+
+		// use appender
+		archiveWriter, err := o.newOSSWriter(archiveDestinationPath, o.enableOverwrite)
+		if err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
+		}
+		defer archiveWriter.Close()
+
+		archiver := archive.NewFileArchiver(o.Logger(), archive.WithExtension(o.compressionType), archive.WithPassword(o.compressionPassword))
+		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported compression type: %s", o.compressionType)
+	}
+
+	return archiveDestinationPaths, nil
+}
+
+func (o *OSSSink) newOSSWriter(fullPath string, shouldOverwrite bool) (io.WriteCloser, error) {
+	// create new oss write handler
+	targetDestinationURI, err := url.Parse(fullPath)
+	if err != nil {
+		o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", fullPath))
+		return nil, errors.WithStack(err)
+	}
+	if targetDestinationURI.Scheme != "oss" {
+		o.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
+		return nil, errors.WithStack(err)
+	}
+
+	if shouldOverwrite {
+		err = o.DryRunable(func() error {
+			o.Logger().Info(fmt.Sprintf("remove object: %s", fullPath))
+			if err := o.Retry(func() error {
+				err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+				return err
+			}); err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to remove object: %s", fullPath))
+				return errors.WithStack(err)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	var oh io.WriteCloser
+	err = o.Retry(func() error {
+		var err error
+		oh, err = oss.NewAppendFile(o.Context(), o.client, targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+		return errors.WithStack(err)
+	})
+	if err != nil {
+		o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
+		return nil, errors.WithStack(err)
+	}
+
+	return oh, nil
 }

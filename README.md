@@ -118,6 +118,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | OSS__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to OSS. (default: 50000) |
+| | OSS__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
+| | OSS__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
 | S3 | S3__CREDENTIALS | Credentials for S3. |
 | | S3__PROVIDER | S3 provider availability: AWS, TIKTOK. (default: AWS) |
 | | S3__REGION | S3 region for the bucket. (default: us-east-1) |
@@ -129,6 +131,8 @@ It applies when sink and source are in the same environment. For example, transf
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
+| | SFTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
+| | SFTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
 | SMTP | SMTP__CONNECTION_DSN | SMTP connection dsn, format `smtp://user[:password]@host[:port]`, if port is not specified, default port `587` will be used. user and password should be url encoded. |
 | | SMTP__FROM | SMTP from email address. |
 | | SMTP__TO | SMTP to, cc, and bcc email address, format: `to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...]` |
@@ -139,6 +143,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__STORAGE_DESTINATION_DIR | If storage mode is set to other than attachment, this will be the root directory where the generated attachment will be uploaded |
 | | SMTP__STORAGE_LINK_EXPIRATION | If storage mode is set to other than attachment, the generated signed URLs expiration will be set to this number (seconds) |
 | | SMTP__STORAGE_CREDENTIALS | If storage mode is set to other than attachment, this credential will be used to authenticate to the bucket |
+| | SMTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
+| | SMTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |

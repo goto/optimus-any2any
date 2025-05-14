@@ -28,6 +28,7 @@ require (
 	github.com/twmb/franz-go v1.18.0
 	github.com/wneessen/go-mail v0.6.2
 	github.com/xuri/excelize/v2 v2.9.0
+	github.com/yeka/zip v0.0.0-20231116150916-03d6312748a9
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.57.0
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.32.0

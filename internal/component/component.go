@@ -129,7 +129,9 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return oss.NewSink(commonSink, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
-			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber, opts...)
+			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber,
+			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			opts...)
 	case S3:
 		sinkCfg, err := config.SinkS3(envs...)
 		if err != nil {
@@ -145,7 +147,9 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		}
 		return sftp.NewSink(commonSink,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
-			sinkCfg.DestinationURI, opts...)
+			sinkCfg.DestinationURI,
+			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			opts...)
 	case SMTP:
 		sinkCfg, err := config.SinkSMTP(envs...)
 		if err != nil {
@@ -161,7 +165,9 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 
 		return smtp.NewSink(commonSink,
 			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
-			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, storageCfg, opts...)
+			sinkCfg.BodyFilePath, sinkCfg.AttachmentFilename, storageCfg,
+			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)
 		if err != nil {

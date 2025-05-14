@@ -12,6 +12,8 @@ type SinkSMTPConfig struct {
 	StorageDestinationDir string `env:"SMTP__STORAGE_DESTINATION_DIR"`
 	StorageLinkExpiration int    `env:"SMTP__STORAGE_LINK_EXPIRATION" envDefault:"604800"`
 	StorageCredentials    string `env:"SMTP__STORAGE_CREDENTIALS"`
+	CompressionPassword   string `env:"SMTP__COMPRESSION_PASSWORD"`
+	CompressionType       string `env:"SMTP__COMPRESSION_TYPE"`
 }
 
 // SinkSMTP parses the environment variables and returns the sink smtp configuration.
