@@ -770,7 +770,8 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string,
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), s.compressionType)
+		baseFileName := strings.TrimSuffix(re.Replace(s.emailMetadataTemplate.attachment.Root.String()), filepath.Ext(s.emailMetadataTemplate.attachment.Root.String()))
+		fileName := fmt.Sprintf("%s.%s", baseFileName, s.compressionType)
 		archiveDestinationPath := filepath.Join(archiveDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
