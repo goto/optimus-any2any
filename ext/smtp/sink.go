@@ -411,8 +411,6 @@ func (s *SMTPSink) processWithOSS() error {
 		}
 	}
 
-	s.Logger().Info(fmt.Sprintf("successfully written %+w records", s.emailWithAttachments))
-
 	// Generate presigned URLs for all files in ossHandlers
 	// Presigned URLs must be generated after all files are finished uploading
 	presignedURLs := map[string]string{}
