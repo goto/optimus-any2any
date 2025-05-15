@@ -278,7 +278,7 @@ func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize in
 
 func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 	templateURI := o.destinationURITemplate.Root.String()
-	destinationDir := strings.TrimSuffix(templateURI, filepath.Base(templateURI))
+	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
 
 	var archiveDestinationPaths []string
 	switch o.compressionType {
@@ -303,7 +303,7 @@ func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(templateURI)), o.compressionType)
+		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), o.compressionType)
 		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 

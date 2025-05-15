@@ -242,16 +242,16 @@ func getTmpPath(destinationURI string) (string, error) {
 }
 
 func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
-	archiveDestinationPaths := []string{}
-	uri, _ := url.Parse(s.destinationURITemplate.Root.String())
-	archiveDir := filepath.Dir(uri.Path)
+	templateURI := s.destinationURITemplate.Root.String()
+	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
 
+	var archiveDestinationPaths []string
 	switch s.compressionType {
 	case "gz":
 		for _, filePath := range filesToArchive {
 			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
-			archiveDestinationPath := filepath.Join(archiveDir, fileName)
-			archiveDestinationPaths = append(archiveDestinationPaths, fmt.Sprintf("sftp://%s/%s", uri.Host, strings.TrimLeft(archiveDestinationPath, "/")))
+			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
 			sftpArchive, err := s.client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 			if err != nil {
@@ -269,9 +269,9 @@ func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(filepath.Base(uri.Path)), s.compressionType)
-		archiveDestinationPath := filepath.Join(archiveDir, fileName)
-		archiveDestinationPaths = append(archiveDestinationPaths, fmt.Sprintf("sftp://%s/%s", uri.Host, strings.TrimLeft(archiveDestinationPath, "/")))
+		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), s.compressionType)
+		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
 		sftpArchive, err := s.client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 		if err != nil {
