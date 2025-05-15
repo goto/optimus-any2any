@@ -411,8 +411,6 @@ func (s *SMTPSink) processWithOSS() error {
 		}
 	}
 
-	s.Logger().Info(fmt.Sprintf("successfully written %+w records", s.emailWithAttachments))
-
 	// Generate presigned URLs for all files in ossHandlers
 	// Presigned URLs must be generated after all files are finished uploading
 	presignedURLs := map[string]string{}
@@ -772,7 +770,8 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string,
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), s.compressionType)
+		baseFileName := strings.TrimSuffix(re.Replace(s.emailMetadataTemplate.attachment.Root.String()), filepath.Ext(s.emailMetadataTemplate.attachment.Root.String()))
+		fileName := fmt.Sprintf("%s.%s", baseFileName, s.compressionType)
 		archiveDestinationPath := filepath.Join(archiveDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -822,7 +821,8 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]st
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", re.Replace(s.emailMetadataTemplate.attachment.Root.String()), s.compressionType)
+		baseFileName := strings.TrimSuffix(re.Replace(s.emailMetadataTemplate.attachment.Root.String()), filepath.Ext(s.emailMetadataTemplate.attachment.Root.String()))
+		fileName := fmt.Sprintf("%s.%s", baseFileName, s.compressionType)
 		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
