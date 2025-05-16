@@ -14,8 +14,9 @@ import (
 // SalesforceSource is a source that reads data from Salesforce.
 type SalesforceSource struct {
 	common.Source
-	client    *simpleforce.Client
-	soqlQuery string
+	client         *Client
+	soqlQuery      string
+	includeDeleted bool
 }
 
 var _ flow.Source = (*SalesforceSource)(nil)
@@ -26,10 +27,11 @@ var _ flow.Source = (*SalesforceSource)(nil)
 // columnMapFilePath is the path to the column map file
 func NewSource(commonSource common.Source,
 	sfURL, sfUser, sfPassword, sfToken string,
+	sfAPIVersion string, includeDeleted bool,
 	soqlFilePath string, opts ...common.Option) (*SalesforceSource, error) {
 
 	// create salesforce client
-	client, err := createClient(sfURL, sfUser, sfPassword, sfToken)
+	client, err := NewClient(sfURL, sfUser, sfPassword, sfToken, sfAPIVersion)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -40,9 +42,10 @@ func NewSource(commonSource common.Source,
 	}
 	// create source
 	sf := &SalesforceSource{
-		Source:    commonSource,
-		client:    client,
-		soqlQuery: string(soqlQueryRaw),
+		Source:         commonSource,
+		client:         client,
+		soqlQuery:      string(soqlQueryRaw),
+		includeDeleted: includeDeleted,
 	}
 
 	// add clean func
@@ -70,7 +73,7 @@ func (sf *SalesforceSource) process() error {
 
 		// query salesforce
 		err := sf.DryRunable(func() error {
-			currentResult, err := sf.client.Query(result.NextRecordsURL)
+			currentResult, err := sf.client.Query(sf.includeDeleted, result.NextRecordsURL)
 			if err != nil {
 				sf.Logger().Error(fmt.Sprintf("failed to query more salesforce: %s", err.Error()))
 				return errors.WithStack(err)
