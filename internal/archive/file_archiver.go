@@ -65,7 +65,7 @@ func (f *FileArchiver) handleWithTempFile(destWriter io.Writer, writeFn func(io.
 	}
 
 	// Flush the temp file to the actual destWriter
-	if _, err := tmpFile.Seek(0, 0); err != nil {
+	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
 		f.l.Debug(fmt.Sprintf("failed to seek temp file: %s", err.Error()))
 		return errors.WithStack(err)
 	}
