@@ -36,14 +36,48 @@ func NewFileArchiver(l *slog.Logger, opts ...FileArchiverOption) *FileArchiver {
 func (f *FileArchiver) Archive(files []string, destWriter io.Writer) error {
 	switch f.extension {
 	case "gz":
-		return f.archiveGz(files, destWriter)
+		return f.handleWithTempFile(destWriter, func(tempWriter io.Writer) error {
+			return f.archiveGz(files, tempWriter)
+		})
 	case "tar.gz":
-		return f.archiveTarGz(files, destWriter)
+		return f.handleWithTempFile(destWriter, func(tempWriter io.Writer) error {
+			return f.archiveTarGz(files, tempWriter)
+		})
 	case "zip":
-		return f.archiveZip(files, destWriter)
+		return f.handleWithTempFile(destWriter, func(tempWriter io.Writer) error {
+			return f.archiveZip(files, tempWriter)
+		})
 	default:
 		return fmt.Errorf("unsupported compression type: %s", f.extension)
 	}
+}
+
+func (f *FileArchiver) handleWithTempFile(destWriter io.Writer, writeFn func(io.Writer) error) error {
+	tmpFile, err := os.CreateTemp("/tmp", "archive-*")
+	if err != nil {
+		f.l.Debug(fmt.Sprintf("failed to create temp file: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if err := writeFn(tmpFile); err != nil {
+		return err
+	}
+
+	// Flush the temp file to the actual destWriter
+	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+		f.l.Debug(fmt.Sprintf("failed to seek temp file: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+
+	n, err := io.Copy(destWriter, tmpFile)
+	if err != nil {
+		f.l.Debug(fmt.Sprintf("failed to copy temp file to destWriter: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+
+	f.l.Debug(fmt.Sprintf("wrote %d bytes to destination", n))
+	return nil
 }
 
 func (f *FileArchiver) archiveGz(files []string, destWriter io.Writer) error {
@@ -61,13 +95,10 @@ func (f *FileArchiver) archiveGz(files []string, destWriter io.Writer) error {
 	gzWriter := gzip.NewWriter(destWriter)
 	defer gzWriter.Close()
 
-	n, err := io.Copy(gzWriter, file)
-	if err != nil {
+	if _, err := io.Copy(gzWriter, file); err != nil {
 		f.l.Debug(fmt.Sprintf("failed to copy file to gzip: %s", err.Error()))
 		return errors.WithStack(err)
 	}
-
-	f.l.Debug(fmt.Sprintf("wrote %d bytes to gz file", n))
 
 	return nil
 }
