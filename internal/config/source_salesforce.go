@@ -7,7 +7,9 @@ type SourceSalesforceConfig struct {
 	Pass  string `env:"SF__PASS"`
 	Token string `env:"SF__TOKEN"`
 
-	SOQLFilePath string `env:"SF__SOQL_FILE_PATH"`
+	SOQLFilePath   string `env:"SF__SOQL_FILE_PATH"`
+	APIVersion     string `env:"SF__API_VERSION" envDefault:"54.0"`
+	IncludeDeleted bool   `env:"SF__INCLUDE_DELETED" envDefault:"false"`
 }
 
 // SourceSalesforce parses the environment variables and returns the source salesforce configuration.

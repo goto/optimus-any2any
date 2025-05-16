@@ -79,6 +79,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 		}
 		return salesforce.NewSource(commonSource,
 			sourceCfg.Host, sourceCfg.User, sourceCfg.Pass, sourceCfg.Token,
+			sourceCfg.APIVersion, sourceCfg.IncludeDeleted,
 			sourceCfg.SOQLFilePath, opts...)
 	case GMAIL:
 		sourceCfg, err := config.SourceGmail(envs...)
