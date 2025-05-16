@@ -80,6 +80,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | SF__PASS | Salesforce password. |
 | | SF__TOKEN | Salesforce security token. |
 | | SF__SOQL_FILE_PATH | Path to the SOQL query file. |
+| | SF__API_VERSION | Salesforce API version. (default: 54.0) |
+| | SF__INCLUDE_DELETED | Include deleted records. (default: false) |
 | GMAIL | GMAIL__TOKEN | Token JSON for gmail credentials |
 | | GMAIL__FILTER | Gmail filter based on gmail filter rules |
 | | GMAIL__FILENAME_COLUMN | Column name for the filename. (default: __METADATA__filename) |
