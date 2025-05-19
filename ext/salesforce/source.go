@@ -71,19 +71,23 @@ func (sf *SalesforceSource) process() error {
 	for !result.Done {
 		sf.Logger().Debug(fmt.Sprintf("fetching more records from: %s", result.NextRecordsURL))
 
+		var currentResult *simpleforce.QueryResult
 		// query salesforce
 		err := sf.DryRunable(func() error {
-			currentResult, err := sf.client.Query(sf.includeDeleted, result.NextRecordsURL)
+			var err error
+			currentResult, err = sf.client.Query(sf.includeDeleted, result.NextRecordsURL)
 			if err != nil {
 				sf.Logger().Error(fmt.Sprintf("failed to query more salesforce: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			result = currentResult
 			sf.Logger().Info(fmt.Sprintf("fetched %d records", len(result.Records)))
 			return nil
 		}, func() error {
-			// if dry run, set the result.Done to true
-			result.Done = true
+			// In dry-run mode, simulate an empty result
+			currentResult = &simpleforce.QueryResult{
+				Done:    true,
+				Records: []simpleforce.SObject{},
+			}
 			return nil
 		})
 		if err != nil {
@@ -91,13 +95,15 @@ func (sf *SalesforceSource) process() error {
 		}
 
 		// send records to the channel
-		for _, v := range result.Records {
+		for _, v := range currentResult.Records {
 			record := model.NewRecordFromMap(map[string]interface{}(v))
 			if err := sf.SendRecord(record); err != nil {
 				sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
 				return errors.WithStack(err)
 			}
 		}
+
+		result = currentResult
 	}
 	return nil
 }
