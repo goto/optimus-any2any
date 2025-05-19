@@ -261,11 +261,11 @@ func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata
 }
 
 func hashMetadata(m httpMetadata) string {
-	// headerStr := strings.Builder{}
-	// for k, v := range m.headers {
-	// 	headerStr.WriteString(fmt.Sprintf("%s=%s;", k, strings.Join(v, ",")))
-	// }
-	s := fmt.Sprintf("%s\n%s\n%s", m.method, m.endpoint, m.headers)
+	headerStr := strings.Builder{}
+	for k, v := range m.headers {
+		headerStr.WriteString(fmt.Sprintf("%s=%s;", k, strings.Join(v, ",")))
+	}
+	s := fmt.Sprintf("%s\n%s\n%s", m.method, m.endpoint, headerStr.String())
 	md5sum := md5.Sum([]byte(s))
 	return fmt.Sprintf("%x", md5sum)
 }
