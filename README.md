@@ -174,6 +174,8 @@ It applies when sink and source are in the same environment. For example, transf
 |---|---|---|
 | JQ | JQ__QUERY | Any valid jq query. If set, it will override the query from file path. |
 | | JQ__QUERY_FILE_PATH | Any valid jq query loaded from file. |
+| | JQ__BATCH_SIZE | Batch size for the JQ processor. (default: 512) |
+| | JQ__BATCH_INDEX_COLUMN | Column name for the batch index. (default: __METADATA__jq_batch_index) |
 
 ## Common Configuration
 

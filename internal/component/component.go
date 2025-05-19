@@ -204,11 +204,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 
 // GetJQQuery returns a jq query based on the given environment variables.
 // jq query is used for JSON transformation, it acts as a filter and map for JSON data.
-func GetJQQuery(l *slog.Logger, envs ...string) (string, error) {
-	jqCfg, err := config.ProcessorJQ(envs...)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
+func GetJQQuery(l *slog.Logger, jqCfg *config.ProcessorJQConfig) (string, error) {
 	if jqCfg.Query != "" {
 		return jqCfg.Query, nil
 	}
