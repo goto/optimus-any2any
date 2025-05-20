@@ -12,10 +12,13 @@ type Connector struct {
 	*Base
 	name  string
 	query string
+
+	batchSize        int
+	batchIndexColumn string
 }
 
 // NewConnector creates a new Connector instance.
-func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, query string) *Connector {
+func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, query string, batchSize int, batchIndexColumn string) *Connector {
 	name := "passthrough"
 	if query != "" {
 		name = "jq"
@@ -23,9 +26,11 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 	l := logger.WithGroup("connector").With("name", name)
 
 	c := &Connector{
-		Base:  NewBase(ctx, cancelFn, l),
-		name:  name,
-		query: query,
+		Base:             NewBase(ctx, cancelFn, l),
+		name:             name,
+		query:            query,
+		batchSize:        batchSize,
+		batchIndexColumn: batchIndexColumn,
 	}
 	return c
 }
@@ -35,7 +40,7 @@ func (c *Connector) Connect() flow.ConnectMultiSink {
 	return func(o flow.Outlet, i ...flow.Inlet) {
 		c.RegisterProcess(func() error {
 			if c.query != "" {
-				return transformWithJQ(c.ctx, c.l, c.query, o, i...)
+				return transformWithJQ(c.ctx, c.l, c.query, c.batchSize, c.batchIndexColumn, o, i...)
 			}
 			return passthrough(c.l, o, i...)
 		})

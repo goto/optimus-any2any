@@ -9,12 +9,10 @@ import (
 	"log/slog"
 	"os/exec"
 
+	"github.com/GitRowin/orderedmapjson"
+	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
-)
-
-const (
-	batchSize = 512 // number of records to process in one batch
 )
 
 func execJQ(ctx context.Context, l *slog.Logger, query string, input []byte) ([]byte, error) {
@@ -45,36 +43,40 @@ func execJQ(ctx context.Context, l *slog.Logger, query string, input []byte) ([]
 	return bytes.TrimSpace(stdout.Bytes()), nil
 }
 
-func transformWithJQ(ctx context.Context, l *slog.Logger, query string, outlet flow.Outlet, inlets ...flow.Inlet) error {
+func transformWithJQ(ctx context.Context, l *slog.Logger, query string, batchSize int, batchIndexColumn string, outlet flow.Outlet, inlets ...flow.Inlet) error {
 	// create a buffer to hold the batch of records
 	var batchBuffer bytes.Buffer
 	recordCount := 0
 
 	// process records in batches
 	for v := range outlet.Out() {
+		// add batch index as metadata
+		raw, err := addBatchIndex(v, batchIndexColumn, int(recordCount/batchSize))
+		if err != nil {
+			l.Error(fmt.Sprintf("failed to add batch index: %v", err))
+			return errors.WithStack(err)
+		}
 		// write the JSON byte array directly to the buffer
-		batchBuffer.Write(append(v, '\n'))
+		batchBuffer.Write(append(raw, '\n'))
 		recordCount++
 
 		// when we reach batch size, process the batch
-		if recordCount >= batchSize {
+		if recordCount%batchSize == 0 {
 			if err := flush(ctx, l, query, batchBuffer, inlets...); err != nil {
 				return errors.WithStack(err)
 			}
-			// reset the buffer and counter
+			// reset the buffer
 			batchBuffer.Reset()
-			recordCount = 0
 		}
 	}
 
 	// process any remaining records
-	if recordCount > 0 {
+	if recordCount%batchSize != 0 {
 		if err := flush(ctx, l, query, batchBuffer, inlets...); err != nil {
 			return errors.WithStack(err)
 		}
-		// reset the buffer and counter
+		// reset the buffer
 		batchBuffer.Reset()
-		recordCount = 0
 	}
 	return nil
 }
@@ -113,4 +115,21 @@ func flush(ctx context.Context, l *slog.Logger, query string, batchBuffer bytes.
 	}
 
 	return nil
+}
+
+// TODO: this is closed to internal component, it should not be in pkg folder
+func addBatchIndex(v []byte, batchIndexColumn string, batchIndex int) ([]byte, error) {
+	var record orderedmapjson.AnyOrderedMap
+	if err := json.Unmarshal(v, &record); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if batchIndexColumn != "" {
+		record.Set(batchIndexColumn, batchIndex)
+	}
+	// marshal the record back to JSON
+	marshaled, err := json.Marshal(record)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return marshaled, nil
 }
