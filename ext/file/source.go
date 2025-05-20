@@ -83,6 +83,9 @@ func (fs *FileSource) Process() error {
 	for _, f := range fs.Readers {
 		_ = fs.DryRunable(func() error {
 			sc := bufio.NewScanner(f)
+			buf := make([]byte, 0, 4*1024)
+			sc.Buffer(buf, 1024*1024)
+
 			for sc.Scan() {
 				// read line
 				raw := sc.Bytes()

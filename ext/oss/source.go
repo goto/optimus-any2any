@@ -118,6 +118,9 @@ func (o *OSSSource) process() error {
 		}
 
 		sc := bufio.NewScanner(reader)
+		buf := make([]byte, 0, 4*1024)
+		sc.Buffer(buf, 1024*1024)
+
 		for sc.Scan() {
 			raw := sc.Bytes()
 			line := make([]byte, len(raw))

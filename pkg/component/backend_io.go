@@ -46,6 +46,7 @@ func (b *backendIO) Out() iter.Seq[[]byte] {
 	sc := bufio.NewScanner(b.r)
 	buf := make([]byte, 0, 4*1024)
 	sc.Buffer(buf, 1024*1024)
+
 	// return a function that takes a yield function
 	return func(yield func([]byte) bool) {
 		for sc.Scan() {

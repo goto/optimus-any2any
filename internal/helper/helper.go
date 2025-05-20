@@ -119,7 +119,11 @@ func FromJSONToCSV(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, delimi
 func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRows int, delimiter ...rune) io.Reader {
 	if skipRows > 0 {
 		rowOffset := 0
+
 		sc := bufio.NewScanner(reader)
+		buf := make([]byte, 0, 4*1024)
+		sc.Buffer(buf, 1024*1024)
+
 		for skipRows > 0 && sc.Scan() {
 			raw := sc.Bytes()
 			rowOffset += len(raw)
@@ -200,6 +204,9 @@ func NewRecordReader(r io.Reader) *RecordReader {
 func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	return func(yield func(*model.Record, error) bool) {
 		sc := bufio.NewScanner(r.r)
+		buf := make([]byte, 0, 4*1024)
+		sc.Buffer(buf, 1024*1024)
+
 		for sc.Scan() {
 			raw := sc.Bytes()
 			line := make([]byte, len(raw))

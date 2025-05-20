@@ -246,7 +246,11 @@ func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata
 			return metadata, errors.WithStack(err)
 		}
 		metadata.headers = make(map[string][]string)
+
 		sc := bufio.NewScanner(strings.NewReader(headers))
+		buf := make([]byte, 0, 4*1024)
+		sc.Buffer(buf, 1024*1024)
+
 		for sc.Scan() {
 			h := sc.Text()
 			parts := strings.Split(h, ":")

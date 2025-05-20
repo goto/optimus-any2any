@@ -91,6 +91,9 @@ func processBatch(ctx context.Context, l *slog.Logger, query string, batchData [
 
 	// split the result by newlines and send each record
 	sc := bufio.NewScanner(bytes.NewReader(outputJSON))
+	buf := make([]byte, 0, 4*1024)
+	sc.Buffer(buf, 1024*1024)
+
 	sc.Split(bufio.ScanLines)
 	for sc.Scan() {
 		raw := sc.Bytes()
