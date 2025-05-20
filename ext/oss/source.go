@@ -128,6 +128,10 @@ func (o *OSSSource) process() error {
 				o.Logger().Info(fmt.Sprintf("sent %d records", recordCounter))
 			}
 		}
+		if err := sc.Err(); err != nil {
+			o.Logger().Error(fmt.Sprintf("failed to read object: %s", oss.ToString(objectProp.Key)))
+			return errors.WithStack(err)
+		}
 	}
 	o.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))
 	return nil

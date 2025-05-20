@@ -98,6 +98,10 @@ func processBatch(ctx context.Context, l *slog.Logger, query string, batchData [
 		copy(line, raw)
 		inlet.In(line)
 	}
+	if err := sc.Err(); err != nil {
+		l.Error(fmt.Sprintf("failed to read transformed JSON: %v", err))
+		return errors.WithStack(err)
+	}
 
 	return nil
 }

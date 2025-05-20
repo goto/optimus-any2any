@@ -255,6 +255,9 @@ func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata
 			}
 			metadata.headers[parts[0]] = append(metadata.headers[parts[0]], strings.Split(parts[1], ",")...)
 		}
+		if err := sc.Err(); err != nil {
+			return metadata, errors.WithStack(err)
+		}
 	}
 
 	return metadata, nil
