@@ -99,6 +99,16 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | OSS__SKIP_ROWS | Skip rows for CSV file format. (default: 0) |
+| GA | GA__SERVICE_ACCOUNT | Service account for Google Analytics. |
+| | GA__PROPERTY_ID | Property ID for Google Analytics. |
+| | GA__START_DATE | Start date for the data transfer. |
+| | GA__END_DATE | End date for the data transfer. |
+| | GA__DIMENSIONS | Dimensions for the data transfer. Comma separated. |
+| | GA__METRICS | Metrics for the data transfer. Comma separated. |
+| | GA__BATCH_SIZE | Number of records fetched in one request. (default: 1000) |
+| | GA__CONNECTION_TLS_CERT | Google Analytics TLS certificate. (optional) |
+| | GA__CONNECTION_TLS_CACERT | Google Analytics TLS CA certificate. (optional) |
+| | GA__CONNECTION_TLS_KEY | Google Analytics TLS key. (optional) |
 
 ## Supported Sinks
 

@@ -11,6 +11,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/direct"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
+	"github.com/goto/optimus-any2any/ext/googleanalytics"
 	"github.com/goto/optimus-any2any/ext/http"
 	"github.com/goto/optimus-any2any/ext/io"
 	"github.com/goto/optimus-any2any/ext/kafka"
@@ -48,6 +49,7 @@ const (
 	GMAIL Type = "GMAIL"
 	REDIS Type = "REDIS"
 	HTTP  Type = "HTTP"
+	GA    Type = "GA"
 )
 
 // GetSource returns a source based on the given type.
@@ -93,6 +95,15 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			return nil, errors.WithStack(err)
 		}
 		return oss.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.CSVDelimiter, sourceCfg.SkipHeader, sourceCfg.SkipRows, opts...)
+	case GA:
+		sourceCfg, err := config.SourceGA(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return googleanalytics.NewSource(commonSource,
+			sourceCfg.ServiceAccount, sourceCfg.ConnectionTLSCert, sourceCfg.ConnectionTLSCACert, sourceCfg.ConnectionTLSKey,
+			sourceCfg.PropertyID, sourceCfg.StartDate, sourceCfg.EndDate, sourceCfg.Dimensions, sourceCfg.Metrics, sourceCfg.BatchSize,
+		)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
