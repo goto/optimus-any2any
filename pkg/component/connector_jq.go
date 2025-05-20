@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	errs "errors"
 	"fmt"
 	"log/slog"
 	"os/exec"
@@ -25,15 +26,20 @@ func execJQ(ctx context.Context, l *slog.Logger, query string, input []byte) ([]
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	var e error
 	if err := cmd.Run(); err != nil {
 		l.Error(fmt.Sprintf("jq error: %s", err))
-		return nil, errors.WithStack(err)
+		e = errs.Join(e, err)
 	}
 
 	if len(stderr.Bytes()) > 0 {
 		err := fmt.Errorf("jq error: %s", stderr.String())
 		l.Error(fmt.Sprintf("jq error: %s", err))
-		return nil, errors.WithStack(err)
+		e = errs.Join(e, err)
+	}
+
+	if e != nil {
+		return nil, errors.WithStack(e)
 	}
 
 	return bytes.TrimSpace(stdout.Bytes()), nil
