@@ -91,6 +91,9 @@ func (fs *FileSource) Process() error {
 				// send to channel
 				fs.Send(line)
 			}
+			if err := sc.Err(); err != nil {
+				return errors.WithStack(err)
+			}
 			return nil
 		})
 	}

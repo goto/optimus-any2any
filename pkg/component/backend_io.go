@@ -44,6 +44,8 @@ func newBackendIO(l *slog.Logger, size int) *backendIO {
 
 func (b *backendIO) Out() iter.Seq[[]byte] {
 	sc := bufio.NewScanner(b.r)
+	buf := make([]byte, 0, 4*1024)
+	sc.Buffer(buf, 1024*1024)
 	// return a function that takes a yield function
 	return func(yield func([]byte) bool) {
 		for sc.Scan() {
@@ -51,8 +53,11 @@ func (b *backendIO) Out() iter.Seq[[]byte] {
 			line := make([]byte, len(raw))
 			copy(line, raw)
 			if !yield(line) {
-				break
+				return
 			}
+		}
+		if err := sc.Err(); err != nil {
+			b.l.Error(fmt.Sprintf("failed to read from sink: %s", err.Error()))
 		}
 	}
 }

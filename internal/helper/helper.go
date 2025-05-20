@@ -125,8 +125,13 @@ func FromCSVToJSON(l *slog.Logger, reader io.ReadSeeker, skipHeader bool, skipRo
 			rowOffset += len(raw)
 			skipRows--
 		}
+		if err := sc.Err(); err != nil {
+			l.Error(fmt.Sprintf("failed to read csv: %v, skip converting", err))
+			return reader
+		}
 		if _, err := reader.Seek(int64(rowOffset), io.SeekStart); err != nil {
 			l.Error(fmt.Sprintf("failed to reset seek: %v, skip converting", err))
+			return reader
 		}
 	}
 
@@ -203,12 +208,15 @@ func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			var record model.Record
 			if err := json.Unmarshal(line, &record); err != nil {
 				yield(nil, errors.WithStack(err))
-				break
+				return
 			}
 
 			if !yield(&record, nil) {
-				break
+				return
 			}
+		}
+		if err := sc.Err(); err != nil {
+			yield(nil, errors.WithStack(err))
 		}
 	}
 }
