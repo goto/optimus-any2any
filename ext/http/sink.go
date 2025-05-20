@@ -111,37 +111,34 @@ func (s *HTTPSink) process() error {
 		record = s.RecordWithoutMetadata(record)
 		// initialize http handler
 		hash := hashMetadata(m)
-		_, ok := s.httpHandlers[hash]
+		hh, ok := s.httpHandlers[hash]
 		if !ok {
-			s.httpHandlers[hash] = httpHandler{
+			s.Logger().Info(fmt.Sprintf("create new http handler for %s", m.endpoint))
+			hh = httpHandler{
 				httpMetadata: m,
-				records:      make([]*model.Record, 0, s.batchSize), // TODO: use storage instead of in-memory
+				records:      []*model.Record{}, // TODO: use storage instead of in-memory
 			}
 		}
 
 		// flush if batch size is reached
 		// batch size is 1 means no batching
-		if len(s.httpHandlers[hash].records) >= s.batchSize {
+		if len(hh.records) >= s.batchSize {
 			err := s.Retry(func() error {
-				return s.flush(m, s.httpHandlers[hash].records)
+				return s.flush(m, hh.records)
 			})
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to send data to %s; %s", m.endpoint, err.Error()))
 				return errors.WithStack(err)
 			}
-			hh := s.httpHandlers[hash]
-			for i := range hh.records {
-				hh.records[i] = nil // break references
-			}
-			hh.records = hh.records[:0]
-			s.httpHandlers[hash] = hh
+			hh.records = []*model.Record{} // reset records
 		}
 
 		// append record to the handler
-		hh := s.httpHandlers[hash]
 		hh.records = append(hh.records, record)
-		s.httpHandlers[hash] = hh
 		recordCounter++
+
+		// update the handler
+		s.httpHandlers[hash] = hh
 
 		if s.batchSize == 1 && recordCounter%logCheckPoint == 0 {
 			_ = s.DryRunable(func() error { // ignore log when dry run
@@ -264,7 +261,11 @@ func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata
 }
 
 func hashMetadata(m httpMetadata) string {
-	s := fmt.Sprintf("%s\n%s\n%s", m.method, m.endpoint, m.headers)
+	headerStr := strings.Builder{}
+	for k, v := range m.headers {
+		headerStr.WriteString(fmt.Sprintf("%s=%s;", k, strings.Join(v, ",")))
+	}
+	s := fmt.Sprintf("%s\n%s\n%s", m.method, m.endpoint, headerStr.String())
 	md5sum := md5.Sum([]byte(s))
 	return fmt.Sprintf("%x", md5sum)
 }
