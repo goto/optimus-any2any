@@ -19,6 +19,8 @@ const (
 	maxBatchSizeInMB = 100 * (1 << 10) // max batch size in MB
 	minBatchSizeInMB = 1 << 6          // min batch size in MB
 	maxBlockId       = 20000           // max block id
+	// ref: https://www.alibabacloud.com/help/en/maxcompute/product-overview/limits-4
+	maxConcurrency = 1000
 )
 
 type recordWriterPool struct {
@@ -138,11 +140,16 @@ type mcBatchRecordSender struct {
 var _ common.RecordSender = (*mcBatchRecordSender)(nil)
 
 func newBatchRecordSender(l *slog.Logger, session *tunnel.UploadSession, batchSizeInMB int, concurrency int) (*mcBatchRecordSender, error) {
-	if batchSizeInMB < minBatchSizeInMB || batchSizeInMB > maxBatchSizeInMB { // should be in range 64MB to 100GB
-		l.Warn(fmt.Sprintf("batch size %dMB is not in range 64MB to 100GB, using default value 64MB", batchSizeInMB))
-		batchSizeInMB = 64
+	if batchSizeInMB < minBatchSizeInMB || batchSizeInMB > maxBatchSizeInMB {
+		err := fmt.Errorf("batch size %d is not in range %d to %d", batchSizeInMB, minBatchSizeInMB, maxBatchSizeInMB)
+		return nil, errors.WithStack(err)
 	}
 	batchSizeInBytes := int64(batchSizeInMB * (1 << 20))
+
+	if concurrency <= 0 || concurrency > maxConcurrency {
+		err := fmt.Errorf("concurrency %d is not in range 1 to %d", concurrency, maxConcurrency)
+		return nil, errors.WithStack(err)
+	}
 
 	wp, err := newRecordWriterPool(l, session, batchSizeInBytes, concurrency)
 	if err != nil {
