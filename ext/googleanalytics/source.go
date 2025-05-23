@@ -54,16 +54,27 @@ func NewSource(commonSource common.Source, svcAcc string, tlsCert, tlsCACert, tl
 
 func (s *GASource) Process() error {
 	// run report
-	rowCount := int64(0)
+	rowCount := int64(-1)
 
 	for rowCount == 0 || s.req.Offset < rowCount {
 		// execute request
-		resp, err := s.client.RunReport(s.Context(), s.req)
+		var resp *data.RunReportResponse
+		var err error
+		err = s.DryRunable(func() error {
+			resp, err = s.client.RunReport(s.Context(), s.req)
+			return errors.WithStack(err)
+		}, func() error {
+			resp = &data.RunReportResponse{
+				RowCount: 0,
+				Rows:     []*data.Row{},
+			}
+			return nil
+		})
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		// only update rowCount once
-		if rowCount == 0 {
+		if rowCount < 0 {
 			rowCount = int64(resp.RowCount)
 			s.Logger().Info(fmt.Sprintf("total records: %d", rowCount))
 		}
@@ -87,7 +98,11 @@ func (s *GASource) Process() error {
 		s.req.Offset += s.req.Limit
 	}
 
-	s.Logger().Info(fmt.Sprintf("successfully sent %d records", rowCount))
+	s.DryRunable(func() error {
+		// only show when not in dry run mode
+		s.Logger().Info(fmt.Sprintf("successfully sent %d records", rowCount))
+		return nil
+	})
 	return nil
 }
 
