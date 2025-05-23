@@ -56,7 +56,7 @@ func (s *GASource) Process() error {
 	// run report
 	rowCount := int64(-1)
 
-	for rowCount == 0 || s.req.Offset < rowCount {
+	for rowCount < 0 || s.req.Offset < rowCount {
 		// execute request
 		var resp *data.RunReportResponse
 		var err error
