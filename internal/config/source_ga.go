@@ -7,7 +7,7 @@ type SourceGAConfig struct {
 	EndDate    string   `env:"GA__END_DATE"`
 	Dimensions []string `env:"GA__DIMENSIONS"`
 	Metrics    []string `env:"GA__METRICS"`
-	BatchSize  int64    `env:"GA__BATCH_SIZE" default:"1000"`
+	BatchSize  int64    `env:"GA__BATCH_SIZE" envDefault:"1000"`
 
 	ServiceAccount      string `env:"GA__SERVICE_ACCOUNT"`
 	ConnectionTLSCert   string `env:"GA__CONNECTION_TLS_CERT"`

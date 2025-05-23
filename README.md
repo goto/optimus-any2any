@@ -103,8 +103,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | GA__PROPERTY_ID | Property ID for Google Analytics. |
 | | GA__START_DATE | Start date for the data transfer. |
 | | GA__END_DATE | End date for the data transfer. |
-| | GA__DIMENSIONS | Dimensions for the data transfer. Comma separated. |
-| | GA__METRICS | Metrics for the data transfer. Comma separated. |
+| | GA__DIMENSIONS | Dimensions for the data transfer. Comma separated. [ref](https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema#dimensions)|
+| | GA__METRICS | Metrics for the data transfer. Comma separated. [ref](https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema#metrics) |
 | | GA__BATCH_SIZE | Number of records fetched in one request. (default: 1000) |
 | | GA__CONNECTION_TLS_CERT | Google Analytics TLS certificate. (optional) |
 | | GA__CONNECTION_TLS_CACERT | Google Analytics TLS CA certificate. (optional) |

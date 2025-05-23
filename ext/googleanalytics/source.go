@@ -62,8 +62,13 @@ func (s *GASource) Process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		// only update rowCount once
+		if rowCount == 0 {
+			rowCount = int64(resp.RowCount)
+			s.Logger().Info(fmt.Sprintf("total records: %d", rowCount))
+		}
 		// send report to sink
-		s.Logger().Info(fmt.Sprintf("send %d records", len(resp.Rows)))
+		s.Logger().Info(fmt.Sprintf("fetched %d records", len(resp.Rows)))
 		for _, row := range resp.Rows {
 			// convert row to record
 			record := model.NewRecord()
@@ -77,10 +82,6 @@ func (s *GASource) Process() error {
 			if err := s.SendRecord(record); err != nil {
 				return errors.WithStack(err)
 			}
-		}
-		// only update rowCount once
-		if rowCount == 0 {
-			rowCount = int64(resp.RowCount)
 		}
 		// update offset
 		s.req.Offset += s.req.Limit
