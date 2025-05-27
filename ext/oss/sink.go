@@ -278,14 +278,39 @@ func (o *OSSSink) process() error {
 			err = o.DryRunable(func() error {
 				// copy file from temporary URI to final URI
 				err := o.Retry(func() error {
-					_, err := o.client.CopyObject(o.Context(), &oss.CopyObjectRequest{
-						SourceBucket: oss.Ptr(destinationTempURI.Host),
-						SourceKey:    oss.Ptr(strings.TrimLeft(destinationTempURI.Path, "/")),
-						Bucket:       oss.Ptr(destinationFinalURI.Host),
-						Key:          oss.Ptr(strings.TrimLeft(destinationFinalURI.Path, "/")),
-					})
-					if err != nil {
-						return errors.WithStack(err)
+					if o.enableOverwrite {
+						// if overwrite is enabled, we replace the file
+						_, err := o.client.CopyObject(o.Context(), &oss.CopyObjectRequest{
+							SourceBucket: oss.Ptr(destinationTempURI.Host),
+							SourceKey:    oss.Ptr(strings.TrimLeft(destinationTempURI.Path, "/")),
+							Bucket:       oss.Ptr(destinationFinalURI.Host),
+							Key:          oss.Ptr(strings.TrimLeft(destinationFinalURI.Path, "/")),
+						})
+						if err != nil {
+							return errors.WithStack(err)
+						}
+					} else {
+						// if overwrite is not enabled, enable stream-like copying from temporary URI to final URI
+						// by using GetObject & OSS append writer
+						tempFileResp, err := o.client.GetObject(o.Context(), &oss.GetObjectRequest{
+							Bucket: oss.Ptr(destinationTempURI.Host),
+							Key:    oss.Ptr(strings.TrimLeft(destinationTempURI.Path, "/")),
+						})
+						if err != nil {
+							return errors.WithStack(err)
+						}
+						defer tempFileResp.Body.Close()
+
+						ossWriter, err := o.newOSSWriter(destinationFinalURI.String(), o.enableOverwrite)
+						if err != nil {
+							return errors.WithStack(err)
+						}
+						defer ossWriter.Close()
+
+						_, err = io.Copy(ossWriter, tempFileResp.Body)
+						if err != nil {
+							return errors.WithStack(err)
+						}
 					}
 					return nil
 				})
