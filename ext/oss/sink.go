@@ -89,6 +89,32 @@ func NewSink(commonSink common.Sink,
 		return e
 	})
 
+	// remove temporary files if any
+	commonSink.AddCleanFunc(func() error {
+		if !o.enableArchive {
+			o.Logger().Info("skipping temporary file removal as archiving is enabled")
+			return nil
+		}
+
+		o.Logger().Info("removing temporary files")
+		var e error
+		for destURI := range o.writeHandlers {
+			parsedURI, err := url.Parse(destURI)
+			if err != nil {
+				continue
+			}
+
+			err = o.Retry(func() error {
+				return o.remove(parsedURI.Host, strings.TrimLeft(parsedURI.Path, "/"))
+			})
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to remove temporary file: %s", destURI))
+				e = errs.Join(e, err)
+			}
+		}
+		return e
+	})
+
 	// register sink process
 	commonSink.RegisterProcess(o.process)
 
@@ -137,7 +163,10 @@ func (o *OSSSink) process() error {
 				}
 			} else {
 				// create new oss write handler
-				oh, err = o.newOSSWriter(destinationURI, o.enableOverwrite)
+				// all files will be written to a temporary URI first
+				// and then copied to the final destination URI
+				destinationURITemp := getDestinationTempURI(destinationURI)
+				oh, err = o.newOSSWriter(destinationURITemp, o.enableOverwrite)
 				if err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to create oss write handler: %s", err.Error()))
 					return errors.WithStack(err)
@@ -229,6 +258,46 @@ func (o *OSSSink) process() error {
 		})
 		if err != nil {
 			return errors.WithStack(err)
+		}
+	} else {
+		for destinationURI := range o.writeHandlers {
+			destinationURITemp := getDestinationTempURI(destinationURI)
+			destinationTempURI, err := url.Parse(destinationURITemp)
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURITemp))
+				return errors.WithStack(err)
+			}
+
+			destinationFinalURI, err := url.Parse(destinationURI)
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
+				return errors.WithStack(err)
+			}
+
+			err = o.DryRunable(func() error {
+				// copy file from temporary URI to final URI
+				err := o.Retry(func() error {
+					_, err := o.client.CopyObject(o.Context(), &oss.CopyObjectRequest{
+						SourceBucket: oss.Ptr(destinationTempURI.Host),
+						SourceKey:    oss.Ptr(strings.TrimLeft(destinationTempURI.Path, "/")),
+						Bucket:       oss.Ptr(destinationFinalURI.Host),
+						Key:          oss.Ptr(strings.TrimLeft(destinationFinalURI.Path, "/")),
+					})
+					if err != nil {
+						return errors.WithStack(err)
+					}
+				})
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to copy object from %s to %s: %s", destinationTempURI.String(), destinationFinalURI.String(), err.Error()))
+					return errors.WithStack(err)
+				}
+
+				o.Logger().Info(fmt.Sprintf("successfully written record for %s", destinationURI))
+				return nil
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
 
@@ -366,4 +435,8 @@ func (o *OSSSink) newOSSWriter(fullPath string, shouldOverwrite bool) (io.WriteC
 	}
 
 	return oh, nil
+}
+
+func getDestinationTempURI(destinationURI string) string {
+	return fmt.Sprintf("%s_inprogress", destinationURI)
 }
