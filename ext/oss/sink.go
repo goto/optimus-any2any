@@ -91,7 +91,7 @@ func NewSink(commonSink common.Sink,
 
 	// remove temporary files if any
 	commonSink.AddCleanFunc(func() error {
-		if !o.enableArchive {
+		if o.enableArchive {
 			o.Logger().Info("skipping temporary file removal as archiving is enabled")
 			return nil
 		}
@@ -99,7 +99,8 @@ func NewSink(commonSink common.Sink,
 		o.Logger().Info("removing temporary files")
 		var e error
 		for destURI := range o.writeHandlers {
-			parsedURI, err := url.Parse(destURI)
+			destURITemp := getDestinationTempURI(destURI)
+			parsedURI, err := url.Parse(destURITemp)
 			if err != nil {
 				continue
 			}
@@ -286,13 +287,14 @@ func (o *OSSSink) process() error {
 					if err != nil {
 						return errors.WithStack(err)
 					}
+					return nil
 				})
 				if err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to copy object from %s to %s: %s", destinationTempURI.String(), destinationFinalURI.String(), err.Error()))
 					return errors.WithStack(err)
 				}
 
-				o.Logger().Info(fmt.Sprintf("successfully written record for %s", destinationURI))
+				o.Logger().Info(fmt.Sprintf("successfully written record to %s", destinationURI))
 				return nil
 			})
 			if err != nil {
@@ -326,7 +328,7 @@ func (o *OSSSink) remove(bucket, path string) error {
 		err := errors.New(fmt.Sprintf("failed to delete object: %d", response.StatusCode))
 		return errors.WithStack(err)
 	}
-	o.Logger().Info(fmt.Sprintf("delete %s objects", path))
+	o.Logger().Debug(fmt.Sprintf("delete %s objects", path))
 	return nil
 }
 
@@ -408,7 +410,7 @@ func (o *OSSSink) newOSSWriter(fullPath string, shouldOverwrite bool) (io.WriteC
 
 	if shouldOverwrite {
 		err = o.DryRunable(func() error {
-			o.Logger().Info(fmt.Sprintf("remove object: %s", fullPath))
+			o.Logger().Debug(fmt.Sprintf("remove object: %s", fullPath))
 			if err := o.Retry(func() error {
 				err := o.remove(targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 				return err
