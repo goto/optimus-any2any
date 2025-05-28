@@ -151,7 +151,9 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		}
 		return s3.NewSink(commonSink, sinkCfg.Credentials, sinkCfg.Provider, sinkCfg.Region,
 			sinkCfg.DestinationURI, sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
-			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber, opts...)
+			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber,
+			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)
 		if err != nil {
