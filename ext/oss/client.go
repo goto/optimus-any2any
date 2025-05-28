@@ -12,7 +12,7 @@ import (
 
 var (
 	defaultConnectTimeoutSeconds   = 30 * time.Second
-	defaultReadWriteTimeoutSeconds = 30 * time.Second
+	defaultReadWriteTimeoutSeconds = 60 * time.Second
 )
 
 type ossCredentials struct {
