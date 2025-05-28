@@ -47,10 +47,14 @@ func NewSink(commonSink common.Sink,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	maxTempFileRecordNumber int,
 	compressionType string, compressionPassword string,
+	connectionTimeout, readWriteTimeout int,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
-	client, err := NewOSSClient(creds)
+	client, err := NewOSSClient(creds, OSSClientConfig{
+		ConnectionTimeoutSeconds: connectionTimeout,
+		ReadWriteTimeoutSeconds:  readWriteTimeout,
+	})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

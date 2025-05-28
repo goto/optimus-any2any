@@ -33,7 +33,7 @@ var _ flow.Source = (*OSSSource)(nil)
 func NewSource(commonSource common.Source, creds string,
 	sourceURI string, csvDelimiter rune, skipHeader bool, skipRows int, opts ...common.Option) (*OSSSource, error) {
 	// create OSS client
-	client, err := NewOSSClient(creds)
+	client, err := NewOSSClient(creds, OSSClientConfig{})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

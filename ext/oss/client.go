@@ -15,6 +15,11 @@ var (
 	defaultReadWriteTimeoutSeconds = 60 * time.Second
 )
 
+type OSSClientConfig struct {
+	ConnectionTimeoutSeconds int
+	ReadWriteTimeoutSeconds  int
+}
+
 type ossCredentials struct {
 	AccessID      string `json:"access_key_id"`
 	AccessKey     string `json:"access_key_secret"`
@@ -32,7 +37,7 @@ func parseOSSCredentials(data []byte) (*ossCredentials, error) {
 	return cred, nil
 }
 
-func NewOSSClient(rawCreds string) (*oss.Client, error) {
+func NewOSSClient(rawCreds string, clientCfg OSSClientConfig) (*oss.Client, error) {
 	cred, err := parseOSSCredentials([]byte(rawCreds))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -42,9 +47,18 @@ func NewOSSClient(rawCreds string) (*oss.Client, error) {
 	cfg := oss.LoadDefaultConfig().
 		WithCredentialsProvider(credProvider).
 		WithEndpoint(cred.Endpoint).
-		WithRegion(cred.Region).
-		WithConnectTimeout(defaultConnectTimeoutSeconds).
-		WithReadWriteTimeout(defaultReadWriteTimeoutSeconds)
+		WithRegion(cred.Region)
+
+	timeoutCfg := defaultConnectTimeoutSeconds
+	readWriteTimeoutCfg := defaultReadWriteTimeoutSeconds
+
+	if clientCfg.ConnectionTimeoutSeconds > 0 {
+		timeoutCfg = time.Duration(clientCfg.ConnectionTimeoutSeconds) * time.Second
+	}
+	if clientCfg.ReadWriteTimeoutSeconds > 0 {
+		readWriteTimeoutCfg = time.Duration(clientCfg.ReadWriteTimeoutSeconds) * time.Second
+	}
+	cfg = cfg.WithConnectTimeout(timeoutCfg).WithReadWriteTimeout(readWriteTimeoutCfg)
 
 	client := oss.NewClient(cfg)
 
