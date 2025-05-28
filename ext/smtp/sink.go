@@ -180,7 +180,7 @@ func NewSink(commonSink common.Sink,
 	// register sink process
 	s.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageConfig.Mode))
 	if strings.ToLower(storageConfig.Mode) == "oss" {
-		client, err := osssink.NewOSSClient(storageConfig.Credentials)
+		client, err := osssink.NewOSSClient(storageConfig.Credentials, osssink.OSSClientConfig{})
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
