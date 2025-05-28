@@ -1,11 +1,18 @@
 package oss
 
 import (
+	"time"
+
 	"github.com/goccy/go-json"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss/credentials"
 	"github.com/pkg/errors"
+)
+
+var (
+	defaultConnectTimeoutSeconds   = 30 * time.Second
+	defaultReadWriteTimeoutSeconds = 30 * time.Second
 )
 
 type ossCredentials struct {
@@ -35,7 +42,9 @@ func NewOSSClient(rawCreds string) (*oss.Client, error) {
 	cfg := oss.LoadDefaultConfig().
 		WithCredentialsProvider(credProvider).
 		WithEndpoint(cred.Endpoint).
-		WithRegion(cred.Region)
+		WithRegion(cred.Region).
+		WithConnectTimeout(defaultConnectTimeoutSeconds).
+		WithReadWriteTimeout(defaultReadWriteTimeoutSeconds)
 
 	client := oss.NewClient(cfg)
 
