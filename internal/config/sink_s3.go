@@ -9,6 +9,8 @@ type SinkS3Config struct {
 	EnableOverwrite         bool   `env:"S3__ENABLE_OVERWRITE" envDefault:"false"`
 	SkipHeader              bool   `env:"S3__SKIP_HEADER" envDefault:"false"`
 	MaxTempFileRecordNumber int    `env:"S3__MAX_TEMP_FILE_RECORD_NUMBER" envDefault:"50000"`
+	CompressionType         string `env:"S3__COMPRESSION_TYPE"`
+	CompressionPassword     string `env:"S3__COMPRESSION_PASSWORD"`
 }
 
 func SinkS3(envs ...string) (*SinkS3Config, error) {

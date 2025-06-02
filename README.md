@@ -143,6 +143,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | S3__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | S3__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | S3__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to S3. (default: 50000) |
+| | S3__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
+| | S3__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |

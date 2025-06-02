@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/goccy/go-json"
+	"github.com/goto/optimus-any2any/internal/archive"
 	xaws "github.com/goto/optimus-any2any/internal/auth/aws"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -32,6 +33,11 @@ type S3Sink struct {
 	enableOverwrite         bool
 	skipHeader              bool
 	maxTempFileRecordNumber int
+
+	// archive properties
+	enableArchive       bool
+	compressionType     string
+	compressionPassword string
 }
 
 var _ flow.Sink = (*S3Sink)(nil)
@@ -42,6 +48,7 @@ func NewSink(commonSink common.Sink,
 	region string, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	maxTempFileRecordNumber int,
+	compressionType string, compressionPassword string,
 	opts ...common.Option) (*S3Sink, error) {
 
 	// parse credentials
@@ -81,6 +88,10 @@ func NewSink(commonSink common.Sink,
 		enableOverwrite:         enableOverwrite,
 		skipHeader:              skipHeader,
 		maxTempFileRecordNumber: maxTempFileRecordNumber,
+		// archive-related options
+		enableArchive:       compressionType != "",
+		compressionType:     compressionType,
+		compressionPassword: compressionPassword,
 	}
 
 	// add clean func
@@ -124,30 +135,27 @@ func (s3 *S3Sink) process() error {
 
 		wh, ok := s3.writeHandlers[destinationURI]
 		if !ok {
-			// create new s3 write handler
-			targetDestinationURI, err := url.Parse(destinationURI)
-			if err != nil {
-				s3.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			if targetDestinationURI.Scheme != "s3" {
-				s3.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
-				return errors.WithStack(err)
-			}
-			// remove object if overwrite is enabled
-			if s3.enableOverwrite {
-				if err := s3.Retry(func() error {
-					return s3.DryRunable(func() error {
-						s3.Logger().Info(fmt.Sprintf("remove object: %s", destinationURI))
-						return s3.client.DeleteObject(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
-					})
-				}); err != nil {
-					s3.Logger().Error(fmt.Sprintf("failed to remove object: %s", destinationURI))
+			var sh io.Writer
+			if s3.enableArchive {
+				tmpPath, err := getTmpPath(destinationURI)
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
+					return errors.WithStack(err)
+				}
+
+				sh, err = xio.NewWriteHandler(s3.Logger(), tmpPath)
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to create write handler: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+			} else {
+				// create new s3 write handler
+				sh, err = s3.newS3Writer(destinationURI)
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to create write handler: %s", err.Error()))
 					return errors.WithStack(err)
 				}
 			}
-
-			var sh io.WriteCloser = s3.client.GetUploadWriter(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
 
 			wh = xio.NewChunkWriter(
 				s3.Logger(), sh,
@@ -207,8 +215,45 @@ func (s3 *S3Sink) process() error {
 		return errors.WithStack(err)
 	}
 
+	if s3.enableArchive {
+		err := s3.DryRunable(func() error {
+			pathsToArchive := []string{}
+			for destinationURI := range s3.writeHandlers {
+				tmpPath, err := getTmpPath(destinationURI)
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
+					return errors.WithStack(err)
+				}
+
+				pathsToArchive = append(pathsToArchive, tmpPath)
+			}
+			s3.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
+
+			archivePaths, err := s3.archive(pathsToArchive)
+			if err != nil {
+				s3.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+
+			s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
+
+			return nil
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
 	s3.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
 	return nil
+}
+
+func getTmpPath(destinationURI string) (string, error) {
+	targetURI, err := url.Parse(destinationURI)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
 }
 
 func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize int) string {
@@ -216,4 +261,83 @@ func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize in
 		destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
 		int(recordCounter/batchSize)*batchSize,
 		filepath.Ext(destinationURI)[1:])
+}
+
+func (s3 *S3Sink) newS3Writer(fullPath string) (io.WriteCloser, error) {
+	// create new s3 write handler
+	targetDestinationURI, err := url.Parse(fullPath)
+	if err != nil {
+		s3.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", fullPath))
+		return nil, errors.WithStack(err)
+	}
+	if targetDestinationURI.Scheme != "s3" {
+		s3.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetDestinationURI.Scheme))
+		return nil, errors.WithStack(err)
+	}
+
+	// remove object if overwrite is enabled
+	if s3.enableOverwrite {
+		if err := s3.Retry(func() error {
+			return s3.DryRunable(func() error {
+				s3.Logger().Info(fmt.Sprintf("remove object: %s", fullPath))
+				return s3.client.DeleteObject(s3.Context(), targetDestinationURI.Host, strings.TrimLeft(targetDestinationURI.Path, "/"))
+			})
+		}); err != nil {
+			s3.Logger().Error(fmt.Sprintf("failed to remove object: %s", fullPath))
+			return nil, errors.WithStack(err)
+		}
+	}
+
+	return s3.client.GetUploadWriter(
+		s3.Context(), targetDestinationURI.Host,
+		strings.TrimLeft(targetDestinationURI.Path, "/")), nil
+}
+
+func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
+	templateURI := s3.destinationURITemplate.Root.String()
+	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
+
+	var archiveDestinationPaths []string
+	switch s3.compressionType {
+	case "gz":
+		for _, filePath := range filesToArchive {
+			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
+
+			archiveWriter, err := s3.newS3Writer(archiveDestinationPath)
+			if err != nil {
+				return archiveDestinationPaths, errors.WithStack(err)
+			}
+			defer archiveWriter.Close()
+
+			archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension("gz"))
+			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
+				return archiveDestinationPaths, errors.WithStack(err)
+			}
+		}
+	case "zip", "tar.gz":
+		// for zip & tar.gz file, the whole file is archived into a single archive file
+		// whose file name is deferred from the destination URI
+		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
+		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), s3.compressionType)
+		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
+
+		// use appender
+		archiveWriter, err := s3.newS3Writer(archiveDestinationPath)
+		if err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
+		}
+		defer archiveWriter.Close()
+
+		archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(s3.compressionType), archive.WithPassword(s3.compressionPassword))
+		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
+			return archiveDestinationPaths, errors.WithStack(err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported compression type: %s", s3.compressionType)
+	}
+
+	return archiveDestinationPaths, nil
 }
