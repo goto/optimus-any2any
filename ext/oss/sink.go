@@ -240,7 +240,7 @@ func (o *OSSSink) process() error {
 	} else {
 		for destinationURI := range o.writeHandlers {
 			// copy the temporary file to the final destination
-			if err := o.finalizeFile(getDestinationTempURI(destinationURI), destinationURI); err != nil {
+			if err := o.renameFile(getDestinationTempURI(destinationURI), destinationURI); err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to copy file from temporary URI to final destination: %s", err.Error()))
 				return errors.WithStack(err)
 			}
@@ -341,7 +341,7 @@ func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 
 	// copy the temporary file to the final destination
 	for _, archiveDestinationPath := range archiveDestinationPaths {
-		if err := o.finalizeFile(getDestinationTempURI(archiveDestinationPath), archiveDestinationPath); err != nil {
+		if err := o.renameFile(getDestinationTempURI(archiveDestinationPath), archiveDestinationPath); err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to copy file from temporary URI to final destination: %s", err.Error()))
 			return archiveDestinationPaths, errors.WithStack(err)
 		}
@@ -397,7 +397,7 @@ func getDestinationTempURI(destinationURI string) string {
 	return fmt.Sprintf("%s_inprogress", destinationURI)
 }
 
-func (o *OSSSink) finalizeFile(tempURI, finalURI string) error {
+func (o *OSSSink) renameFile(tempURI, finalURI string) error {
 	tempParsedURI, err := url.Parse(tempURI)
 	if err != nil {
 		o.Logger().Error(fmt.Sprintf("failed to parse temporary URI: %s", tempURI))
