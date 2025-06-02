@@ -115,6 +115,7 @@ It applies when sink and source are in the same environment. For example, transf
 | Component | Configuration | Description |
 |---|---|---|
 | FILE | FILE__DESTINATION_URI | Path to the output file. Format `file:///directory/to/somthing.extension` |
+| | FILE__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |

@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/GitRowin/orderedmapjson"
+	"github.com/PaesslerAG/gval"
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/compiler"
@@ -22,22 +25,37 @@ type FileSink struct {
 	DestinationURITemplate *template.Template
 	WriteHandlers          map[string]xio.WriteFlusher
 	FileRecordCounters     map[string]int
+
+	// jsonpath selector
+	jsonPathSelector gval.Evaluable
 }
 
 var _ flow.Sink = (*FileSink)(nil)
 
-func NewSink(commonSink common.Sink, destinationURI string, opts ...common.Option) (*FileSink, error) {
+func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector string, opts ...common.Option) (*FileSink, error) {
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
+
+	// compile json path selector
+	var path gval.Evaluable
+	if jsonPathSelector != "" {
+		builder := gval.Full(jsonpath.PlaceholderExtension())
+		path, err = builder.NewEvaluable(jsonPathSelector)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
 	// create sink
 	fs := &FileSink{
 		Sink:                   commonSink,
 		DestinationURITemplate: tmpl,
 		WriteHandlers:          make(map[string]xio.WriteFlusher),
 		FileRecordCounters:     make(map[string]int),
+		jsonPathSelector:       path,
 	}
 
 	// add clean func
@@ -88,6 +106,24 @@ func (fs *FileSink) Process() error {
 		}
 
 		recordWithoutMetadata := fs.RecordWithoutMetadata(record)
+		// if jsonPathSelector is provided, select the data using it
+		if fs.jsonPathSelector != nil {
+			selectedData, err := fs.jsonPathSelector(fs.Context(), model.ToMap(recordWithoutMetadata))
+			if err != nil {
+				fs.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				return errors.WithStack(err)
+			}
+			switch selectedData.(type) {
+			case *orderedmapjson.AnyOrderedMap:
+				recordWithoutMetadata = selectedData.(*orderedmapjson.AnyOrderedMap)
+			case map[string]interface{}:
+				recordWithoutMetadata = model.NewRecordFromMap(selectedData.(map[string]interface{})) // order is not guaranteed
+			default:
+				fs.Logger().Error(fmt.Sprintf("json path selector did not return a map"))
+				return errors.WithStack(fmt.Errorf("json path selector did not return a map, got: %T", selectedData))
+			}
+		}
+
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			fs.Logger().Error(fmt.Sprintf("failed to marshal record"))
