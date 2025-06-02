@@ -9,6 +9,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/GitRowin/orderedmapjson"
+	"github.com/PaesslerAG/gval"
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/archive"
@@ -35,6 +38,9 @@ type SFTPSink struct {
 	enableArchive       bool
 	compressionType     string
 	compressionPassword string
+
+	// json path selector
+	jsonPathSelector gval.Evaluable
 }
 
 var _ flow.Sink = (*SFTPSink)(nil)
@@ -44,6 +50,7 @@ func NewSink(commonSink common.Sink,
 	privateKey, hostFingerprint string,
 	destinationURI string,
 	compressionType string, compressionPassword string,
+	jsonPathSelector string,
 	opts ...common.Option) (*SFTPSink, error) {
 
 	// set up SFTP client
@@ -68,6 +75,16 @@ func NewSink(commonSink common.Sink,
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
+	// compile json path selector
+	var path gval.Evaluable
+	if jsonPathSelector != "" {
+		builder := gval.Full(jsonpath.PlaceholderExtension())
+		path, err = builder.NewEvaluable(jsonPathSelector)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
 	s := &SFTPSink{
 		Sink:                   commonSink,
 		client:                 client,
@@ -77,6 +94,8 @@ func NewSink(commonSink common.Sink,
 		enableArchive:       compressionType != "",
 		compressionType:     compressionType,
 		compressionPassword: compressionPassword,
+		// jsonPath selector
+		jsonPathSelector: path,
 	}
 
 	// add clean func
@@ -149,7 +168,26 @@ func (s *SFTPSink) process() error {
 			s.writerHandlers[destinationURI] = wh
 		}
 
-		raw, err := json.Marshal(record)
+		recordWithoutMetadata := s.RecordWithoutMetadata(record)
+		// if jsonPathSelector is provided, select the data using it
+		if s.jsonPathSelector != nil {
+			selectedData, err := s.jsonPathSelector(s.Context(), model.ToMap(recordWithoutMetadata))
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				return errors.WithStack(err)
+			}
+			switch selectedData.(type) {
+			case *orderedmapjson.AnyOrderedMap:
+				recordWithoutMetadata = selectedData.(*orderedmapjson.AnyOrderedMap)
+			case map[string]interface{}:
+				recordWithoutMetadata = model.NewRecordFromMap(selectedData.(map[string]interface{})) // order is not guaranteed
+			default:
+				s.Logger().Error(fmt.Sprintf("json path selector did not return a map"))
+				return errors.WithStack(fmt.Errorf("json path selector did not return a map, got: %T", selectedData))
+			}
+		}
+
+		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)

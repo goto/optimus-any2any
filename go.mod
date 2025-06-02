@@ -6,6 +6,8 @@ toolchain go1.23.7
 
 require (
 	github.com/GitRowin/orderedmapjson v0.4.1
+	github.com/PaesslerAG/gval v1.2.4
+	github.com/PaesslerAG/jsonpath v0.1.1
 	github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.1.3
 	github.com/aliyun/aliyun-odps-go-sdk v0.4.6
 	github.com/aws/aws-sdk-go-v2 v1.36.3
@@ -39,6 +41,7 @@ require (
 	golang.org/x/oauth2 v0.26.0
 	google.golang.org/api v0.216.0
 	google.golang.org/genproto v0.0.0-20250519155744-55703ea1f237
+	google.golang.org/grpc v1.72.0
 )
 
 require (
@@ -88,6 +91,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/richardlehane/mscfb v1.0.4 // indirect
 	github.com/richardlehane/msoleps v1.0.4 // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.9.0 // indirect
 	github.com/xuri/efp v0.0.0-20240408161823-9ad904a10d6d // indirect
@@ -104,7 +108,6 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250512202823-5a2f75b736a9 // indirect
-	google.golang.org/grpc v1.72.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

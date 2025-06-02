@@ -162,6 +162,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 			sinkCfg.DestinationURI,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			sinkCfg.JSONPathSelector,
 			opts...)
 	case SMTP:
 		sinkCfg, err := config.SinkSMTP(envs...)
