@@ -244,7 +244,6 @@ func (o *OSSSink) process() error {
 				o.Logger().Error(fmt.Sprintf("failed to copy file from temporary URI to final destination: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			o.Logger().Info(fmt.Sprintf("successfully copied file from temporary URI to final destination: %s", destinationURI))
 		}
 	}
 
