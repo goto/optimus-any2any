@@ -7,6 +7,7 @@ type SinkSFTPConfig struct {
 	DestinationURI      string `env:"SFTP__DESTINATION_URI"`
 	CompressionPassword string `env:"SFTP__COMPRESSION_PASSWORD"`
 	CompressionType     string `env:"SFTP__COMPRESSION_TYPE"`
+	JSONPathSelector    string `env:"SFTP__JSONPATH_SELECTOR"`
 }
 
 // SinkSFTP parses the environment variables and returns the SinkSFTPConfig.
