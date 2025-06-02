@@ -93,33 +93,6 @@ func NewSink(commonSink common.Sink,
 		return e
 	})
 
-	// remove temporary files if any
-	commonSink.AddCleanFunc(func() error {
-		if o.enableArchive {
-			o.Logger().Info("skipping temporary file removal as archiving is enabled")
-			return nil
-		}
-
-		o.Logger().Info("removing temporary files")
-		var e error
-		for destURI := range o.writeHandlers {
-			destURITemp := getDestinationTempURI(destURI)
-			parsedURI, err := url.Parse(destURITemp)
-			if err != nil {
-				continue
-			}
-
-			err = o.Retry(func() error {
-				return o.remove(parsedURI.Host, strings.TrimLeft(parsedURI.Path, "/"))
-			})
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to remove temporary file: %s", destURI))
-				e = errs.Join(e, err)
-			}
-		}
-		return e
-	})
-
 	// register sink process
 	commonSink.RegisterProcess(o.process)
 
@@ -438,39 +411,47 @@ func (o *OSSSink) copyFile(tempURI, finalURI string) error {
 		return errors.WithStack(err)
 	}
 
-	err = o.Retry(func() error {
-		if o.enableOverwrite {
-			// Overwrite logic: Remove the existing file
-			_, err := o.client.CopyObject(o.Context(), &oss.CopyObjectRequest{
-				SourceBucket: oss.Ptr(tempParsedURI.Host),
-				SourceKey:    oss.Ptr(strings.TrimLeft(tempParsedURI.Path, "/")),
-				Bucket:       oss.Ptr(finalParsedURI.Host),
-				Key:          oss.Ptr(strings.TrimLeft(finalParsedURI.Path, "/")),
-			})
-			return errors.WithStack(err)
-		} else {
-			// Stream-like copying logic
-			tempFileResp, err := o.client.GetObject(o.Context(), &oss.GetObjectRequest{
-				Bucket: oss.Ptr(tempParsedURI.Host),
-				Key:    oss.Ptr(strings.TrimLeft(tempParsedURI.Path, "/")),
-			})
-			if err != nil {
+	err = o.DryRunable(func() error {
+		return o.Retry(func() error {
+			if o.enableOverwrite {
+				// Overwrite logic: Remove the existing file
+				_, err := o.client.CopyObject(o.Context(), &oss.CopyObjectRequest{
+					SourceBucket: oss.Ptr(tempParsedURI.Host),
+					SourceKey:    oss.Ptr(strings.TrimLeft(tempParsedURI.Path, "/")),
+					Bucket:       oss.Ptr(finalParsedURI.Host),
+					Key:          oss.Ptr(strings.TrimLeft(finalParsedURI.Path, "/")),
+				})
+				return errors.WithStack(err)
+			} else {
+				// Stream-like copying logic
+				tempFileResp, err := o.client.GetObject(o.Context(), &oss.GetObjectRequest{
+					Bucket: oss.Ptr(tempParsedURI.Host),
+					Key:    oss.Ptr(strings.TrimLeft(tempParsedURI.Path, "/")),
+				})
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				defer tempFileResp.Body.Close()
+
+				ossWriter, err := o.newOSSWriter(finalURI, o.enableOverwrite)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				defer ossWriter.Close()
+
+				_, err = io.Copy(ossWriter, tempFileResp.Body)
 				return errors.WithStack(err)
 			}
-			defer tempFileResp.Body.Close()
-
-			ossWriter, err := o.newOSSWriter(finalURI, o.enableOverwrite)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			defer ossWriter.Close()
-
-			_, err = io.Copy(ossWriter, tempFileResp.Body)
-			return errors.WithStack(err)
-		}
+		})
 	})
 	if err != nil {
 		o.Logger().Error(fmt.Sprintf("failed to copy file from %s to %s: %s", tempURI, finalURI, err.Error()))
+		return errors.WithStack(err)
+	}
+
+	// remove the temporary file after copying
+	if err := o.remove(tempParsedURI.Host, strings.TrimLeft(tempParsedURI.Path, "/")); err != nil {
+		o.Logger().Error(fmt.Sprintf("failed to remove temporary file %s: %s", tempURI, err.Error()))
 		return errors.WithStack(err)
 	}
 
