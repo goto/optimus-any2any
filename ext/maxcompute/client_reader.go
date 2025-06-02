@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
+	"github.com/aliyun/aliyun-odps-go-sdk/odps/data"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -139,18 +140,15 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 				yield(nil, errors.WithStack(err))
 				return
 			}
-			defer reader.Close()
 
 			count := 0
-			for {
-				// read record
-				record, err := reader.Read()
-				if err != nil {
-					if errors.Is(err, io.EOF) {
-						break
+			if err := reader.Iterator(func(record data.Record, e error) {
+				if e != nil {
+					if errors.Is(e, io.EOF) {
+						return
 					}
-					r.l.Error(fmt.Sprintf("reader(%s): failed to read record", r.readerId))
-					yield(nil, errors.WithStack(err))
+					r.l.Error(fmt.Sprintf("reader(%s): failed to read record: %s", r.readerId, e.Error()))
+					yield(nil, errors.WithStack(e))
 					return
 				}
 
@@ -166,7 +164,16 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 				if !yield(v, nil) {
 					return
 				}
+			}); err != nil {
+				yield(nil, errors.WithStack(err))
+				return
 			}
+			if err := reader.Close(); err != nil {
+				r.l.Error(fmt.Sprintf("reader(%s): failed to close record reader: %s", r.readerId, err.Error()))
+				yield(nil, errors.WithStack(err))
+				return
+			}
+
 			i += count
 			r.l.Info(fmt.Sprintf("reader(%s): send %d records", r.readerId, count))
 		}
