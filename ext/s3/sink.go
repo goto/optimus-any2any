@@ -9,6 +9,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/GitRowin/orderedmapjson"
+	"github.com/PaesslerAG/gval"
+	"github.com/PaesslerAG/jsonpath"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/goccy/go-json"
@@ -38,6 +41,9 @@ type S3Sink struct {
 	enableArchive       bool
 	compressionType     string
 	compressionPassword string
+
+	// json path selector
+	jsonPathSelector gval.Evaluable
 }
 
 var _ flow.Sink = (*S3Sink)(nil)
@@ -49,6 +55,7 @@ func NewSink(commonSink common.Sink,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	maxTempFileRecordNumber int,
 	compressionType string, compressionPassword string,
+	jsonPathSelector string,
 	opts ...common.Option) (*S3Sink, error) {
 
 	// parse credentials
@@ -78,6 +85,16 @@ func NewSink(commonSink common.Sink,
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
+	// compile json path selector
+	var path gval.Evaluable
+	if jsonPathSelector != "" {
+		builder := gval.Full(jsonpath.PlaceholderExtension())
+		path, err = builder.NewEvaluable(jsonPathSelector)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+	}
+
 	s3 := &S3Sink{
 		Sink:                    commonSink,
 		client:                  client,
@@ -92,6 +109,8 @@ func NewSink(commonSink common.Sink,
 		enableArchive:       compressionType != "",
 		compressionType:     compressionType,
 		compressionPassword: compressionPassword,
+		// jsonPath selector
+		jsonPathSelector: path,
 	}
 
 	// add clean func
@@ -167,6 +186,24 @@ func (s3 *S3Sink) process() error {
 
 		// record without metadata
 		recordWithoutMetadata := s3.RecordWithoutMetadata(record)
+		// if jsonPathSelector is provided, select the data using it
+		if s3.jsonPathSelector != nil {
+			selectedData, err := s3.jsonPathSelector(s3.Context(), model.ToMap(recordWithoutMetadata))
+			if err != nil {
+				s3.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				return errors.WithStack(err)
+			}
+			switch selectedData.(type) {
+			case *orderedmapjson.AnyOrderedMap:
+				recordWithoutMetadata = selectedData.(*orderedmapjson.AnyOrderedMap)
+			case map[string]interface{}:
+				recordWithoutMetadata = model.NewRecordFromMap(selectedData.(map[string]interface{})) // order is not guaranteed
+			default:
+				s3.Logger().Error(fmt.Sprintf("json path selector did not return a map"))
+				return errors.WithStack(fmt.Errorf("json path selector did not return a map, got: %T", selectedData))
+			}
+		}
+
 		raw, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			s3.Logger().Error(fmt.Sprintf("failed to marshal record"))
