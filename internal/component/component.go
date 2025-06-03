@@ -154,6 +154,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.DestinationURI, sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
 			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			sinkCfg.JSONPathSelector,
 			opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)
