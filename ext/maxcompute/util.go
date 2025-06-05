@@ -403,15 +403,19 @@ func fromData(l *slog.Logger, d data.Data) (interface{}, error) {
 			return nil, errors.WithStack(err)
 		}
 
-		// unquote JSON
-		unquotedJSON, err := strconv.Unquote(val.GetData())
-		if err != nil {
-			return nil, errors.WithStack(err)
+		raw := []byte(val.GetData())
+		// Attempt unquoting only if it starts with a quote
+		if strings.HasPrefix(val.GetData(), "\"") {
+			unquoted, err := strconv.Unquote(val.GetData())
+			if err != nil {
+				l.Error(fmt.Sprintf("failed to unquote JSON: error: %v", err))
+				return nil, errors.WithStack(err)
+			}
+			raw = []byte(unquoted)
 		}
-		raw := []byte(unquotedJSON)
 
 		// convert JSON to map
-		m := map[string]interface{}{}
+		var m interface{}
 		if err := json.Unmarshal(raw, &m); err != nil {
 			return nil, errors.WithStack(err)
 		}
