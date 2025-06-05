@@ -92,6 +92,7 @@ func (o *OSSSource) process() error {
 		o.Logger().Info(fmt.Sprintf("no objects found"))
 		return nil
 	}
+	o.Logger().Info(fmt.Sprintf("found %d objects in bucket path: %s", len(objectResult.Contents), o.path))
 
 	// process objects
 	for _, objectProp := range objectResult.Contents {
