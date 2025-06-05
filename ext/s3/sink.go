@@ -186,6 +186,11 @@ func (s3 *S3Sink) process() error {
 
 		// record without metadata
 		recordWithoutMetadata := s3.RecordWithoutMetadata(record)
+		raw, err := json.Marshal(recordWithoutMetadata)
+		if err != nil {
+			s3.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			return errors.WithStack(err)
+		}
 		// if jsonPathSelector is provided, select the data using it
 		if s3.jsonPathSelector != nil {
 			selectedData, err := s3.jsonPathSelector(s3.Context(), model.ToMap(recordWithoutMetadata))
@@ -195,19 +200,27 @@ func (s3 *S3Sink) process() error {
 			}
 			switch selectedData.(type) {
 			case *orderedmapjson.AnyOrderedMap:
-				recordWithoutMetadata = selectedData.(*orderedmapjson.AnyOrderedMap)
+				raw, err = json.Marshal(selectedData.(*orderedmapjson.AnyOrderedMap))
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to marshal selected data"))
+					return errors.WithStack(err)
+				}
 			case map[string]interface{}:
-				recordWithoutMetadata = model.NewRecordFromMap(selectedData.(map[string]interface{})) // order is not guaranteed
+				raw, err = json.Marshal(model.NewRecordFromMap(selectedData.(map[string]interface{}))) // order is not guaranteed
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to marshal selected data"))
+					return errors.WithStack(err)
+				}
+			case []interface{}:
+				raw, err = json.Marshal(selectedData.([]interface{}))
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to marshal selected data"))
+					return errors.WithStack(err)
+				}
 			default:
-				s3.Logger().Error(fmt.Sprintf("json path selector did not return a map"))
-				return errors.WithStack(fmt.Errorf("json path selector did not return a map, got: %T", selectedData))
+				s3.Logger().Error(fmt.Sprintf("json path selector did not return a map / slice"))
+				return errors.WithStack(fmt.Errorf("json path selector did not return a map / slice, got: %T", selectedData))
 			}
-		}
-
-		raw, err := json.Marshal(recordWithoutMetadata)
-		if err != nil {
-			s3.Logger().Error(fmt.Sprintf("failed to marshal record"))
-			return errors.WithStack(err)
 		}
 
 		err = s3.DryRunable(func() error {
