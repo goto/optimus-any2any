@@ -1,12 +1,12 @@
 package salesforce
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/goccy/go-json"
 	"github.com/pkg/errors"
 	"github.com/simpleforce/simpleforce"
 )
