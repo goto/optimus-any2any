@@ -1,6 +1,8 @@
 package model
 
-import "github.com/GitRowin/orderedmapjson"
+import (
+	"github.com/GitRowin/orderedmapjson"
+)
 
 type Record = orderedmapjson.AnyOrderedMap
 

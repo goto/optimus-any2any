@@ -9,9 +9,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/GitRowin/orderedmapjson"
-	"github.com/PaesslerAG/gval"
-	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/archive"
@@ -40,7 +37,7 @@ type SFTPSink struct {
 	compressionPassword string
 
 	// json path selector
-	jsonPathSelector gval.Evaluable
+	jsonPathSelector string
 }
 
 var _ flow.Sink = (*SFTPSink)(nil)
@@ -75,16 +72,6 @@ func NewSink(commonSink common.Sink,
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
-	// compile json path selector
-	var path gval.Evaluable
-	if jsonPathSelector != "" {
-		builder := gval.Full(jsonpath.PlaceholderExtension())
-		path, err = builder.NewEvaluable(jsonPathSelector)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-	}
-
 	s := &SFTPSink{
 		Sink:                   commonSink,
 		client:                 client,
@@ -95,7 +82,7 @@ func NewSink(commonSink common.Sink,
 		compressionType:     compressionType,
 		compressionPassword: compressionPassword,
 		// jsonPath selector
-		jsonPathSelector: path,
+		jsonPathSelector: jsonPathSelector,
 	}
 
 	// add clean func
@@ -176,34 +163,11 @@ func (s *SFTPSink) process() error {
 			return errors.WithStack(err)
 		}
 		// if jsonPathSelector is provided, select the data using it
-		if s.jsonPathSelector != nil {
-			selectedData, err := s.jsonPathSelector(s.Context(), model.ToMap(recordWithoutMetadata))
+		if s.jsonPathSelector != "" {
+			raw, err = s.JSONPathSelector(raw, s.jsonPathSelector)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
 				return errors.WithStack(err)
-			}
-			switch selectedData.(type) {
-			case *orderedmapjson.AnyOrderedMap:
-				raw, err = json.Marshal(selectedData.(*orderedmapjson.AnyOrderedMap))
-				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to marshal selected data"))
-					return errors.WithStack(err)
-				}
-			case map[string]interface{}:
-				raw, err = json.Marshal(model.NewRecordFromMap(selectedData.(map[string]interface{}))) // order is not guaranteed
-				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to marshal selected data"))
-					return errors.WithStack(err)
-				}
-			case []interface{}:
-				raw, err = json.Marshal(selectedData.([]interface{}))
-				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to marshal selected data"))
-					return errors.WithStack(err)
-				}
-			default:
-				s.Logger().Error(fmt.Sprintf("json path selector did not return a map / slice"))
-				return errors.WithStack(fmt.Errorf("json path selector did not return a map / slice, got: %T", selectedData))
 			}
 		}
 
