@@ -144,5 +144,13 @@ func (fs *FileSink) Process() error {
 		return nil
 	})
 
+	// TODO: Implement
+	pathsToArchive := []string{}
+	for destinationURI := range fs.WriteHandlers {
+		pathsToArchive = append(pathsToArchive, destinationURI)
+	}
+	_, _ = fs.Compression("", "", pathsToArchive)
+	// upload to file
+
 	return errors.WithStack(err)
 }

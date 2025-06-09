@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/goccy/go-json"
-	"github.com/goto/optimus-any2any/internal/archive"
 	xaws "github.com/goto/optimus-any2any/internal/auth/aws"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -248,11 +247,9 @@ func (s3 *S3Sink) process() error {
 			}
 			s3.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
-			archivePaths, err := s3.archive(pathsToArchive)
-			if err != nil {
-				s3.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
-			}
+			// TODO: Implement
+			archivePaths, _ := s3.Compression(s3.compressionType, s3.compressionPassword, pathsToArchive)
+			// upload to s3
 
 			s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
 
@@ -310,53 +307,4 @@ func (s3 *S3Sink) newS3Writer(fullPath string) (io.WriteCloser, error) {
 	return s3.client.GetUploadWriter(
 		s3.Context(), targetDestinationURI.Host,
 		strings.TrimLeft(targetDestinationURI.Path, "/")), nil
-}
-
-func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
-	templateURI := s3.destinationURITemplate.Root.String()
-	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
-
-	var archiveDestinationPaths []string
-	switch s3.compressionType {
-	case "gz", "gzip":
-		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s3.compressionType)
-			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
-			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
-
-			archiveWriter, err := s3.newS3Writer(archiveDestinationPath)
-			if err != nil {
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-			defer archiveWriter.Close()
-
-			archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(s3.compressionType))
-			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-		}
-	case "zip", "tar.gz":
-		// for zip & tar.gz file, the whole file is archived into a single archive file
-		// whose file name is deferred from the destination URI
-		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), s3.compressionType)
-		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
-		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
-
-		// use appender
-		archiveWriter, err := s3.newS3Writer(archiveDestinationPath)
-		if err != nil {
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-		defer archiveWriter.Close()
-
-		archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(s3.compressionType), archive.WithPassword(s3.compressionPassword))
-		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", s3.compressionType)
-	}
-
-	return archiveDestinationPaths, nil
 }

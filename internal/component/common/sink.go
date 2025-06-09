@@ -49,6 +49,7 @@ type RecordReader interface {
 // just before sending it to the sink.
 type DataModifier interface {
 	JSONPathSelector(data []byte, path string) ([]byte, error)
+	Compression(compressionType, compressionPassword string, filepaths []string) ([]string, error)
 }
 
 // CommonSink is a common sink that implements the flow.Sink interface.
@@ -131,4 +132,24 @@ func (c *commonSink) JSONPathSelector(data []byte, path string) ([]byte, error) 
 		return nil, errors.WithStack(err)
 	}
 	return raw, nil
+}
+
+// Compression compresses the given filepaths using the specified compression type and password.
+// It's useful for compressing files before sending them to the sink.
+func (c *commonSink) Compression(compressionType, compressionPassword string, filepaths []string) ([]string, error) {
+	if compressionType == "" || len(filepaths) == 0 {
+		return filepaths, nil
+	}
+
+	// TODO: Implement the compressor based on the compression type
+	compressor, err := NewCompressor(compressionType, compressionPassword)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	compressedFilepaths, err := compressor.Compress(filepaths)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return compressedFilepaths, nil
 }

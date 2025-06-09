@@ -11,7 +11,6 @@ import (
 
 	"github.com/goccy/go-json"
 
-	"github.com/goto/optimus-any2any/internal/archive"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
@@ -236,11 +235,9 @@ func (s *SFTPSink) process() error {
 			}
 			s.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
-			archivePaths, err := s.archive(pathsToArchive)
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
-			}
+			// TODO: Implement
+			archivePaths, _ := s.Compression(s.compressionType, s.compressionPassword, pathsToArchive)
+			// upload to sftp
 
 			s.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to SFTP: %s", strings.Join(archivePaths, ", ")))
 
@@ -260,54 +257,4 @@ func getTmpPath(destinationURI string) (string, error) {
 		return "", errors.WithStack(err)
 	}
 	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
-}
-
-func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
-	templateURI := s.destinationURITemplate.Root.String()
-	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
-
-	var archiveDestinationPaths []string
-	switch s.compressionType {
-	case "gz", "gzip":
-		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s.compressionType)
-			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
-			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
-
-			sftpArchive, err := s.client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-			defer sftpArchive.Close()
-
-			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType))
-			if err := archiver.Archive([]string{filePath}, sftpArchive); err != nil {
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-		}
-	case "zip", "tar.gz":
-		// for zip & tar.gz file, the whole file is archived into a single archive file
-		// whose file name is deferred from the destination URI
-		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), s.compressionType)
-		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
-		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
-
-		sftpArchive, err := s.client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
-		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-		defer sftpArchive.Close()
-
-		archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType), archive.WithPassword(s.compressionPassword))
-		if err := archiver.Archive(filesToArchive, sftpArchive); err != nil {
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", s.compressionType)
-	}
-
-	return archiveDestinationPaths, nil
 }

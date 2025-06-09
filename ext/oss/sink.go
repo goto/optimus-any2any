@@ -12,7 +12,6 @@ import (
 	"github.com/goccy/go-json"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
-	"github.com/goto/optimus-any2any/internal/archive"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
@@ -229,11 +228,9 @@ func (o *OSSSink) process() error {
 			}
 			o.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
-			archivePaths, err := o.archive(pathsToArchive)
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
-			}
+			// TODO: Implement
+			archivePaths, _ := o.Compression(o.compressionType, o.compressionPassword, pathsToArchive)
+			// upload to oss
 
 			o.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
 
@@ -294,65 +291,6 @@ func getDestinationURIByBatch(destinationURI string, recordCounter, batchSize in
 		destinationURI[:len(destinationURI)-len(filepath.Ext(destinationURI))],
 		int(recordCounter/batchSize)*batchSize,
 		filepath.Ext(destinationURI)[1:])
-}
-
-func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
-	templateURI := o.destinationURITemplate.Root.String()
-	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
-
-	var archiveDestinationPaths []string
-	switch o.compressionType {
-	case "gz", "gzip":
-		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), o.compressionType)
-			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
-			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
-
-			tmpPath := getDestinationTempURI(archiveDestinationPath)
-			archiveWriter, err := o.newOSSWriter(tmpPath, o.enableOverwrite)
-			if err != nil {
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-			defer archiveWriter.Close()
-
-			archiver := archive.NewFileArchiver(o.Logger(), archive.WithExtension(o.compressionType))
-			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
-				return archiveDestinationPaths, errors.WithStack(err)
-			}
-		}
-	case "zip", "tar.gz":
-		// for zip & tar.gz file, the whole file is archived into a single archive file
-		// whose file name is deferred from the destination URI
-		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), o.compressionType)
-		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
-		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
-
-		// use appender
-		tmpPath := getDestinationTempURI(archiveDestinationPath)
-		archiveWriter, err := o.newOSSWriter(tmpPath, o.enableOverwrite)
-		if err != nil {
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-		defer archiveWriter.Close()
-
-		archiver := archive.NewFileArchiver(o.Logger(), archive.WithExtension(o.compressionType), archive.WithPassword(o.compressionPassword))
-		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", o.compressionType)
-	}
-
-	// copy the temporary file to the final destination
-	for _, archiveDestinationPath := range archiveDestinationPaths {
-		if err := o.renameFile(getDestinationTempURI(archiveDestinationPath), archiveDestinationPath); err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to copy file from temporary URI to final destination: %s", err.Error()))
-			return archiveDestinationPaths, errors.WithStack(err)
-		}
-	}
-
-	return archiveDestinationPaths, nil
 }
 
 func (o *OSSSink) newOSSWriter(fullPath string, shouldOverwrite bool) (io.WriteCloser, error) {
