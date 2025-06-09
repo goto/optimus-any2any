@@ -24,6 +24,9 @@ func WithExtension(ext string) Option {
 			return errors.WithStack(fmt.Errorf("extension cannot be empty"))
 		}
 		w.extension = ext
+		if ext == ".xlsx" {
+			w.noChunk = true // xlsx format does not support chunking, file will be written in one go
+		}
 		return nil
 	}
 }

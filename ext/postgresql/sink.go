@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/fileconverter"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	xnet "github.com/goto/optimus-any2any/internal/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -129,13 +129,14 @@ func (p *PGSink) flush() error {
 		return errors.WithStack(err)
 	}
 
-	r, cleanUpFn, err := helper.FromJSONToCSV(p.Logger(), f, false) // no skip header by default
+	r, err := fileconverter.JSON2CSV(p.Logger(), f, false, ',') // convert json to csv, no skip header by default
 	if err != nil {
 		p.Logger().Error(fmt.Sprintf("failed to convert json to csv"))
 		return errors.WithStack(err)
 	}
 	defer func() {
-		cleanUpFn()
+		f.Close()
+		os.Remove(r.Name())
 	}()
 
 	err = p.DryRunable(func() error {
