@@ -7,11 +7,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/fileconverter"
 )
 
 type chunkWriter struct {
 	l          *slog.Logger
+	noChunk    bool // if true, no chunking is done, data is written in one go
 	chunkSize  int
 	size       int
 	extension  string
@@ -20,9 +21,8 @@ type chunkWriter struct {
 	writer     io.Writer
 
 	// internal use
-	writerTmp io.ReadWriteSeeker // temporary writer to write the data until chunk is full
-	cleanTmp  func()
-	written   int64
+	fileTmp *os.File // temporary file to write the data until chunk is full
+	written int64
 }
 
 var _ io.WriteCloser = (*chunkWriter)(nil)
@@ -39,23 +39,23 @@ func NewChunkWriter(l *slog.Logger, writer io.Writer, opts ...Option) *chunkWrit
 	for _, opt := range opts {
 		opt(w)
 	}
+	if w.extension == ".xlsx" {
+		l.Warn("xlsx format does not support chunking, file will be written in one go")
+	}
 	return w
 }
 
 // Write writes data to the writer in chunks
 func (w *chunkWriter) Write(p []byte) (n int, err error) {
-	if w.writerTmp == nil {
+	if w.fileTmp == nil {
 		// create a temporary writer
-		cleanFunc, err := w.initTmpWriter()
-		if err != nil {
+		if err := w.initFileTmp(); err != nil {
 			return 0, err
 		}
-		// register the cleanup function
-		w.cleanTmp = cleanFunc
 	}
 
 	// write the data to the temporary writer
-	n, err = w.writerTmp.Write(p)
+	n, err = w.fileTmp.Write(p)
 	if err != nil {
 		return 0, err
 	}
@@ -63,8 +63,7 @@ func (w *chunkWriter) Write(p []byte) (n int, err error) {
 	w.l.Debug(fmt.Sprintf("write %d bytes to temporary writer", n))
 
 	// if the size exceeds the chunk size, write to the actual writer
-	// except for xlsx which does not support chunking
-	if w.size >= w.chunkSize && w.extension != ".xlsx" {
+	if !w.noChunk && w.size >= w.chunkSize {
 		w.l.Debug(fmt.Sprintf("chunk size reached: %d bytes. Flushing to destination writer", w.size))
 		if err := w.Flush(); err != nil {
 			return n, err
@@ -77,72 +76,70 @@ func (w *chunkWriter) Write(p []byte) (n int, err error) {
 func (w *chunkWriter) Flush() error {
 	// there might be case where Flush() is called immediately without Write() before it
 	// and in every Flush, temp writer is set to null. So need this check to avoid nil pointer dereference
-	if w.writerTmp == nil {
+	if w.fileTmp == nil {
 		w.l.Debug("no data to flush")
 		return nil
 	}
 
-	// perform flush on the temporary writer
-	// if it implement Flusher
-	if f, ok := w.writerTmp.(WriteFlusher); ok {
-		if err := f.Flush(); err != nil {
-			return err
-		}
-	}
+	// ensure all data is written to the temporary file
+	w.fileTmp.Sync()
 
-	// get the reader converter based on the extension
-	reader, cleanFunc, err := w.getConvertedReader()
+	// convert the temporary file to the desired format
+	convertedFileTmp, err := w.getConvertedFileTmp()
 	if err != nil {
 		return err
 	}
-	defer cleanFunc()
+	defer func() {
+		// remove converted file
+		convertedFileTmp.Close()
+		os.Remove(convertedFileTmp.Name())
+	}()
 
 	// write the converted data to the actual writer
-	n, err := io.Copy(w.writer, reader)
+	n, err := io.Copy(w.writer, convertedFileTmp)
 	if err != nil {
 		return err
 	}
 	w.written += n
 	w.l.Debug(fmt.Sprintf("flushed %d bytes to destination writer", n))
 
-	// reset
+	// reset tmp file
 	w.size = 0
-	w.writerTmp = nil
-	w.cleanTmp()
+	w.fileTmp.Close()
+	os.Remove(w.fileTmp.Name())
+	w.fileTmp = nil
 
 	return nil
 }
 
 // Close closes the writer and cleans up the temporary file
 func (w *chunkWriter) Close() error {
-	w.cleanTmp()
+	if w.fileTmp != nil {
+		w.fileTmp.Close()
+		os.Remove(w.fileTmp.Name())
+	}
 	return nil
 }
 
-// initTmpWriter initializes the temporary writer
-func (w *chunkWriter) initTmpWriter() (func(), error) {
-	// create a temporary file with the specified extension
-	f, err := os.CreateTemp(os.TempDir(), fmt.Sprintf("*.%s", w.extension))
+// initFileTmp initializes the temporary writer
+func (w *chunkWriter) initFileTmp() error {
+	// create a temporary file
+	f, err := os.CreateTemp(os.TempDir(), "*.json")
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	w.writerTmp = f
-
-	return func() {
-		f.Close()
-		os.Remove(f.Name())
-	}, nil
+	w.fileTmp = f
+	return nil
 }
 
-// getConvertedReader returns the reader converter based on the extension
-func (w *chunkWriter) getConvertedReader() (io.Reader, func() error, error) {
-	if _, err := w.writerTmp.Seek(0, io.SeekStart); err != nil {
-		return nil, nil, err
+func (w *chunkWriter) getConvertedFileTmp() (*os.File, error) {
+	if _, err := w.fileTmp.Seek(0, io.SeekStart); err != nil {
+		return nil, err
 	}
 
 	switch strings.ToLower(w.extension) {
 	case ".json":
-		return w.writerTmp, func() error { return nil }, nil
+		return w.fileTmp, nil
 	case ".csv":
 		if w.delimiter == 0 {
 			w.delimiter = ','
@@ -153,12 +150,12 @@ func (w *chunkWriter) getConvertedReader() (io.Reader, func() error, error) {
 			w.delimiter = '\t'
 		}
 		skipHeader := w.written > 0 || w.skipHeader
-		return helper.FromJSONToCSV(w.l, w.writerTmp, skipHeader, w.delimiter)
+		return fileconverter.JSON2CSV(w.l, w.fileTmp, skipHeader, w.delimiter)
 	case ".xlsx":
 		skipHeader := w.written > 0 || w.skipHeader
-		return helper.FromJSONToXLSX(w.l, w.writerTmp, skipHeader)
+		return fileconverter.JSON2XLSX(w.l, w.fileTmp, skipHeader)
 	default:
 		w.l.Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", w.extension))
-		return w.writerTmp, func() error { return nil }, nil
+		return w.fileTmp, nil
 	}
 }

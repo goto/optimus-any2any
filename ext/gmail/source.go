@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/fileconverter"
 	"github.com/goto/optimus-any2any/internal/helper"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -117,14 +118,25 @@ func (gs *GmailSource) process() error {
 			}
 
 			// convert to json
+			// TODO: refactor this
 			var reader io.Reader
 			switch filepath.Ext(p.Filename) {
 			case ".json":
 				reader = bytes.NewReader(data)
 			case ".csv":
-				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0, gs.csvDelimiter)
+				dst, err := fileconverter.CSV2JSON(gs.Logger(), bytes.NewReader(data), false, 0, gs.csvDelimiter)
+				if err != nil {
+					gs.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+				reader = dst
 			case ".tsv":
-				reader = helper.FromCSVToJSON(gs.Logger(), bytes.NewReader(data), false, 0, rune('\t'))
+				dst, err := fileconverter.CSV2JSON(gs.Logger(), bytes.NewReader(data), false, 0, rune('\t'))
+				if err != nil {
+					gs.Logger().Error(fmt.Sprintf("failed to convert tsv to json: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+				reader = dst
 			default:
 				gs.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(p.Filename)))
 				reader = bytes.NewReader(data)
