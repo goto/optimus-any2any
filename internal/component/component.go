@@ -57,6 +57,7 @@ const (
 func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
+	opts = append(opts, common.SetupConcurrency(cfg.SourceConcurrency))
 	// create commonSource
 	commonSource := common.NewCommonSource(ctx, cancelFn, l, strings.ToLower(string(source)), opts...)
 
@@ -114,6 +115,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
+	opts = append(opts, common.SetupConcurrency(cfg.SinkConcurrency))
 	// create commonSink
 	commonSink := common.NewCommonSink(ctx, cancelFn, l, strings.ToLower(string(sink)), opts...)
 

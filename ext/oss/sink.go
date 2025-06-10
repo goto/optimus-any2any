@@ -206,7 +206,7 @@ func (o *OSSSink) process() error {
 			return errors.WithStack(err)
 		})
 	}
-	if err := o.ConcurrentTasks(o.Context(), 4, funcs); err != nil {
+	if err := o.ConcurrentTasks(funcs); err != nil {
 		return errors.WithStack(err)
 	}
 

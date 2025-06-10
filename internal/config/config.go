@@ -12,6 +12,8 @@ type Config struct {
 	RetryMax                  int    `env:"RETRY_MAX" envDefault:"3"`
 	RetryBackoffMs            int64  `env:"RETRY_BACKOFF_MS" envDefault:"1000"`
 	EnablePprof               bool   `env:"ENABLE_PPROF" envDefault:"false"`
+	SourceConcurrency         int    `env:"SOURCE_CONCURRENCY" envDefault:"4"`
+	SinkConcurrency           int    `env:"SINK_CONCURRENCY" envDefault:"4"`
 }
 
 // NewConfig parses the environment variables and returns the common configuration.

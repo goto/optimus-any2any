@@ -377,7 +377,7 @@ func (s *SMTPSink) processWithOSS() error {
 			return errors.WithStack(err)
 		})
 	}
-	if err := s.ConcurrentTasks(s.Context(), 4, funcs); err != nil {
+	if err := s.ConcurrentTasks(funcs); err != nil {
 		return errors.WithStack(err)
 	}
 
