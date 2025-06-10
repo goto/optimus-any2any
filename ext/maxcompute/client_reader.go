@@ -191,7 +191,7 @@ func (r *mcRecordReader) Close() error {
 		return nil
 	}
 	r.l.Info(fmt.Sprintf("reader(%s): trying to terminate instance %s", r.readerId, r.instance.Id()))
-	if err := r.retryFunc(r.instance.Terminate); err != nil {
+	if err := r.retryFunc(r.instance.Terminate); err != nil && r.instance.Status() != odps.InstanceTerminated { // instance might be already terminated when doing termination. confused? yes, me too
 		r.l.Error(fmt.Sprintf("failed to terminate instance %s: %s", r.instance.Id(), err.Error()))
 		return errors.WithStack(err)
 	}
