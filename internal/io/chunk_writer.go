@@ -33,7 +33,7 @@ var _ WriteFlushCloser = (*chunkWriter)(nil)
 func NewChunkWriter(l *slog.Logger, writer io.Writer, opts ...Option) *chunkWriter {
 	w := &chunkWriter{
 		l:         l,
-		chunkSize: (1 << 10) * 1024, // default chunk size is 1MB
+		chunkSize: (1 << 20) * 64, // default chunk size is 64MB
 		writer:    writer,
 	}
 	for _, opt := range opts {
