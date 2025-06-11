@@ -306,6 +306,11 @@ func (s *SMTPSink) processWithOSS() error {
 			eh = s.emailWithAttachments[hash]
 		}
 
+		if s.IsSpecializedMetadataRecord(record) {
+			s.Logger().Debug("skip specialized metadata record")
+			continue
+		}
+
 		// TODO: if the processes below is exported into a new struct, we only need to provide the relative attachment path
 		// and the new struct can figure out where to put the tmp file & the oss file
 		var attachmentPath string
@@ -372,30 +377,6 @@ func (s *SMTPSink) processWithOSS() error {
 
 	if recordCounter == 0 {
 		s.Logger().Info(fmt.Sprintf("no records to write"))
-		if s.emailMetadataTemplate.bodyNoRecord != nil {
-			s.Logger().Info(fmt.Sprintf("send email with no records body"))
-			m, err := compileMetadata(s.emailMetadataTemplate, map[string]interface{}{})
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-			if err := s.Retry(func() error {
-				return s.DryRunable(func() error {
-					return s.client.SendMail(
-						m.from,
-						m.to,
-						m.cc,
-						m.bcc,
-						m.subject,
-						m.bodyNoRecord,
-						nil,
-					)
-				})
-			}); err != nil {
-				s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-		}
 		return nil
 	}
 
@@ -509,6 +490,10 @@ func (s *SMTPSink) processWithOSS() error {
 			s.Logger().Warn(fmt.Sprintf("failed to compile body with attachment links: %s. Using previous body email", err.Error()))
 			newBody = eh.emailMetadata.body
 		}
+		if len(attachmentLinks) == 0 && eh.emailMetadata.bodyNoRecord != "" {
+			// if there are no attachments, use bodyNoRecord
+			newBody = eh.emailMetadata.bodyNoRecord
+		}
 
 		if err := s.Retry(func() error {
 			return s.DryRunable(func() error {
@@ -568,10 +553,6 @@ func (s *SMTPSink) process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if s.IsSpecializedMetadataRecord(record) {
-			s.Logger().Debug("skip specialized metadata record")
-			continue
-		}
 
 		m, err := compileMetadata(s.emailMetadataTemplate, model.ToMap(record))
 		if err != nil {
@@ -587,6 +568,11 @@ func (s *SMTPSink) process() error {
 				writeHandlers: make(map[string]xio.WriteFlushCloser),
 			}
 			eh = s.emailHandlers[hash]
+		}
+
+		if s.IsSpecializedMetadataRecord(record) {
+			s.Logger().Debug("skip specialized metadata record")
+			continue
 		}
 
 		attachment, err := compiler.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
@@ -633,30 +619,6 @@ func (s *SMTPSink) process() error {
 
 	if recordCounter == 0 {
 		s.Logger().Info(fmt.Sprintf("no records to write"))
-		if s.emailMetadataTemplate.bodyNoRecord != nil {
-			s.Logger().Info(fmt.Sprintf("send email with no records body"))
-			m, err := compileMetadata(s.emailMetadataTemplate, map[string]interface{}{})
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-			if err := s.Retry(func() error {
-				return s.DryRunable(func() error {
-					return s.client.SendMail(
-						m.from,
-						m.to,
-						m.cc,
-						m.bcc,
-						m.subject,
-						m.bodyNoRecord,
-						nil,
-					)
-				})
-			}); err != nil {
-				s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-		}
 		return nil
 	}
 
@@ -722,13 +684,18 @@ func (s *SMTPSink) process() error {
 		s.Logger().Info(fmt.Sprintf("send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
 		if err := s.Retry(func() error {
 			return s.DryRunable(func() error {
+				body := eh.emailMetadata.body
+				if len(attachmentReaders) == 0 && eh.emailMetadata.bodyNoRecord != "" {
+					// when there is no attachment, use bodyNoRecord
+					body = eh.emailMetadata.bodyNoRecord
+				}
 				return s.client.SendMail(
 					eh.emailMetadata.from,
 					eh.emailMetadata.to,
 					eh.emailMetadata.cc,
 					eh.emailMetadata.bcc,
 					eh.emailMetadata.subject,
-					eh.emailMetadata.body,
+					body,
 					attachmentReaders,
 				)
 			}, func() error {

@@ -170,6 +170,12 @@ func (mc *MaxcomputeSource) Process() error {
 		preRecordWithPrefix := mc.RecordWithMetadata(preRecord)
 		mc.Logger().Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
 
+		// send prerecord information as specialized metadata record
+		if err := mc.SendRecord(preRecordWithPrefix); err != nil {
+			mc.Logger().Error(fmt.Sprintf("failed to send pre-record: %s", err.Error()))
+			return errors.WithStack(err)
+		}
+
 		// iterate over all available queries
 		for filename, queryTemplate := range mc.QueryTemplates {
 			// compile query
@@ -223,7 +229,7 @@ func (mc *MaxcomputeSource) Process() error {
 
 					if err := mc.SendRecord(record); err != nil {
 						mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-						return err
+						return errors.WithStack(err)
 					}
 				}
 				return nil
