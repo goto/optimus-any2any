@@ -153,6 +153,12 @@ func (p *PGSink) flush() error {
 		os.Remove(r.Name())
 	}()
 
+	// check schema before writing to pg
+	if err := checkSchema(p.Context(), p.Logger(), p.conn, p.destinationTableID, r); err != nil {
+		p.Logger().Error(fmt.Sprintf("failed to check schema"))
+		return errors.WithStack(err)
+	}
+
 	err = p.DryRunable(func() error {
 		// piping the records to pg
 		query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
