@@ -45,6 +45,7 @@ type emailMetadataTemplate struct {
 	bcc            []*template.Template
 	subject        *template.Template
 	body           *template.Template
+	bodyNoRecord   *template.Template // TODO: refactor thins, this should not be here, it always contains static content
 	attachmentBody *template.Template
 	attachment     *template.Template
 }
@@ -55,12 +56,13 @@ type attachmentBody struct {
 }
 
 type emailMetadata struct {
-	from    string
-	to      []string
-	cc      []string
-	bcc     []string
-	subject string
-	body    string
+	from         string
+	to           []string
+	cc           []string
+	bcc          []string
+	subject      string
+	body         string
+	bodyNoRecord string
 }
 
 type emailHandler struct {
@@ -99,7 +101,7 @@ type SMTPSink struct {
 
 // NewSink creates a new SMTPSink
 func NewSink(commonSink common.Sink,
-	connectionDSN string, from, to, subject, bodyFilePath, attachment string,
+	connectionDSN string, from, to, subject, bodyFilePath, bodyNoRecordFilePath, attachment string,
 	storageConfig StorageConfig,
 	compressionType string, compressionPassword string,
 	opts ...common.Option) (*SMTPSink, error) {
@@ -148,6 +150,13 @@ func NewSink(commonSink common.Sink,
 	m.body, m.attachmentBody, err = separateBodyAndAttachmentBodyTemplate(string(body))
 	if err != nil {
 		return nil, errors.WithStack(err)
+	}
+	if bodyNoRecordFilePath != "" {
+		bodyNoRecord, err := os.ReadFile(bodyNoRecordFilePath)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		m.bodyNoRecord = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_body_no_record", string(bodyNoRecord)))
 	}
 
 	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
@@ -363,6 +372,30 @@ func (s *SMTPSink) processWithOSS() error {
 
 	if recordCounter == 0 {
 		s.Logger().Info(fmt.Sprintf("no records to write"))
+		if s.emailMetadataTemplate.bodyNoRecord != nil {
+			s.Logger().Info(fmt.Sprintf("send email with no records body"))
+			m, err := compileMetadata(s.emailMetadataTemplate, map[string]interface{}{})
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+			if err := s.Retry(func() error {
+				return s.DryRunable(func() error {
+					return s.client.SendMail(
+						m.from,
+						m.to,
+						m.cc,
+						m.bcc,
+						m.subject,
+						m.bodyNoRecord,
+						nil,
+					)
+				})
+			}); err != nil {
+				s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+		}
 		return nil
 	}
 
@@ -529,6 +562,8 @@ func (s *SMTPSink) remove(bucket, path string) error {
 }
 
 func (s *SMTPSink) process() error {
+	recordCounter := 0
+
 	for record, err := range s.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
@@ -559,9 +594,10 @@ func (s *SMTPSink) process() error {
 			s.Logger().Error(fmt.Sprintf("compile attachment error: %s", err.Error()))
 			return errors.WithStack(err)
 		}
+
+		attachmentPath := getAttachmentPath(m, attachment)
 		wh, ok := eh.writeHandlers[attachment]
 		if !ok {
-			attachmentPath := getAttachmentPath(m, attachment)
 			fh, err := xio.NewWriteHandler(s.Logger(), attachmentPath)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("create write handler error: %s", err.Error()))
@@ -586,11 +622,42 @@ func (s *SMTPSink) process() error {
 				s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
+			recordCounter++
+			s.fileRecordCounters[attachmentPath]++
 			return nil
 		})
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	}
+
+	if recordCounter == 0 {
+		s.Logger().Info(fmt.Sprintf("no records to write"))
+		if s.emailMetadataTemplate.bodyNoRecord != nil {
+			s.Logger().Info(fmt.Sprintf("send email with no records body"))
+			m, err := compileMetadata(s.emailMetadataTemplate, map[string]interface{}{})
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("compile metadata error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+			if err := s.Retry(func() error {
+				return s.DryRunable(func() error {
+					return s.client.SendMail(
+						m.from,
+						m.to,
+						m.cc,
+						m.bcc,
+						m.subject,
+						m.bodyNoRecord,
+						nil,
+					)
+				})
+			}); err != nil {
+				s.Logger().Error(fmt.Sprintf("send mail error: %s", err.Error()))
+				return errors.WithStack(err)
+			}
+		}
+		return nil
 	}
 
 	// send email
@@ -726,6 +793,14 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 		return em, errors.WithStack(err)
 	}
 	em.body = body
+
+	if m.bodyNoRecord != nil {
+		bodyNoRecord, err := compiler.Compile(m.bodyNoRecord, record)
+		if err != nil {
+			return em, errors.WithStack(err)
+		}
+		em.bodyNoRecord = bodyNoRecord
+	}
 
 	return em, nil
 }
