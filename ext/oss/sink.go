@@ -112,6 +112,11 @@ func (o *OSSSink) process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		if o.IsSpecializedMetadataRecord(record) {
+			o.Logger().Debug("skip specialized metadata record")
+			continue
+		}
+
 		destinationURI, err = compiler.Compile(o.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to compile destination URI"))

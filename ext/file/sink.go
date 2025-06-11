@@ -65,6 +65,11 @@ func (fs *FileSink) Process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		if fs.IsSpecializedMetadataRecord(record) {
+			fs.Logger().Debug("skip specialized metadata record")
+			continue
+		}
+
 		destinationURI, err := compiler.Compile(fs.DestinationURITemplate, model.ToMap(record))
 		if err != nil {
 			return errors.WithStack(err)

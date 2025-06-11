@@ -109,6 +109,11 @@ func (s *RedisSink) process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		if s.IsSpecializedMetadataRecord(record) {
+			s.Logger().Debug("skip specialized metadata record")
+			continue
+		}
+
 		recordKey, err := compiler.Compile(s.recordKeyTemplate, model.ToMap(record))
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to compile record key"))

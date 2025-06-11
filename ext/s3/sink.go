@@ -129,6 +129,11 @@ func (s3 *S3Sink) process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		if s3.IsSpecializedMetadataRecord(record) {
+			s3.Logger().Debug("skip specialized metadata record")
+			continue
+		}
+
 		destinationURI, err = compiler.Compile(s3.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			s3.Logger().Error(fmt.Sprintf("failed to compile destination URI"))

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fileconverter"
 	xio "github.com/goto/optimus-any2any/internal/io"
@@ -69,7 +70,15 @@ func NewSink(commonSink common.Sink,
 }
 
 func (p *PGSink) process() error {
-	for v := range p.Read() {
+	for record, err := range p.ReadRecord() {
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if p.IsSpecializedMetadataRecord(record) {
+			p.Logger().Debug("skip specialized metadata record")
+			continue
+		}
+
 		if p.writerTmpHandler == nil {
 			// create tmp file handler
 			f, err := xio.NewWriteHandler(p.Logger(), tmpFile)
@@ -78,8 +87,13 @@ func (p *PGSink) process() error {
 			}
 			p.writerTmpHandler = f
 		}
-		_, err := p.writerTmpHandler.Write(append(v, '\n'))
+		v, err := json.Marshal(record)
 		if err != nil {
+			p.Logger().Error(fmt.Sprintf("failed to marshal record: %v", record))
+			return errors.WithStack(err)
+		}
+		// write record to tmp file
+		if _, err := p.writerTmpHandler.Write(append(v, '\n')); err != nil {
 			return errors.WithStack(err)
 		}
 
