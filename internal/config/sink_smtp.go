@@ -7,6 +7,7 @@ type SinkSMTPConfig struct {
 	To                    string `env:"SMTP__TO"`
 	Subject               string `env:"SMTP__SUBJECT"`
 	BodyFilePath          string `env:"SMTP__BODY_FILE_PATH"`
+	BodyNoRecordFilePath  string `env:"SMTP__BODY_NO_RECORD_FILE_PATH"`
 	AttachmentFilename    string `env:"SMTP__ATTACHMENT_FILENAME"`
 	StorageMode           string `env:"SMTP__STORAGE_MODE" envDefault:"attachment"`
 	StorageDestinationDir string `env:"SMTP__STORAGE_DESTINATION_DIR"`
