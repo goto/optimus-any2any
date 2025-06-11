@@ -43,7 +43,7 @@ func execJQ(ctx context.Context, l *slog.Logger, query string, input []byte) ([]
 	return bytes.TrimSpace(stdout.Bytes()), nil
 }
 
-func transformWithJQ(ctx context.Context, l *slog.Logger, query string, batchSize int, batchIndexColumn string, outlet flow.Outlet, inlets ...flow.Inlet) error {
+func transformWithJQ(ctx context.Context, l *slog.Logger, query string, batchSize int, batchIndexColumn string, bufferSizeInMB int, outlet flow.Outlet, inlets ...flow.Inlet) error {
 	// create a buffer to hold the batch of records
 	var batchBuffer bytes.Buffer
 	recordCount := 0
@@ -62,7 +62,7 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, batchSiz
 
 		// when we reach batch size, process the batch
 		if recordCount%batchSize == 0 {
-			if err := flush(ctx, l, query, batchBuffer, inlets...); err != nil {
+			if err := flush(ctx, l, bufferSizeInMB, query, batchBuffer, inlets...); err != nil {
 				return errors.WithStack(err)
 			}
 			// reset the buffer
@@ -72,7 +72,7 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, batchSiz
 
 	// process any remaining records
 	if recordCount%batchSize != 0 {
-		if err := flush(ctx, l, query, batchBuffer, inlets...); err != nil {
+		if err := flush(ctx, l, bufferSizeInMB, query, batchBuffer, inlets...); err != nil {
 			return errors.WithStack(err)
 		}
 		// reset the buffer
@@ -81,7 +81,7 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, batchSiz
 	return nil
 }
 
-func processBatch(ctx context.Context, l *slog.Logger, query string, batchData []byte, inlet flow.Inlet) error {
+func processBatch(ctx context.Context, l *slog.Logger, bufferSizeInMB int, query string, batchData []byte, inlet flow.Inlet) error {
 	// transform the batch using JQ
 	outputJSON, err := execJQ(ctx, l, query, batchData)
 	if err != nil {
@@ -92,7 +92,7 @@ func processBatch(ctx context.Context, l *slog.Logger, query string, batchData [
 	// split the result by newlines and send each record
 	sc := bufio.NewScanner(bytes.NewReader(outputJSON))
 	buf := make([]byte, 0, 4*1024)
-	sc.Buffer(buf, 1024*1024)
+	sc.Buffer(buf, 1024*1024*bufferSizeInMB) // set buffer with maximum size by bufferSizeInMB
 
 	sc.Split(bufio.ScanLines)
 	for sc.Scan() {
@@ -109,14 +109,14 @@ func processBatch(ctx context.Context, l *slog.Logger, query string, batchData [
 	return nil
 }
 
-func flush(ctx context.Context, l *slog.Logger, query string, batchBuffer bytes.Buffer, inlets ...flow.Inlet) error {
+func flush(ctx context.Context, l *slog.Logger, bufferSizeInMB int, query string, batchBuffer bytes.Buffer, inlets ...flow.Inlet) error {
 	// store the record in a temporary buffer
 	b := make([]byte, batchBuffer.Len())
 	copy(b, batchBuffer.Bytes())
 
 	for _, inlet := range inlets {
 		// process the batch
-		if err := processBatch(ctx, l, query, b, inlet); err != nil {
+		if err := processBatch(ctx, l, bufferSizeInMB, query, b, inlet); err != nil {
 			return errors.WithStack(err)
 		}
 	}
