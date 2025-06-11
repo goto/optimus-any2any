@@ -100,6 +100,10 @@ func (s *HTTPSink) process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		if s.IsSpecializedMetadataRecord(record) {
+			s.Logger().Debug("skip specialized metadata record")
+			continue
+		}
 
 		m, err := compileMetadata(s.httpMetadataTemplate, record)
 		if err != nil {

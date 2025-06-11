@@ -25,6 +25,7 @@ import (
 type RecordHelper interface {
 	RecordWithoutMetadata(record *model.Record) *model.Record
 	RecordWithMetadata(record *model.Record) *model.Record
+	IsSpecializedMetadataRecord(record *model.Record) bool
 }
 
 // Retrier is an interface that defines a method to retry a function
@@ -159,6 +160,11 @@ func (c *Common) RecordWithMetadata(record *model.Record) *model.Record {
 	return RecordWithMetadata(record, c.metadataPrefix)
 }
 
+// IsSpecializedMetadataRecord checks if the record is specialized metadata record
+func (c *Common) IsSpecializedMetadataRecord(record *model.Record) bool {
+	return IsSpecializedMetadataRecord(record, c.metadataPrefix)
+}
+
 // RecordWithoutMetadata returns a new record without metadata prefix
 // TODO: refactor this function to use the proper package for metadata
 func RecordWithMetadata(record *model.Record, metadataPrefix string) *model.Record {
@@ -183,6 +189,19 @@ func RecordWithoutMetadata(record *model.Record, metadataPrefix string) *model.R
 		recordWithoutMetadata.Set(k, v)
 	}
 	return recordWithoutMetadata
+}
+
+// IsSpecializedMetadataRecord checks if the record is a specialized metadata record
+// A specialized metadata record is one where all keys start with the metadata prefix
+// TODO: refactor this function to use the proper package for metadata
+func IsSpecializedMetadataRecord(record *model.Record, metadataPrefix string) bool {
+	// Check if all keys in the record start with the metadata prefix
+	for k := range record.AllFromFront() {
+		if !strings.HasPrefix(k, metadataPrefix) {
+			return false
+		}
+	}
+	return true
 }
 
 // Retry retries the given function with the specified maximum number of attempts
