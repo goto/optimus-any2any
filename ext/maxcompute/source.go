@@ -230,7 +230,7 @@ func (mc *MaxcomputeSource) Process() error {
 			})
 		}
 	}
-	return mc.ConcurrentTasks(mc.Context(), 4, recordReaderTasks)
+	return mc.ConcurrentTasks(recordReaderTasks)
 }
 
 func (mc *MaxcomputeSource) executeQueryExplain(query string) error {

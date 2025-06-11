@@ -208,6 +208,8 @@ It applies when sink and source are in the same environment. For example, transf
 | RETRY_BACKOFF_MS | Backoff time in milliseconds for the retry. (default: 1000) |
 | DRY_RUN | Enable dry run mode. (default: false) |
 | ENABLE_PPROF | Enable pprof for profiling. (default: false) |
+| SOURCE_CONCURRENCY | Concurrency number for the source. (default: 4) |
+| SINK_CONCURRENCY | Concurrency number for the sink. (default: 4) |
 
 ## Supported Direct Execution For Data Transfer
 | Component | Configuration | Description |

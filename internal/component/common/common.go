@@ -44,7 +44,7 @@ type DryRunabler interface {
 
 // ConcurrentLimiter is an interface that defines a method to limit the number of concurrent tasks.
 type ConcurrentLimiter interface {
-	ConcurrentTasks(context.Context, int, []func() error) error
+	ConcurrentTasks([]func() error) error
 }
 
 // Common is an extension of the component.Core struct
@@ -55,6 +55,7 @@ type Common struct {
 	dryRunPCs      map[uintptr]bool
 	retryMax       int
 	retryBackoffMs int64
+	concurrency    int
 	metadataPrefix string
 }
 
@@ -114,6 +115,11 @@ func (c *Common) Retry(f func() error) error {
 	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
 }
 
+// SetConcurrency sets the concurrency limit for concurrent tasks
+func (c *Common) SetConcurrency(concurrency int) {
+	c.concurrency = concurrency
+}
+
 // DryRunable runs the given function in dry run mode
 func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 	if c.dryRun {
@@ -139,8 +145,8 @@ func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 }
 
 // ConcurrentTasks runs the given functions concurrently with a limit
-func (c *Common) ConcurrentTasks(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
-	return ConcurrentTask(ctx, concurrencyLimit, funcs)
+func (c *Common) ConcurrentTasks(funcs []func() error) error {
+	return ConcurrentTask(c.Core.Context(), c.concurrency, funcs)
 }
 
 // RecordWithMetadata returns a new record without metadata prefix

@@ -225,7 +225,7 @@ func (s3 *S3Sink) process() error {
 			return errors.WithStack(err)
 		})
 	}
-	if err := s3.ConcurrentTasks(s3.Context(), 4, funcs); err != nil {
+	if err := s3.ConcurrentTasks(funcs); err != nil {
 		return errors.WithStack(err)
 	}
 

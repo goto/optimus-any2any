@@ -83,3 +83,13 @@ func SetupDryRun(dryRun bool) Option {
 		c.SetDryRun(dryRun)
 	}
 }
+
+// SetupConcurrency sets up the concurrency for the Common struct
+func SetupConcurrency(concurrency int) Option {
+	return func(c *Common) {
+		c.SetConcurrency(1)
+		if concurrency > 0 {
+			c.SetConcurrency(concurrency)
+		}
+	}
+}
