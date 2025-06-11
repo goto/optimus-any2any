@@ -6,6 +6,7 @@ type ProcessorJQConfig struct {
 	QueryFilePath    string `env:"JQ__QUERY_FILE_PATH"`
 	BatchSize        int    `env:"JQ__BATCH_SIZE" envDefault:"512"`
 	BatchIndexColumn string `env:"JQ__BATCH_INDEX_COLUMN" envDefault:"__METADATA__jq_batch_index"`
+	BufferSizeInMB   int    `env:"JQ__BUFFER_SIZE_IN_MB" envDefault:"64"`
 }
 
 // ProcessorJQ parses the environment variables and returns the processor jq configuration.

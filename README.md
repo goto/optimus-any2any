@@ -194,6 +194,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | JQ__QUERY_FILE_PATH | Any valid jq query loaded from file. |
 | | JQ__BATCH_SIZE | Batch size for the JQ processor. (default: 512) |
 | | JQ__BATCH_INDEX_COLUMN | Column name for the batch index. (default: __METADATA__jq_batch_index) |
+| | JQ__BUFFER_SIZE_IN_MB | Buffer size for the JQ processor. (default: 1) |
 
 ## Common Configuration
 
