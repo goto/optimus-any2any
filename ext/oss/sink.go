@@ -94,12 +94,12 @@ func NewSink(commonSink common.Sink,
 	})
 
 	// register sink process
-	commonSink.RegisterProcess(o.process)
+	commonSink.RegisterProcess(o.Process)
 
 	return o, nil
 }
 
-func (o *OSSSink) process() error {
+func (o *OSSSink) Process() error {
 	var destinationURI string
 
 	logCheckPoint := 1000
