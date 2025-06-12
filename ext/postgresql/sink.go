@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"cuelang.org/go/pkg/strings"
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fileconverter"
@@ -87,7 +88,8 @@ func (p *PGSink) process() error {
 			}
 			p.writerTmpHandler = f
 		}
-		v, err := json.Marshal(record)
+		recordWithoutMetadata := p.RecordWithoutMetadata(record)
+		v, err := json.Marshal(recordWithoutMetadata)
 		if err != nil {
 			p.Logger().Error(fmt.Sprintf("failed to marshal record: %v", record))
 			return errors.WithStack(err)
@@ -153,9 +155,24 @@ func (p *PGSink) flush() error {
 		os.Remove(r.Name())
 	}()
 
+	// get csv headers
+	columns, err := getCSVHeaders(p.Logger(), r)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// get table columns
+	tableColumns, err := getTableColumns(p.Context(), p.Logger(), p.conn, p.destinationTableID)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// validate csv headers against table columns
+	if err := checkSchemaValidity(p.Logger(), tableColumns, columns); err != nil {
+		return errors.WithStack(err)
+	}
+
 	err = p.DryRunable(func() error {
 		// piping the records to pg
-		query := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID)
+		query := fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER ',' CSV HEADER;`, p.destinationTableID, strings.Join(columns, ","))
 		p.Logger().Info(fmt.Sprintf("start writing %d records to pg", p.fileRecordCounter))
 		p.Logger().Debug(fmt.Sprintf("query: %s", query))
 		t, err := p.conn.PgConn().CopyFrom(p.Context(), r, query)
