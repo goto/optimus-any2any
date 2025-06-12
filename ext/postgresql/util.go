@@ -14,7 +14,7 @@ import (
 
 func checkSchemaValidity(l *slog.Logger, tableColumns, headers []string) error {
 	if len(tableColumns) != len(headers) {
-		l.Warn(fmt.Sprintf("table columns and csv headers do not match: %d != %d", len(tableColumns), len(headers)))
+		l.Warn(fmt.Sprintf("table columns and csv headers do not match: %d != %d, %d columns will have null value", len(tableColumns), len(headers), len(tableColumns)-len(headers)))
 		l.Debug(fmt.Sprintf("table columns: %v", tableColumns))
 		l.Debug(fmt.Sprintf("record headers: %v", headers))
 	}
@@ -38,6 +38,12 @@ func checkSchemaValidity(l *slog.Logger, tableColumns, headers []string) error {
 // getTableColumns retrieves the column names of a specified table in PostgreSQL.
 func getTableColumns(ctx context.Context, l *slog.Logger, conn *pgx.Conn, tableName string) ([]string, error) {
 	query := fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_name = '%s' ORDER BY ordinal_position", tableName)
+	if len(strings.Split(tableName, ".")) > 1 {
+		schemaName := strings.Split(tableName, ".")[0]
+		tableName = strings.Split(tableName, ".")[1]
+		query = fmt.Sprintf("SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name = '%s' ORDER BY ordinal_position", schemaName, tableName)
+	}
+
 	rows, err := conn.Query(ctx, query)
 	if err != nil {
 		l.Error(fmt.Sprintf("error querying table columns: %s", err.Error()))
