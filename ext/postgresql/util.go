@@ -11,27 +11,22 @@ import (
 	"github.com/pkg/errors"
 )
 
-func checkSchema(ctx context.Context, l *slog.Logger, conn *pgx.Conn, tableName string, csvReader io.ReadSeeker) error {
-	// check the schema csv header and destination table
-	tableColumns, err := getTableColumns(ctx, l, conn, tableName)
-	if err != nil {
-		l.Error(fmt.Sprintf("failed to get table columns"))
-		return errors.WithStack(err)
-	}
-	headers, err := getCSVHeaders(l, csvReader)
-	if err != nil {
-		l.Error(fmt.Sprintf("failed to get csv headers"))
-		return errors.WithStack(err)
+func checkSchemaValidity(l *slog.Logger, tableColumns, headers []string) error {
+	if len(tableColumns) != len(headers) {
+		l.Warn(fmt.Sprintf("table columns and csv headers do not match: %d != %d", len(tableColumns), len(headers)))
 	}
 
-	if len(tableColumns) != len(headers) {
-		l.Error(fmt.Sprintf("table columns and csv headers do not match: %d != %d", len(tableColumns), len(headers)))
-		return errors.New("table columns and csv headers do not match")
+	tableColumnMap := make(map[string]bool)
+	for _, column := range tableColumns {
+		tableColumnMap[strings.ToLower(column)] = true
 	}
-	for i, column := range tableColumns {
-		if strings.ToLower(column) != strings.ToLower(headers[i]) {
-			l.Error(fmt.Sprintf("table column %s does not match csv header %s", column, headers[i]))
-			return errors.New("table columns and csv headers do not match")
+
+	for _, field := range headers {
+		if _, exists := tableColumnMap[strings.ToLower(field)]; !exists {
+			l.Error(fmt.Sprintf("field '%s' in CSV does not match any column in the table", field))
+			l.Error(fmt.Sprintf("table columns: %v", tableColumns))
+			l.Error(fmt.Sprintf("record headers: %v", headers))
+			return errors.New(fmt.Sprintf("field '%s' does not match any column in the table", field))
 		}
 	}
 	return nil
@@ -65,6 +60,7 @@ func getTableColumns(ctx context.Context, l *slog.Logger, conn *pgx.Conn, tableN
 	return columns, nil
 }
 
+// getCSVHeaders reads the first line of a CSV file to extract the headers.
 func getCSVHeaders(l *slog.Logger, r io.ReadSeeker) ([]string, error) {
 	// Reset the reader to the beginning
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
