@@ -14,7 +14,7 @@ import (
 
 func checkSchemaValidity(l *slog.Logger, tableColumns, headers []string) error {
 	if len(tableColumns) != len(headers) {
-		l.Warn(fmt.Sprintf("table columns and csv headers do not match: %d != %d, %d columns will have null value", len(tableColumns), len(headers), len(tableColumns)-len(headers)))
+		l.Warn(fmt.Sprintf("table columns and csv headers do not match: %d != %d, %d columns will have null/default value", len(tableColumns), len(headers), len(tableColumns)-len(headers)))
 		l.Debug(fmt.Sprintf("table columns: %v", tableColumns))
 		l.Debug(fmt.Sprintf("record headers: %v", headers))
 	}
