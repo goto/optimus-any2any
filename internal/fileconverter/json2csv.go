@@ -80,7 +80,6 @@ func JSON2CSV(l *slog.Logger, src io.ReadSeeker, skipHeader bool, delimiter rune
 				recordString = append(recordString, "")
 			}
 		}
-		l.Debug(fmt.Sprintf("common: csv record: %v", recordString))
 		if err := csvWriter.Write(recordString); err != nil {
 			return nil, errors.WithStack(err)
 		}
