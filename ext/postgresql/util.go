@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,8 @@ import (
 func checkSchemaValidity(l *slog.Logger, tableColumns, headers []string) error {
 	if len(tableColumns) != len(headers) {
 		l.Warn(fmt.Sprintf("table columns and csv headers do not match: %d != %d", len(tableColumns), len(headers)))
+		l.Debug(fmt.Sprintf("table columns: %v", tableColumns))
+		l.Debug(fmt.Sprintf("record headers: %v", headers))
 	}
 
 	tableColumnMap := make(map[string]bool)
@@ -68,15 +71,11 @@ func getCSVHeaders(l *slog.Logger, r io.ReadSeeker) ([]string, error) {
 	}
 
 	// Read the first line to get headers
-	var headerLine string
-	if _, err := fmt.Fscanf(r, "%s\n", &headerLine); err != nil {
-		l.Error(fmt.Sprintf("failed to read header line from CSV: %s", err.Error()))
+	csvReader := csv.NewReader(r)
+	headers, err := csvReader.Read()
+	if err != nil {
+		l.Error(fmt.Sprintf("failed to read csv headers: %v", err))
 		return nil, errors.WithStack(err)
-	}
-
-	headers := []string{}
-	for _, header := range strings.Split(headerLine, ",") {
-		headers = append(headers, header)
 	}
 
 	// Reset the reader again to the beginning for further processing

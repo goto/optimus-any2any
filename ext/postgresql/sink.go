@@ -166,7 +166,7 @@ func (p *PGSink) flush() error {
 		return errors.WithStack(err)
 	}
 	// validate csv headers against table columns
-	if err := checkSchemaValidity(p.Logger(), columns, tableColumns); err != nil {
+	if err := checkSchemaValidity(p.Logger(), tableColumns, columns); err != nil {
 		return errors.WithStack(err)
 	}
 
