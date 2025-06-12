@@ -35,7 +35,7 @@ func NewFileArchiver(l *slog.Logger, opts ...FileArchiverOption) *FileArchiver {
 
 func (f *FileArchiver) Archive(files []string, destWriter io.Writer) error {
 	switch f.extension {
-	case "gz":
+	case "gz", "gzip":
 		return f.handleWithTempFile(destWriter, func(tempWriter io.Writer) error {
 			return f.archiveGz(files, tempWriter)
 		})

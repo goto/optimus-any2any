@@ -795,9 +795,9 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string,
 
 	var archiveDestinationPaths []string
 	switch s.compressionType {
-	case "gz":
+	case "gz", "gzip":
 		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s.compressionType)
 			archiveDestinationPath := filepath.Join(archiveDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -806,7 +806,7 @@ func (s *SMTPSink) archive(filesToArchive []string, em emailMetadata) ([]string,
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
 
-			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension("gz"))
+			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType))
 			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
 				return nil, errors.WithStack(err)
 			}
@@ -850,9 +850,9 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]st
 
 	var archiveDestinationPaths []string
 	switch s.compressionType {
-	case "gz":
+	case "gz", "gzip":
 		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s.compressionType)
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -862,7 +862,7 @@ func (s *SMTPSink) archiveToOSS(filesToArchive []string, em emailMetadata) ([]st
 			}
 			defer archiveWriter.Close()
 
-			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension("gz"))
+			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType))
 			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
 				return nil, errors.WithStack(err)
 			}

@@ -140,7 +140,7 @@ func (w *chunkWriter) getConvertedFileTmp() (*os.File, error) {
 	switch strings.ToLower(w.extension) {
 	case ".json":
 		return w.fileTmp, nil
-	case ".csv":
+	case ".csv", ".txt":
 		if w.delimiter == 0 {
 			w.delimiter = ','
 		}
