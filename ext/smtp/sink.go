@@ -40,9 +40,9 @@ type SMTPStorage interface {
 
 type emailMetadataTemplate struct {
 	from           *template.Template
-	to             []*template.Template
-	cc             []*template.Template
-	bcc            []*template.Template
+	to             *template.Template
+	cc             *template.Template
+	bcc            *template.Template
 	subject        *template.Template
 	body           *template.Template
 	bodyNoRecord   *template.Template // TODO: refactor thins, this should not be here, it always contains static content
@@ -133,15 +133,10 @@ func NewSink(commonSink common.Sink,
 	// parse email metadata as template
 	m := emailMetadataTemplate{}
 	m.from = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_from", from))
-	for i, t := range strings.Split(to, ",") {
-		m.to = append(m.to, template.Must(compiler.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_to_%d", i), t)))
-	}
-	for i, c := range strings.Split(cc, ",") {
-		m.cc = append(m.cc, template.Must(compiler.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_cc_%d", i), c)))
-	}
-	for i, b := range strings.Split(bcc, ",") {
-		m.bcc = append(m.bcc, template.Must(compiler.NewTemplate(fmt.Sprintf("sink_smtp_email_metadata_bcc_%d", i), b)))
-	}
+	m.to = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_to", to))
+	m.cc = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_cc", cc))
+	m.bcc = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_bcc", bcc))
+
 	m.subject = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_subject", subject))
 	body, err := os.ReadFile(bodyFilePath)
 	if err != nil {
@@ -721,28 +716,28 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 	}
 	em.from = from
 
-	for _, t := range m.to {
-		to, err := compiler.Compile(t, record)
-		if err != nil {
-			return em, errors.WithStack(err)
-		}
-		em.to = append(em.to, to)
+	to, err := compiler.Compile(m.to, record)
+	if err != nil {
+		return em, errors.WithStack(err)
+	}
+	for _, t := range strings.Split(to, ",") {
+		em.to = append(em.to, t)
 	}
 
-	for _, c := range m.cc {
-		cc, err := compiler.Compile(c, record)
-		if err != nil {
-			return em, errors.WithStack(err)
-		}
-		em.cc = append(em.cc, cc)
+	cc, err := compiler.Compile(m.cc, record)
+	if err != nil {
+		return em, errors.WithStack(err)
+	}
+	for _, c := range strings.Split(cc, ",") {
+		em.cc = append(em.cc, c)
 	}
 
-	for _, b := range m.bcc {
-		bcc, err := compiler.Compile(b, record)
-		if err != nil {
-			return em, errors.WithStack(err)
-		}
-		em.bcc = append(em.bcc, bcc)
+	bcc, err := compiler.Compile(m.bcc, record)
+	if err != nil {
+		return em, errors.WithStack(err)
+	}
+	for _, b := range strings.Split(bcc, ",") {
+		em.bcc = append(em.bcc, b)
 	}
 
 	subject, err := compiler.Compile(m.subject, record)
