@@ -209,6 +209,13 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 		defer resp.Body.Close()
 
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			bodyBytes, err := io.ReadAll(resp.Body)
+			s.Logger().Debug(fmt.Sprintf("http request: %+v", req))
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to read response body from %s; err: %s", m.endpoint, err.Error()))
+			} else {
+				s.Logger().Error(fmt.Sprintf("failed to send data to %s; status code: %d, body: %s", m.endpoint, resp.StatusCode, string(bodyBytes)))
+			}
 			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
 
