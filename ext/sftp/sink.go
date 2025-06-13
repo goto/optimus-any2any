@@ -268,9 +268,9 @@ func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
 
 	var archiveDestinationPaths []string
 	switch s.compressionType {
-	case "gz":
+	case "gz", "gzip":
 		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s.compressionType)
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -281,7 +281,7 @@ func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
 			}
 			defer sftpArchive.Close()
 
-			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension("gz"))
+			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType))
 			if err := archiver.Archive([]string{filePath}, sftpArchive); err != nil {
 				return archiveDestinationPaths, errors.WithStack(err)
 			}

@@ -302,9 +302,9 @@ func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 
 	var archiveDestinationPaths []string
 	switch o.compressionType {
-	case "gz":
+	case "gz", "gzip":
 		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), o.compressionType)
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -315,7 +315,7 @@ func (o *OSSSink) archive(filesToArchive []string) ([]string, error) {
 			}
 			defer archiveWriter.Close()
 
-			archiver := archive.NewFileArchiver(o.Logger(), archive.WithExtension("gz"))
+			archiver := archive.NewFileArchiver(o.Logger(), archive.WithExtension(o.compressionType))
 			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
 				return archiveDestinationPaths, errors.WithStack(err)
 			}

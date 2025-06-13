@@ -318,9 +318,9 @@ func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
 
 	var archiveDestinationPaths []string
 	switch s3.compressionType {
-	case "gz":
+	case "gz", "gzip":
 		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.gz", filepath.Base(filePath))
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s3.compressionType)
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -330,7 +330,7 @@ func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
 			}
 			defer archiveWriter.Close()
 
-			archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension("gz"))
+			archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(s3.compressionType))
 			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
