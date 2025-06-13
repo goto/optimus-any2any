@@ -71,4 +71,18 @@ func TestCompile(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
+	t.Run("compile value with function div", func(t *testing.T) {
+		tmplString := `column1: [[ .column1 ]], column2: [[ div .column2 100 ]], no render {{ .DSTART }}`
+		expected := "column1: value1, column2: 1, no render {{ .DSTART }}"
+		record := map[string]interface{}{
+			"column1": "value1",
+			"column2": 102,
+		}
+
+		tmpl, err := compiler.NewTemplate("test", tmplString)
+		assert.NoError(t, err)
+		actual, err := compiler.Compile(tmpl, record)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
 }

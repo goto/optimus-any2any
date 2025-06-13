@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -45,6 +46,7 @@ type RecordSender interface {
 type CommonSource struct {
 	*component.CoreSource
 	*Common
+	recordCounter atomic.Int64
 }
 
 var _ Source = (*CommonSource)(nil)
@@ -53,8 +55,9 @@ var _ Source = (*CommonSource)(nil)
 func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *CommonSource {
 	coreSource := component.NewCoreSource(ctx, cancelFn, l, name)
 	c := &CommonSource{
-		CoreSource: coreSource,
-		Common:     NewCommon(coreSource.Core),
+		CoreSource:    coreSource,
+		Common:        NewCommon(coreSource.Core),
+		recordCounter: atomic.Int64{},
 	}
 	for _, opt := range opts {
 		opt(c.Common)
@@ -85,6 +88,12 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	if record == nil {
 		return nil
 	}
+
+	// set the record index as a metadata
+	record.Set(c.metadataPrefix+"record_index", c.recordCounter.Load())
+	c.recordCounter.Add(1)
+
+	// marshal the record to JSON
 	raw, err := json.Marshal(record)
 	if err != nil {
 		return errors.WithStack(err)

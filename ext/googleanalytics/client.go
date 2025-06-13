@@ -26,7 +26,7 @@ type GAClient struct {
 // NewClient creates a new GAClient.
 func NewClient(ctx context.Context, svcAcc string, tlsCert, tlsCACert, tlsKey string, projectID string) (*GAClient, error) {
 	// get transport credentials
-	c, err := google.CredentialsFromJSON(context.Background(), []byte(svcAcc),
+	c, err := google.CredentialsFromJSON(ctx, []byte(svcAcc),
 		"https://www.googleapis.com/auth/cloud-platform",
 		"https://www.googleapis.com/auth/analytics.readonly",
 	)
