@@ -3,24 +3,14 @@ package compiler
 import (
 	"strings"
 	"text/template"
-	"time"
 
-	"github.com/goccy/go-json"
-
-	"github.com/google/uuid"
+	"github.com/Masterminds/sprig/v3"
 )
 
 func NewTemplate(name, raw string) (*template.Template, error) {
 	return template.New(name).
 		Delims("[[", "]]").
-		Funcs(template.FuncMap{
-			"uuid": func() string { return uuid.New().String() },
-			"now":  func() time.Time { return time.Now().UTC() },
-			"tojson": func(v interface{}) string {
-				b, _ := json.Marshal(v) // TODO: handle error
-				return string(b)
-			},
-		}).
+		Funcs(sprig.TxtFuncMap()).
 		Parse(raw)
 }
 
