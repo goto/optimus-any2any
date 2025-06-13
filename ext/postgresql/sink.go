@@ -3,8 +3,8 @@ package postgresql
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"cuelang.org/go/pkg/strings"
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fileconverter"
