@@ -278,10 +278,6 @@ func (s *SMTPSink) processWithOSS() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if s.IsSpecializedMetadataRecord(record) {
-			s.Logger().Debug("skip specialized metadata record")
-			continue
-		}
 
 		attachment, err := compiler.Compile(s.emailMetadataTemplate.attachment, model.ToMap(record))
 		if err != nil {

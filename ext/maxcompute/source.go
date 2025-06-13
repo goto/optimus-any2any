@@ -24,9 +24,10 @@ import (
 type MaxcomputeSource struct {
 	common.Source
 
-	Client         *Client
-	PreQuery       string
-	QueryTemplates map[string]*template.Template
+	Client           *Client
+	PreQueryFilename string
+	PreQuery         string
+	QueryTemplates   map[string]*template.Template
 
 	filenameColumn string
 	closers        []io.Closer
@@ -104,12 +105,13 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 	}
 
 	mc := &MaxcomputeSource{
-		Source:         commonSource,
-		Client:         client,
-		QueryTemplates: queryTemplates,
-		PreQuery:       string(rawPreQuery),
-		filenameColumn: filenameColumn,
-		closers:        []io.Closer{},
+		Source:           commonSource,
+		Client:           client,
+		QueryTemplates:   queryTemplates,
+		PreQueryFilename: filepath.Base(prequeryFilePath),
+		PreQuery:         string(rawPreQuery),
+		filenameColumn:   filenameColumn,
+		closers:          []io.Closer{},
 	}
 
 	// add clean function
@@ -169,6 +171,9 @@ func (mc *MaxcomputeSource) Process() error {
 		// add prefix for every key
 		preRecordWithPrefix := mc.RecordWithMetadata(preRecord)
 		mc.Logger().Debug(fmt.Sprintf("pre-record: %v", preRecordWithPrefix))
+
+		// add filename column
+		preRecordWithPrefix.Set(mc.filenameColumn, mc.PreQueryFilename)
 
 		// send prerecord information as specialized metadata record
 		if err := mc.SendRecord(preRecordWithPrefix); err != nil {
