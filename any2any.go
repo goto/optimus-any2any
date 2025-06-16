@@ -81,7 +81,7 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
-		jqQuery, err := component.GetJQQuery(l, jqCfg)
+		jqQuery, err := component.GetJQQuery(l, jqCfg, cfg.MetadataPrefix)
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
