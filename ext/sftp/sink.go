@@ -162,7 +162,7 @@ func (s *SFTPSink) process() error {
 
 		// record without metadata
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(recordWithoutMetadata)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)

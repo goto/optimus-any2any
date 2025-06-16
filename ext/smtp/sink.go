@@ -341,7 +341,7 @@ func (s *SMTPSink) processWithOSS() error {
 		}
 
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(recordWithoutMetadata)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal error: %s", err.Error()))
 			return errors.WithStack(err)
@@ -588,7 +588,7 @@ func (s *SMTPSink) process() error {
 		}
 
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(recordWithoutMetadata)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("marshal error: %s", err.Error()))
 			return errors.WithStack(err)
