@@ -88,18 +88,17 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 		if readerId == 0 {
 			readerIdName = "prereader"
 		}
-		mcRecordReader := &mcRecordReader{
-			l:                      commonSource.Logger(),
-			client:                 client.Odps,
-			readerId:               readerIdName,
-			tunnel:                 t,
-			query:                  query,
-			additionalHints:        hints,
-			logViewRetentionInDays: logViewRetentionInDays,
-			instance:               nil,
-			retryFunc:              commonSource.Retry,
-			batchSize:              batchSize,
+		mcRecordReader, err := NewRecordReader(commonSource.Logger(), client.Odps, t, query)
+		if err != nil {
+			return nil, errors.WithStack(err)
 		}
+		mcRecordReader.SetReaderId(readerIdName)
+		mcRecordReader.SetLogViewRetentionInDays(logViewRetentionInDays)
+		mcRecordReader.SetBatchSize(batchSize)
+		mcRecordReader.additionalHints = hints
+		mcRecordReader.metadataPrefix = "__METADATA__" // TODO: make this configurable from common source
+		mcRecordReader.retryFunc = commonSource.Retry
+
 		readerId++
 		return mcRecordReader, nil
 	}

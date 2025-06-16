@@ -25,6 +25,7 @@ type mcRecordReader struct {
 	client                 *odps.Odps
 	tunnel                 *tunnel.Tunnel
 	instance               *odps.Instance
+	metadataPrefix         string
 	readerId               string
 	query                  string
 	additionalHints        map[string]string
@@ -43,6 +44,7 @@ func NewRecordReader(l *slog.Logger, client *odps.Odps, tunnel *tunnel.Tunnel, q
 		query:    query,
 		instance: nil,
 		// default values
+		metadataPrefix:         "__METADATA__", // TODO: make this configurable
 		readerId:               "",
 		additionalHints:        map[string]string{},
 		logViewRetentionInDays: 2,
@@ -161,6 +163,7 @@ func (r *mcRecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 					yield(nil, errors.WithStack(err))
 					return
 				}
+				v.Set(r.metadataPrefix+"record_total_count", recordCount) // TODO: centralize metadata prefix
 				count++
 				if !yield(v, nil) {
 					return

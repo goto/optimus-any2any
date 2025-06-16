@@ -1,6 +1,8 @@
 package model
 
 import (
+	"strings"
+
 	"github.com/GitRowin/orderedmapjson"
 )
 
@@ -27,4 +29,14 @@ func ToMap(record *Record) map[string]interface{} {
 		recordMap[k] = v
 	}
 	return recordMap
+}
+
+// HasAnyPrefix checks if any key in the record starts with the given prefix.
+func HasAnyPrefix(record *Record, prefix string) bool {
+	for key := range record.Keys() {
+		if !strings.HasPrefix(key, prefix) {
+			return false
+		}
+	}
+	return true
 }

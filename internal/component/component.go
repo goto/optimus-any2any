@@ -222,7 +222,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 
 // GetJQQuery returns a jq query based on the given environment variables.
 // jq query is used for JSON transformation, it acts as a filter and map for JSON data.
-func GetJQQuery(l *slog.Logger, jqCfg *config.ProcessorJQConfig, metadataPrefix string) (string, error) {
+func GetJQQuery(l *slog.Logger, jqCfg *config.ProcessorJQConfig) (string, error) {
 	if jqCfg.Query != "" {
 		return jqCfg.Query, nil
 	}
@@ -249,9 +249,6 @@ func GetJQQuery(l *slog.Logger, jqCfg *config.ProcessorJQConfig, metadataPrefix 
 		return "", errors.WithStack(err)
 	}
 	l.Info(fmt.Sprintf("processor: jq query: %s", compiledQuery))
-	// ignore metadata keys that start with metadata prefix and not include them in the output
-	compiledQuery = fmt.Sprintf(`select(any(keys[]; startswith("%s") | not)) | %s`, metadataPrefix, compiledQuery)
-	l.Debug(fmt.Sprintf("processor: jq query (enriched): %s", compiledQuery))
 	return compiledQuery, nil
 }
 
