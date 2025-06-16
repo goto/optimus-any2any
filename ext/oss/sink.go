@@ -166,7 +166,7 @@ func (o *OSSSink) process() error {
 
 		// record without metadata
 		recordWithoutMetadata := o.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(recordWithoutMetadata)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)

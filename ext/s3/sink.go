@@ -178,7 +178,7 @@ func (s3 *S3Sink) process() error {
 
 		// record without metadata
 		recordWithoutMetadata := s3.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(recordWithoutMetadata)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			s3.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)

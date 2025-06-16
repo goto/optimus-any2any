@@ -59,7 +59,7 @@ func (k *KafkaSink) process() error {
 			return errors.WithStack(err)
 		}
 		recordWithoutMetadata := k.RecordWithoutMetadata(record)
-		raw, err := json.Marshal(recordWithoutMetadata)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			k.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)

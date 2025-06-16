@@ -7,7 +7,9 @@ import (
 type Record = orderedmapjson.AnyOrderedMap
 
 func NewRecord() *Record {
-	return orderedmapjson.NewAnyOrderedMap()
+	record := orderedmapjson.NewAnyOrderedMap()
+	record.SetEscapeHTML(false)
+	return record
 }
 
 func NewRecordFromMap(m map[string]interface{}) *Record {
