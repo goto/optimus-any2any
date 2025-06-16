@@ -89,9 +89,13 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 		return nil
 	}
 
-	// set the record index as a metadata
-	record.Set(c.metadataPrefix+"record_index", c.recordCounter.Load())
-	c.recordCounter.Add(1)
+	// if record is not a specialized metadata record,
+	// we set the record index as a metadata
+	if !c.IsSpecializedMetadataRecord(record) {
+		// set the record index as a metadata
+		record.Set(c.metadataPrefix+"record_index", c.recordCounter.Load())
+		c.recordCounter.Add(1)
+	}
 
 	// marshal the record to JSON
 	raw, err := json.Marshal(record)

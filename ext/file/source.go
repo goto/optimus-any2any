@@ -10,7 +10,9 @@ import (
 
 	"github.com/djherbis/buffer"
 	"github.com/djherbis/nio/v3"
+	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -91,8 +93,13 @@ func (fs *FileSource) Process() error {
 				raw := sc.Bytes()
 				line := make([]byte, len(raw)) // Important: make a copy of the line before sending
 				copy(line, raw)
+
+				record := model.NewRecord()
+				if err := json.Unmarshal(line, &record); err != nil {
+					return errors.WithStack(fmt.Errorf("failed to unmarshal record: %w", err))
+				}
 				// send to channel
-				fs.Send(line)
+				fs.SendRecord(record)
 			}
 			if err := sc.Err(); err != nil {
 				return errors.WithStack(err)

@@ -81,12 +81,12 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
-		jqQuery, err := component.GetJQQuery(l, jqCfg, cfg.MetadataPrefix)
+		jqQuery, err := component.GetJQQuery(l, jqCfg)
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
 		// run with pipeline
-		p = pipeline.NewMultiSinkPipeline(l, source, pkgcomponent.NewConnector(ctx, cancelCauseFn, l, jqQuery, jqCfg.BatchSize, jqCfg.BatchIndexColumn, jqCfg.BufferSizeInMB), sinks...)
+		p = pipeline.NewMultiSinkPipeline(l, source, pkgcomponent.NewConnector(ctx, cancelCauseFn, l, jqQuery, cfg.MetadataPrefix, jqCfg.BatchSize, jqCfg.BatchIndexColumn, jqCfg.BufferSizeInMB), sinks...)
 	}
 	defer p.Close()
 
