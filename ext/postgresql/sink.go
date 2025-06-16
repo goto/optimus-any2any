@@ -89,7 +89,7 @@ func (p *PGSink) process() error {
 			p.writerTmpHandler = f
 		}
 		recordWithoutMetadata := p.RecordWithoutMetadata(record)
-		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
+		v, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
 			p.Logger().Error(fmt.Sprintf("failed to marshal record: %v", record))
 			return errors.WithStack(err)
