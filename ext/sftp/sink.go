@@ -1,6 +1,7 @@
 package sftp
 
 import (
+	"crypto/md5"
 	"fmt"
 	"io"
 	"net/url"
@@ -26,7 +27,9 @@ import (
 type SFTPSink struct {
 	common.Sink
 
-	client                 *sftp.Client
+	clients                map[string]*sftp.Client
+	privateKey             string
+	hostFingerprint        string
 	destinationURITemplate *template.Template
 	writerHandlers         map[string]xio.WriteFlushCloser
 	recordCounter          int
@@ -51,30 +54,33 @@ func NewSink(commonSink common.Sink,
 	opts ...common.Option) (*SFTPSink, error) {
 
 	// set up SFTP client
-	urlParsed, err := url.Parse(destinationURI)
-	if err != nil {
-		err = fmt.Errorf("error parsing destination uri")
-		return nil, errors.WithStack(err)
-	}
-	if urlParsed.Scheme != "sftp" {
-		return nil, fmt.Errorf("invalid scheme: %s", urlParsed.Scheme)
-	}
-	address := urlParsed.Host
-	username := urlParsed.User.Username()
-	password, _ := urlParsed.User.Password()
-	client, err := newClient(address, username, password, privateKey, hostFingerprint)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	u := url.URL{Scheme: urlParsed.Scheme, Path: urlParsed.Path}
-	t, err := compiler.NewTemplate("sink_sftp_destination_uri", u.String())
+	// urlParsed, err := url.Parse(destinationURI)
+	// if err != nil {
+	// 	err = fmt.Errorf("error parsing destination uri")
+	// 	return nil, errors.WithStack(err)
+	// }
+	// if urlParsed.Scheme != "sftp" {
+	// 	return nil, fmt.Errorf("invalid scheme: %s", urlParsed.Scheme)
+	// }
+	// address := urlParsed.Host
+	// username := urlParsed.User.Username()
+	// password, _ := urlParsed.User.Password()
+	// client, err := newClient(address, username, password, privateKey, hostFingerprint)
+	// if err != nil {
+	// 	return nil, errors.WithStack(err)
+	// }
+	// u := url.URL{Scheme: urlParsed.Scheme, Path: urlParsed.Path}
+	t, err := compiler.NewTemplate("sink_sftp_destination_uri", destinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
 	s := &SFTPSink{
-		Sink:                   commonSink,
-		client:                 client,
+		Sink: commonSink,
+		// client:                 client,
+		clients:                make(map[string]*sftp.Client),
+		privateKey:             privateKey,
+		hostFingerprint:        hostFingerprint,
 		destinationURITemplate: t,
 		writerHandlers:         map[string]xio.WriteFlushCloser{},
 		// archive options
@@ -86,10 +92,10 @@ func NewSink(commonSink common.Sink,
 	}
 
 	// add clean func
-	commonSink.AddCleanFunc(func() error {
-		s.Logger().Info(fmt.Sprintf("close client"))
-		return s.client.Close()
-	})
+	// commonSink.AddCleanFunc(func() error {
+	// 	s.Logger().Info(fmt.Sprintf("close client"))
+	// 	return s.client.Close()
+	// })
 	commonSink.AddCleanFunc(func() error {
 		for _, fh := range s.writerHandlers {
 			fh.Close()
@@ -146,7 +152,11 @@ func (s *SFTPSink) process() error {
 					return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
 				}
 
-				sfh, err = s.client.OpenFile(targetURI.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+				client, err := s.getClientFromURI(destinationURI)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				sfh, err = client.OpenFile(targetURI.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 				if err != nil {
 					s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
 					return errors.WithStack(err)
@@ -225,18 +235,21 @@ func (s *SFTPSink) process() error {
 	if s.enableArchive {
 		err := s.DryRunable(func() error {
 			pathsToArchive := []string{}
+			var client *sftp.Client
 			for destinationURI := range s.writerHandlers {
 				tmpPath, err := getTmpPath(destinationURI)
 				if err != nil {
 					s.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
 					return errors.WithStack(err)
 				}
+				// TODO: refactor this, for now it's not possible to have more than 1 clients
+				client, _ = s.getClientFromURI(destinationURI)
 
 				pathsToArchive = append(pathsToArchive, tmpPath)
 			}
 			s.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
-			archivePaths, err := s.archive(pathsToArchive)
+			archivePaths, err := s.archive(client, pathsToArchive)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
 				return errors.WithStack(err)
@@ -254,6 +267,32 @@ func (s *SFTPSink) process() error {
 	return nil
 }
 
+// TODO: refactor this
+func (s *SFTPSink) getClientFromURI(destinationURI string) (*sftp.Client, error) {
+	urlParsed, err := url.Parse(destinationURI)
+	if err != nil {
+		err = fmt.Errorf("error parsing destination uri")
+		return nil, errors.WithStack(err)
+	}
+	if urlParsed.Scheme != "sftp" {
+		return nil, fmt.Errorf("invalid scheme: %s", urlParsed.Scheme)
+	}
+	address := urlParsed.Host
+	username := urlParsed.User.Username()
+	password, _ := urlParsed.User.Password()
+	md5sum := fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s\n%s\n%s", address, username, password))))
+	client, ok := s.clients[md5sum]
+	if !ok {
+		c, err := newClient(address, username, password, s.privateKey, s.hostFingerprint)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		s.clients[md5sum] = c
+		client = c
+	}
+	return client, nil
+}
+
 func getTmpPath(destinationURI string) (string, error) {
 	targetURI, err := url.Parse(destinationURI)
 	if err != nil {
@@ -262,7 +301,7 @@ func getTmpPath(destinationURI string) (string, error) {
 	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
 }
 
-func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
+func (s *SFTPSink) archive(client *sftp.Client, filesToArchive []string) ([]string, error) {
 	templateURI := s.destinationURITemplate.Root.String()
 	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
 
@@ -274,7 +313,7 @@ func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-			sftpArchive, err := s.client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+			sftpArchive, err := client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
 				return archiveDestinationPaths, errors.WithStack(err)
@@ -294,7 +333,7 @@ func (s *SFTPSink) archive(filesToArchive []string) ([]string, error) {
 		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
-		sftpArchive, err := s.client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
+		sftpArchive, err := client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
 			return archiveDestinationPaths, errors.WithStack(err)
