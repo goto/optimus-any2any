@@ -140,16 +140,17 @@ func (c *commonSink) Compression(compressionType, compressionPassword string, fi
 	if compressionType == "" || len(filepaths) == 0 {
 		return filepaths, nil
 	}
+	return nil, errors.New("compression is not implemented yet")
 
-	// TODO: Implement the compressor based on the compression type
-	compressor, err := NewCompressor(compressionType, compressionPassword)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+	// // TODO: Implement the compressor based on the compression type
+	// compressor, err := NewCompressor(compressionType, compressionPassword)
+	// if err != nil {
+	// 	return nil, errors.WithStack(err)
+	// }
 
-	compressedFilepaths, err := compressor.Compress(filepaths)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return compressedFilepaths, nil
+	// compressedFilepaths, err := compressor.Compress(filepaths)
+	// if err != nil {
+	// 	return nil, errors.WithStack(err)
+	// }
+	// return compressedFilepaths, nil
 }

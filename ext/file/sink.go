@@ -2,8 +2,6 @@ package file
 
 import (
 	"fmt"
-	"net/url"
-	"path/filepath"
 	"text/template"
 
 	"github.com/goccy/go-json"
@@ -20,9 +18,7 @@ import (
 type FileSink struct {
 	common.Sink
 	DestinationURITemplate *template.Template
-	WriteHandlers          map[string]xio.WriteFlusher
-	FileRecordCounters     map[string]int
-
+	Handlers               xio.WriteHandler
 	// json path selector
 	jsonPathSelector string
 }
@@ -40,14 +36,14 @@ func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector str
 	fs := &FileSink{
 		Sink:                   commonSink,
 		DestinationURITemplate: tmpl,
-		WriteHandlers:          make(map[string]xio.WriteFlusher),
-		FileRecordCounters:     make(map[string]int),
+		Handlers:               NewFileHandler(commonSink.Context(), commonSink.Logger()),
 		jsonPathSelector:       jsonPathSelector,
 	}
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
 		fs.Logger().Info("close files")
+		fs.Handlers.Close()
 		return nil
 	})
 	// register process, it will immediately start the process
@@ -59,7 +55,6 @@ func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector str
 
 // Process reads from the channel and writes to the file.
 func (fs *FileSink) Process() error {
-	logCheckPoint := 1000
 	recordCounter := 0
 	for record, err := range fs.ReadRecord() {
 		if err != nil {
@@ -73,28 +68,6 @@ func (fs *FileSink) Process() error {
 		destinationURI, err := compiler.Compile(fs.DestinationURITemplate, model.ToMap(record))
 		if err != nil {
 			return errors.WithStack(err)
-		}
-		wh, ok := fs.WriteHandlers[destinationURI]
-		if !ok {
-			fs.Logger().Debug(fmt.Sprintf("create new write handler: %s", destinationURI))
-			targetURI, err := url.Parse(destinationURI)
-			if err != nil {
-				fs.Logger().Error(fmt.Sprintf("failed to parse destination URI: %s", destinationURI))
-				return errors.WithStack(err)
-			}
-			if targetURI.Scheme != "file" {
-				fs.Logger().Error(fmt.Sprintf("invalid scheme: %s", targetURI.Scheme))
-				return fmt.Errorf("invalid scheme: %s", targetURI.Scheme)
-			}
-			w, err := xio.NewWriteHandler(fs.Logger(), targetURI.Path)
-			if err != nil {
-				fs.Logger().Error(fmt.Sprintf("failed to create write handler: %s", err.Error()))
-				return errors.WithStack((err))
-			}
-			ext := filepath.Ext(destinationURI)
-			wh = xio.NewChunkWriter(fs.Logger(), w, xio.WithExtension(ext))
-			fs.WriteHandlers[destinationURI] = wh
-			fs.FileRecordCounters[destinationURI] = 0
 		}
 
 		// record without metadata
@@ -116,15 +89,9 @@ func (fs *FileSink) Process() error {
 		// write to file
 		err = fs.DryRunable(func() error {
 			fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
-			_, err := wh.Write(append(raw, '\n'))
-			if err != nil {
+			if err := fs.Handlers.Write(destinationURI, raw); err != nil {
 				fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 				return errors.WithStack(err)
-			}
-			recordCounter++
-			fs.FileRecordCounters[destinationURI]++
-			if fs.FileRecordCounters[destinationURI]%logCheckPoint == 0 {
-				fs.Logger().Info(fmt.Sprintf("written %d records to file: %s", fs.FileRecordCounters[destinationURI], destinationURI))
 			}
 			return nil
 		})
@@ -134,22 +101,19 @@ func (fs *FileSink) Process() error {
 	}
 	// flush all write handlers
 	err := fs.DryRunable(func() error {
-		for _, wh := range fs.WriteHandlers {
-			if err := wh.Flush(); err != nil {
-				fs.Logger().Error(fmt.Sprintf("failed to flush write handler: %s", err.Error()))
-				return errors.WithStack(err)
-			}
+		if err := fs.Handlers.Sync(); err != nil {
+			return errors.WithStack(err)
 		}
 		fs.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
 		return nil
 	})
 
 	// TODO: Implement
-	pathsToArchive := []string{}
-	for destinationURI := range fs.WriteHandlers {
-		pathsToArchive = append(pathsToArchive, destinationURI)
-	}
-	_, _ = fs.Compression("", "", pathsToArchive)
+	// pathsToArchive := []string{}
+	// for destinationURI := range fs.WriteHandlers {
+	// 	pathsToArchive = append(pathsToArchive, destinationURI)
+	// }
+	// _, _ = fs.Compression("", "", pathsToArchive)
 	// upload to file
 
 	return errors.WithStack(err)
