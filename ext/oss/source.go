@@ -19,7 +19,7 @@ import (
 type OSSSource struct {
 	common.Source
 
-	client       *oss.Client
+	client       *Client
 	bucket       string
 	path         string
 	csvDelimiter rune
@@ -33,7 +33,7 @@ var _ flow.Source = (*OSSSource)(nil)
 func NewSource(commonSource common.Source, creds string,
 	sourceURI string, csvDelimiter rune, skipHeader bool, skipRows int, opts ...common.Option) (*OSSSource, error) {
 	// create OSS client
-	client, err := NewOSSClient(creds, OSSClientConfig{})
+	client, err := NewOSSClient(commonSource.Context(), creds, OSSClientConfig{})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

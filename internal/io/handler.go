@@ -90,7 +90,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 		h.counters[destinationURI] = 0
 	}
 
-	_, err = w.Write(append(raw, '\n'))
+	_, err = w.Write(raw)
 	if err != nil {
 		return errors.WithStack(err)
 	}

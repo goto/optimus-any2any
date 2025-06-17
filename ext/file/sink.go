@@ -89,7 +89,7 @@ func (fs *FileSink) Process() error {
 		// write to file
 		err = fs.DryRunable(func() error {
 			fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
-			if err := fs.Handlers.Write(destinationURI, raw); err != nil {
+			if err := fs.Handlers.Write(destinationURI, append(raw, '\n')); err != nil {
 				fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 				return errors.WithStack(err)
 			}

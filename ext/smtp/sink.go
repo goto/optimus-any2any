@@ -84,7 +84,7 @@ type SMTPSink struct {
 	emailHandlers         map[string]emailHandler
 
 	// TODO move this to shared package
-	ossclient            *oss.Client
+	ossclient            *osssink.Client
 	writeHandlers        map[string]xio.WriteFlushCloser
 	fileRecordCounters   map[string]int
 	enableOverwrite      bool
@@ -184,7 +184,7 @@ func NewSink(commonSink common.Sink,
 	// register sink process
 	s.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageConfig.Mode))
 	if strings.ToLower(storageConfig.Mode) == "oss" {
-		client, err := osssink.NewOSSClient(storageConfig.Credentials, osssink.OSSClientConfig{})
+		client, err := osssink.NewOSSClient(commonSink.Context(), storageConfig.Credentials, osssink.OSSClientConfig{})
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
