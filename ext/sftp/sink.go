@@ -303,7 +303,18 @@ func getTmpPath(destinationURI string) (string, error) {
 
 func (s *SFTPSink) archive(client *sftp.Client, filesToArchive []string) ([]string, error) {
 	templateURI := s.destinationURITemplate.Root.String()
-	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
+	fullDestinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
+
+	s.Logger().Info(fmt.Sprintf("templateURI: %s", templateURI))
+	s.Logger().Info(fmt.Sprintf("filepath.Base(templateURI): %s", filepath.Base(templateURI)))
+	s.Logger().Info(fmt.Sprintf("fullDestination: %s", fullDestinationDir))
+
+	urlParsed, err := url.Parse(fullDestinationDir)
+	if err != nil {
+		err = fmt.Errorf("error parsing destination uri")
+		return nil, errors.WithStack(err)
+	}
+	destinationDir := urlParsed.Path
 
 	var archiveDestinationPaths []string
 	switch s.compressionType {
@@ -311,17 +322,20 @@ func (s *SFTPSink) archive(client *sftp.Client, filesToArchive []string) ([]stri
 		for _, filePath := range filesToArchive {
 			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s.compressionType)
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
+			s.Logger().Info(fmt.Sprintf("archiving file %s to %s", filePath, archiveDestinationPath))
+
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
 			sftpArchive, err := client.OpenFile(archiveDestinationPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
 			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to create file handler: %s", err.Error()))
+				s.Logger().Error(fmt.Sprintf("failed to open file handler: %s", err.Error()))
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
 			defer sftpArchive.Close()
 
 			archiver := archive.NewFileArchiver(s.Logger(), archive.WithExtension(s.compressionType))
 			if err := archiver.Archive([]string{filePath}, sftpArchive); err != nil {
+				s.Logger().Error(fmt.Sprintf("failed to archive file: %s", errors.WithStack(err).Error()))
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
 		}
