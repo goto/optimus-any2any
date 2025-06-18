@@ -167,10 +167,10 @@ func (s3 *S3Sink) process() error {
 					return errors.WithStack(err)
 				}
 			}
-
+			ext, _ := splitExtension(destinationURI)
 			wh = xio.NewChunkWriter(
 				s3.Logger(), sh,
-				xio.WithExtension(filepath.Ext(destinationURI)),
+				xio.WithExtension(ext),
 				xio.WithCSVSkipHeader(s3.skipHeader),
 			)
 			s3.writeHandlers[destinationURI] = wh
@@ -236,25 +236,44 @@ func (s3 *S3Sink) process() error {
 
 	if s3.enableArchive {
 		err := s3.DryRunable(func() error {
-			pathsToArchive := []string{}
+			pathsToArchives := map[string][]string{}
 			for destinationURI := range s3.writeHandlers {
+				_, compressionType := splitExtension(destinationURI)
 				tmpPath, err := getTmpPath(destinationURI)
 				if err != nil {
 					s3.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
 					return errors.WithStack(err)
 				}
+				if _, ok := pathsToArchives[compressionType]; !ok {
+					pathsToArchives[compressionType] = []string{}
+				}
 
-				pathsToArchive = append(pathsToArchive, tmpPath)
+				pathsToArchives[compressionType] = append(pathsToArchives[compressionType], tmpPath)
 			}
-			s3.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
+			s3.Logger().Info(fmt.Sprintf("compressing %d files", len(pathsToArchives)))
 
-			archivePaths, err := s3.archive(pathsToArchive)
-			if err != nil {
-				s3.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
+			if s3.compressionType != "" {
+				paths := []string{}
+				for _, pathsToArchive := range pathsToArchives {
+					paths = append(paths, pathsToArchive...)
+				}
+				archivePaths, err := s3.archive(s3.compressionType, paths)
+				if err != nil {
+					s3.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+				s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
+			} else {
+				for compressionType, pathsToArchive := range pathsToArchives {
+					archivePaths, err := s3.archive(compressionType, pathsToArchive)
+					if err != nil {
+						s3.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
+						return errors.WithStack(err)
+					}
+
+					s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
+				}
 			}
-
-			s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
 
 			return nil
 		})
@@ -312,15 +331,15 @@ func (s3 *S3Sink) newS3Writer(fullPath string) (io.WriteCloser, error) {
 		strings.TrimLeft(targetDestinationURI.Path, "/")), nil
 }
 
-func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
+func (s3 *S3Sink) archive(compressionType string, filesToArchive []string) ([]string, error) {
 	templateURI := s3.destinationURITemplate.Root.String()
 	destinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
 
 	var archiveDestinationPaths []string
-	switch s3.compressionType {
+	switch compressionType {
 	case "gz", "gzip":
 		for _, filePath := range filesToArchive {
-			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), s3.compressionType)
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), compressionType)
 			archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 			archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -330,7 +349,7 @@ func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
 			}
 			defer archiveWriter.Close()
 
-			archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(s3.compressionType))
+			archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(compressionType))
 			if err := archiver.Archive([]string{filePath}, archiveWriter); err != nil {
 				return archiveDestinationPaths, errors.WithStack(err)
 			}
@@ -339,7 +358,7 @@ func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
 		// for zip & tar.gz file, the whole file is archived into a single archive file
 		// whose file name is deferred from the destination URI
 		re := strings.NewReplacer("{{", "", "}}", "", "{{ ", "", " }}", "")
-		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), s3.compressionType)
+		fileName := fmt.Sprintf("%s.%s", strings.TrimSuffix(re.Replace(filepath.Base(templateURI)), filepath.Ext(templateURI)), compressionType)
 		archiveDestinationPath := fmt.Sprintf("%s/%s", destinationDir, fileName)
 		archiveDestinationPaths = append(archiveDestinationPaths, archiveDestinationPath)
 
@@ -350,12 +369,12 @@ func (s3 *S3Sink) archive(filesToArchive []string) ([]string, error) {
 		}
 		defer archiveWriter.Close()
 
-		archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(s3.compressionType), archive.WithPassword(s3.compressionPassword))
+		archiver := archive.NewFileArchiver(s3.Logger(), archive.WithExtension(compressionType), archive.WithPassword(s3.compressionPassword))
 		if err := archiver.Archive(filesToArchive, archiveWriter); err != nil {
 			return archiveDestinationPaths, errors.WithStack(err)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported compression type: %s", s3.compressionType)
+		return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
 	}
 
 	return archiveDestinationPaths, nil
