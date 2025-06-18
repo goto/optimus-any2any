@@ -305,9 +305,9 @@ func (s *SFTPSink) archive(client *sftp.Client, filesToArchive []string) ([]stri
 	templateURI := s.destinationURITemplate.Root.String()
 	fullDestinationDir := strings.TrimRight(strings.TrimSuffix(templateURI, filepath.Base(templateURI)), "/")
 
-	s.Logger().Info(fmt.Sprintf("templateURI: %s", templateURI))
-	s.Logger().Info(fmt.Sprintf("filepath.Base(templateURI): %s", filepath.Base(templateURI)))
-	s.Logger().Info(fmt.Sprintf("fullDestination: %s", fullDestinationDir))
+	s.Logger().Debug(fmt.Sprintf("templateURI: %s", templateURI))
+	s.Logger().Debug(fmt.Sprintf("filepath.Base(templateURI): %s", filepath.Base(templateURI)))
+	s.Logger().Debug(fmt.Sprintf("fullDestination: %s", fullDestinationDir))
 
 	urlParsed, err := url.Parse(fullDestinationDir)
 	if err != nil {
