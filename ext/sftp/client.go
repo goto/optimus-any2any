@@ -18,9 +18,6 @@ func newClient(address, username, password, privateKey, hostFingerprint string) 
 		Auth:            []ssh.AuthMethod{},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         5 * time.Minute,
-		HostKeyAlgorithms: []string{
-			ssh.KeyAlgoRSA,
-		},
 	}
 	if password != "" {
 		config.Auth = append(config.Auth, ssh.Password(password))
