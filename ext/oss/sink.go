@@ -156,18 +156,15 @@ func (o *OSSSink) process() error {
 				return errors.WithStack(err)
 			}
 			for _, fileURI := range toFileURIs(filePaths) {
-				err := o.DryRunable(func() error {
-					ossURI := toOSSURI(fileURI)
-					// if overwrite is enabled, remove the object first
-					if o.enableOverwrite {
-						if err := o.client.Remove(ossURI); err != nil {
-							return errors.WithStack(err)
-						}
+				ossURI := toOSSURI(fileURI)
+				// if overwrite is enabled, remove the object first
+				if o.enableOverwrite {
+					if err := o.client.Remove(ossURI); err != nil {
+						return errors.WithStack(err)
 					}
-					// copy the file to OSS
-					return errors.WithStack(copy(o.client, ossURI, fileURI))
-				})
-				if err != nil {
+				}
+				// copy file to OSS
+				if err := copy(o.client, ossURI, fileURI); err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to copy file to OSS: %s", err.Error()))
 					return errors.WithStack(err)
 				}

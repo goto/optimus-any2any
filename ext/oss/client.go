@@ -125,3 +125,24 @@ func (c *Client) Copy(sourceURI, destinationURI string) error {
 	}
 	return nil
 }
+
+func (c *Client) GeneratePresignURL(destinationURI string, expirationInSeconds int) (string, error) {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	// get object request
+	req := &oss.GetObjectRequest{
+		Bucket: oss.Ptr(u.Host),
+		Key:    oss.Ptr(strings.TrimLeft(u.Path, "/")),
+	}
+	// set expiration time
+	expireAt := time.Now().Add(time.Duration(expirationInSeconds) * time.Second)
+	// generate presigned URL
+	presignedURL, err := c.Client.Presign(c.ctx, req, oss.PresignExpiration(expireAt))
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return presignedURL.URL, nil
+
+}
