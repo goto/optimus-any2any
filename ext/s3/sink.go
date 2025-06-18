@@ -248,7 +248,7 @@ func (s3 *S3Sink) process() error {
 			s3.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
 			// TODO: Implement
-			archivePaths, _ := s3.Compression(s3.compressionType, s3.compressionPassword, pathsToArchive)
+			archivePaths, _ := s3.Compress(s3.compressionType, s3.compressionPassword, pathsToArchive)
 			// upload to s3
 
 			s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))

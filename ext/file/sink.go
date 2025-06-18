@@ -113,7 +113,7 @@ func (fs *FileSink) Process() error {
 	// for destinationURI := range fs.WriteHandlers {
 	// 	pathsToArchive = append(pathsToArchive, destinationURI)
 	// }
-	// _, _ = fs.Compression("", "", pathsToArchive)
+	// _, _ = fs.Compress("", "", pathsToArchive)
 	// upload to file
 
 	return errors.WithStack(err)

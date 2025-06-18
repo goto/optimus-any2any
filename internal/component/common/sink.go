@@ -5,11 +5,15 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/PaesslerAG/gval"
 	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
 
+	"github.com/goto/optimus-any2any/internal/archive"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -49,7 +53,7 @@ type RecordReader interface {
 // just before sending it to the sink.
 type DataModifier interface {
 	JSONPathSelector(data []byte, path string) ([]byte, error)
-	Compression(compressionType, compressionPassword string, filepaths []string) ([]string, error)
+	Compress(compressionType, compressionPassword string, filepaths []string) ([]string, error)
 }
 
 // CommonSink is a common sink that implements the flow.Sink interface.
@@ -134,23 +138,64 @@ func (c *commonSink) JSONPathSelector(data []byte, path string) ([]byte, error) 
 	return raw, nil
 }
 
-// Compression compresses the given filepaths using the specified compression type and password.
+// Compress compresses the given filepaths using the specified compression type and password.
 // It's useful for compressing files before sending them to the sink.
-func (c *commonSink) Compression(compressionType, compressionPassword string, filepaths []string) ([]string, error) {
+func (c *commonSink) Compress(compressionType, compressionPassword string, filepaths []string) ([]string, error) {
 	if compressionType == "" || len(filepaths) == 0 {
 		return filepaths, nil
 	}
-	return nil, errors.New("compression is not implemented yet")
 
-	// // TODO: Implement the compressor based on the compression type
-	// compressor, err := NewCompressor(compressionType, compressionPassword)
-	// if err != nil {
-	// 	return nil, errors.WithStack(err)
-	// }
+	var archivedPaths []string
+	switch compressionType {
+	case "gz", "gzip":
+		for _, filePath := range filepaths {
+			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), compressionType)
+			archivedPath := filepath.Join(filepath.Dir(filePath), fileName)
+			archivedPaths = append(archivedPaths, archivedPath)
 
-	// compressedFilepaths, err := compressor.Compress(filepaths)
-	// if err != nil {
-	// 	return nil, errors.WithStack(err)
-	// }
-	// return compressedFilepaths, nil
+			f, err := os.OpenFile(archivedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			defer f.Close()
+
+			archiver := archive.NewFileArchiver(c.Logger(), archive.WithExtension(compressionType))
+			if err := archiver.Archive([]string{filePath}, f); err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+	case "zip", "tar.gz":
+		// for zip & tar.gz file, the whole file is archived into a single archive file
+		// single archive file is created in the same directory as the nearest common parent directory of the filepaths
+		// eg. if filepaths are /tmp/a/b/c.txt and /tmp/a/d/e.txt, the archive file will be created as /tmp/a/archive.zip
+
+		// get the nearest common parent directory of the filepaths
+		dir := filepath.Dir(filepaths[0])
+		for _, filePath := range filepaths[1:] {
+			parentDir := filepath.Dir(filePath)
+			i := 0
+			for ; i < len(strings.Split(dir, "/")) && strings.Split(dir, "/")[i] == strings.Split(parentDir, "/")[i]; i++ {
+			}
+			dir = strings.Join(strings.Split(dir, "/")[:i], "/")
+		}
+
+		fileName := fmt.Sprintf("archive.%s", compressionType)
+		archivedPath := filepath.Join(dir, fileName)
+		archivedPaths = append(archivedPaths, archivedPath)
+
+		f, err := os.OpenFile(archivedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		defer f.Close()
+
+		archiver := archive.NewFileArchiver(c.Logger(), archive.WithExtension(compressionType), archive.WithPassword(compressionPassword))
+		if err := archiver.Archive(filepaths, f); err != nil {
+			return nil, errors.WithStack(err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported compression type: %s", compressionType)
+	}
+
+	return archivedPaths, nil
 }

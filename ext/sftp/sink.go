@@ -236,7 +236,7 @@ func (s *SFTPSink) process() error {
 			s.Logger().Info(fmt.Sprintf("compressing %d files: %s", len(pathsToArchive), strings.Join(pathsToArchive, ", ")))
 
 			// TODO: Implement
-			archivePaths, _ := s.Compression(s.compressionType, s.compressionPassword, pathsToArchive)
+			archivePaths, _ := s.Compress(s.compressionType, s.compressionPassword, pathsToArchive)
 			// upload to sftp
 
 			s.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to SFTP: %s", strings.Join(archivePaths, ", ")))

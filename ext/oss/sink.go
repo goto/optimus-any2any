@@ -149,7 +149,7 @@ func (o *OSSSink) process() error {
 	// TODO: find a way to refactor this
 	if o.enableArchive {
 		err := o.DryRunable(func() error {
-			filePaths, err := o.Compression(o.compressionType, o.compressionPassword, toFilePaths(o.handlers.DestinationURIs()))
+			filePaths, err := o.Compress(o.compressionType, o.compressionPassword, toFilePaths(o.handlers.DestinationURIs()))
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
 				return errors.WithStack(err)
