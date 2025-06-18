@@ -128,6 +128,7 @@ func (o *OSSSink) process() error {
 				o.Logger().Error("failed to write to file")
 				return errors.WithStack(err)
 			}
+			recordCounter++
 			return nil
 		})
 		if err != nil {
