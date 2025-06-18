@@ -164,7 +164,7 @@ func (o *OSSSink) process() error {
 					}
 				}
 				// copy file to OSS
-				if err := copy(o.client, ossURI, fileURI); err != nil {
+				if err := osscopy(o.client, ossURI, fileURI); err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to copy file to OSS: %s", err.Error()))
 					return errors.WithStack(err)
 				}

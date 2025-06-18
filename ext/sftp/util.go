@@ -1,3 +1,4 @@
+// TODO: refactor this file to a common package
 package sftp
 
 import (
@@ -47,7 +48,7 @@ func toSFTPURI(username, password, fileURI string) string {
 	return u.String()
 }
 
-func copy(client *Client, sftpURI, fileURI string) error {
+func osscopy(client *Client, sftpURI, fileURI string) error {
 	// open local file
 	src, err := openFileURI(fileURI)
 	if err != nil {

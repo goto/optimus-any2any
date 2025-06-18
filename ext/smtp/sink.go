@@ -209,7 +209,6 @@ func (s *SMTPSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		var destinationURI string
 		hash := hashMetadata(m)
 		eh, ok := s.emailHandlers[hash]
 		if !ok {
@@ -217,11 +216,9 @@ func (s *SMTPSink) process() error {
 			if s.storageConfig.Mode == "oss" && !s.enableArchive {
 				// create new oss write handler
 				handlers = osssink.NewOSSHandler(s.Context(), s.Logger(), s.ossclient, s.enableOverwrite)
-				destinationURI = constructOSSURI(m, attachment, s.ossDestinationDir)
 			} else {
 				// create new file write handler
 				handlers = file.NewFileHandler(s.Context(), s.Logger())
-				destinationURI = constructFileURI(m, attachment)
 			}
 			s.emailHandlers[hash] = emailHandler{emailMetadata: m, handlers: handlers}
 			eh = s.emailHandlers[hash]
@@ -230,6 +227,12 @@ func (s *SMTPSink) process() error {
 		if s.IsSpecializedMetadataRecord(record) {
 			s.Logger().Debug("skip specialized metadata record")
 			continue
+		}
+
+		// construct destination URI
+		destinationURI := constructFileURI(m, attachment)
+		if s.storageConfig.Mode == "oss" && !s.enableArchive {
+			destinationURI = constructOSSURI(m, attachment, s.ossDestinationDir)
 		}
 
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)

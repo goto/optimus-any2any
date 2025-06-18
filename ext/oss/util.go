@@ -1,3 +1,4 @@
+// TODO: refactor this file to a common package
 package oss
 
 import (
@@ -42,7 +43,7 @@ func toOSSURI(fileURI string) string {
 	return "oss://" + strings.TrimPrefix(fileURI, "file:///tmp/")
 }
 
-func copy(client *Client, ossURI, fileURI string) error {
+func osscopy(client *Client, ossURI, fileURI string) error {
 	// open local file
 	src, err := openFileURI(fileURI)
 	if err != nil {

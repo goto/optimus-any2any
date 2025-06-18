@@ -193,7 +193,7 @@ func (s *SFTPSink) process() error {
 						}
 					}
 					// copy the file to SFTP
-					return errors.WithStack(copy(c, sftpURI, fileURI))
+					return errors.WithStack(osscopy(c, sftpURI, fileURI))
 				})
 				if err != nil {
 					s.Logger().Error(fmt.Sprintf("failed to copy file to SFTP: %s", err.Error()))

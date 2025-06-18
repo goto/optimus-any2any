@@ -1,3 +1,4 @@
+// TODO: refactor this file to a common package
 package smtp
 
 import (

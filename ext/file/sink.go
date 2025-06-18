@@ -93,28 +93,14 @@ func (fs *FileSink) Process() error {
 				fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 				return errors.WithStack(err)
 			}
+			recordCounter++
 			return nil
 		})
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
+
 	// flush all write handlers
-	err := fs.DryRunable(func() error {
-		if err := fs.Handlers.Sync(); err != nil {
-			return errors.WithStack(err)
-		}
-		fs.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
-		return nil
-	})
-
-	// TODO: Implement
-	// pathsToArchive := []string{}
-	// for destinationURI := range fs.WriteHandlers {
-	// 	pathsToArchive = append(pathsToArchive, destinationURI)
-	// }
-	// _, _ = fs.Compress("", "", pathsToArchive)
-	// upload to file
-
-	return errors.WithStack(err)
+	return errors.WithStack(fs.DryRunable(fs.Handlers.Sync))
 }
