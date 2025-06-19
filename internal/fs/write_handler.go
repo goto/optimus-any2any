@@ -255,7 +255,7 @@ func (h *CommonWriteHandler) compress() error {
 			}
 			// update the destination URI mapping
 			if destinationURI, ok := h.compressionTransientFilePathtoDestinationURI[filePath]; ok {
-				h.compressionTransientFilePathtoDestinationURI[archivedPath] = destinationURI
+				h.compressionTransientFilePathtoDestinationURI[archivedPath] = fmt.Sprintf("%s.%s", destinationURI, compressionType)
 				delete(h.compressionTransientFilePathtoDestinationURI, filePath)
 			}
 		}

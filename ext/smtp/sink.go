@@ -76,18 +76,10 @@ type SMTPSink struct {
 
 	emailMetadataTemplate emailMetadataTemplate
 	emailHandlers         map[string]emailHandler
+	newHandlers           func() (fs.WriteHandler, error)
 
-	// TODO move this to shared package
-	ossclient         *osssink.Client
-	enableOverwrite   bool
-	skipHeader        bool
-	ossDestinationDir string
-	ossLinkExpiration int
-	storageConfig     StorageConfig
-
-	enableArchive       bool
-	compressionType     string
-	compressionPassword string
+	storageConfig StorageConfig
+	ossclient     *osssink.Client
 }
 
 // NewSink creates a new SMTPSink
@@ -152,25 +144,31 @@ func NewSink(commonSink common.Sink,
 		client:                client,
 		emailMetadataTemplate: m,
 		emailHandlers:         make(map[string]emailHandler),
-		// skipheader is set to false by default
-		skipHeader: false,
-		// remove existing data by default
-		enableOverwrite: true,
-		storageConfig:   storageConfig,
-		// archive options
-		enableArchive:       compressionType != "",
-		compressionType:     compressionType,
-		compressionPassword: compressionPassword,
+		storageConfig:         storageConfig,
 	}
 
-	s.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageConfig.Mode))
-	if strings.ToLower(storageConfig.Mode) == "oss" {
-		client, err := osssink.NewOSSClient(commonSink.Context(), storageConfig.Credentials, osssink.OSSClientConfig{})
+	commonSink.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageConfig.Mode))
+
+	// prepare handlers
+	if storageConfig.Mode == "oss" {
+		ossclient, err := osssink.NewOSSClient(commonSink.Context(), storageConfig.Credentials, osssink.OSSClientConfig{})
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		s.ossclient = client
-		s.ossDestinationDir = storageConfig.DestinationDir
+		s.ossclient = ossclient
+		// create new oss write handler
+		s.newHandlers = func() (fs.WriteHandler, error) {
+			return osssink.NewOSSHandler(commonSink.Context(), commonSink.Logger(), ossclient, true,
+				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+			)
+		}
+	} else {
+		// create new file write handler
+		s.newHandlers = func() (fs.WriteHandler, error) {
+			return file.NewFileHandler(commonSink.Context(), commonSink.Logger(),
+				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+			)
+		}
 	}
 
 	// add clean func
@@ -212,22 +210,12 @@ func (s *SMTPSink) process() error {
 		hash := hashMetadata(m)
 		eh, ok := s.emailHandlers[hash]
 		if !ok {
-			var handlers fs.WriteHandler
-			if s.storageConfig.Mode == "oss" {
-				// create new oss write handler
-				handlers, err = osssink.NewOSSHandler(s.Context(), s.Logger(), s.ossclient, s.enableOverwrite,
-					fs.WithWriteConcurrentFunc(s.ConcurrentTasks),
-				)
-			} else {
-				// create new file write handler
-				handlers, err = file.NewFileHandler(s.Context(), s.Logger(),
-					fs.WithWriteConcurrentFunc(s.ConcurrentTasks),
-				)
-			}
+			handlers, err := s.newHandlers()
 			if err != nil {
-				s.Logger().Error(fmt.Sprintf("create write handler error: %s", err.Error()))
+				s.Logger().Error(fmt.Sprintf("create new handlers error: %s", err.Error()))
 				return errors.WithStack(err)
 			}
+
 			s.emailHandlers[hash] = emailHandler{emailMetadata: m, handlers: handlers}
 			eh = s.emailHandlers[hash]
 		}
@@ -240,7 +228,7 @@ func (s *SMTPSink) process() error {
 		// construct destination URI
 		destinationURI := constructFileURI(m, attachment)
 		if s.storageConfig.Mode == "oss" {
-			destinationURI = constructOSSURI(m, attachment, s.ossDestinationDir)
+			destinationURI = constructOSSURI(m, attachment, s.storageConfig.DestinationDir)
 		}
 
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
@@ -286,15 +274,17 @@ func (s *SMTPSink) process() error {
 
 	// send email
 	for hash, eh := range s.emailHandlers {
-		attachmentReaders := map[string]io.Reader{}
 		s.Logger().Info(fmt.Sprintf("send email to %s, cc %s, bcc %s", eh.emailMetadata.to, eh.emailMetadata.cc, eh.emailMetadata.bcc))
 
 		if err := s.Retry(func() error {
 			return s.DryRunable(func() error {
 				body := eh.emailMetadata.body
+
+				attachmentReaders := map[string]io.Reader{}
+				attachmentLinks := []attachmentBody{}
+
 				// modify email body to include attachments if storage mode is oss
 				if s.storageConfig.Mode == "oss" {
-					attachmentLinks := []attachmentBody{}
 					for _, ossURI := range emailWithAttachments[hash].attachments {
 						url, err := s.ossclient.GeneratePresignURL(ossURI, s.storageConfig.LinkExpiration)
 						if err != nil {
@@ -307,17 +297,11 @@ func (s *SMTPSink) process() error {
 						})
 					}
 
-					if len(attachmentLinks) == 0 && eh.emailMetadata.bodyNoRecord != "" {
-						// if there are no attachments, use bodyNoRecord
-						body = eh.emailMetadata.bodyNoRecord
-					} else {
-						// compile body with attachment links
-						newBody, err := compileAttachmentBodyTemplate(eh.emailMetadata.body, s.emailMetadataTemplate.attachmentBody, attachmentLinks)
-						if err != nil {
-							s.Logger().Warn(fmt.Sprintf("failed to compile body with attachment links: %s. Using previous body email", err.Error()))
-						} else {
-							body = newBody
-						}
+					// compile body with attachment links
+					var err error
+					body, err = compileAttachmentBodyTemplate(eh.emailMetadata.body, s.emailMetadataTemplate.attachmentBody, attachmentLinks)
+					if err != nil {
+						s.Logger().Warn(fmt.Sprintf("failed to compile body with attachment links: %s. Using previous body email", err.Error()))
 					}
 				} else {
 					// for file storage, we need to open the files and pass them as readers
@@ -328,11 +312,11 @@ func (s *SMTPSink) process() error {
 						}
 						attachmentReaders[filepath.Base(fileURI)] = r
 					}
+				}
 
-					if len(attachmentReaders) == 0 && eh.emailMetadata.bodyNoRecord != "" {
-						// when there is no attachment, use bodyNoRecord
-						body = eh.emailMetadata.bodyNoRecord
-					}
+				if len(attachmentReaders) == 0 && len(attachmentLinks) == 0 && eh.emailMetadata.bodyNoRecord != "" {
+					// when there is no attachment, use bodyNoRecord
+					body = eh.emailMetadata.bodyNoRecord
 				}
 
 				return s.client.SendMail(

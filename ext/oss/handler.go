@@ -31,8 +31,8 @@ func NewOSSHandler(ctx context.Context, logger *slog.Logger, client *Client, ena
 			}
 		}
 		// create a new writer with a transient suffix
-		destinationURI = destinationURI + DefaultTransientSuffix
-		return client.NewWriter(destinationURI)
+		transientDestinationURI := destinationURI + DefaultTransientSuffix
+		return client.NewWriter(transientDestinationURI)
 	}
 
 	// set appropriate schema and writer function
