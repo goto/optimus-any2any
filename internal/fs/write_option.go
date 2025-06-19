@@ -46,6 +46,16 @@ func WithWriteCompression(compressionType string) WriteOption {
 	}
 }
 
+func WithWriteConcurrentFunc(f func([]func() error) error) WriteOption {
+	return func(w *CommonWriteHandler) error {
+		if f == nil {
+			return errors.New("concurrent function cannot be nil")
+		}
+		w.concurrentFunc = f
+		return nil
+	}
+}
+
 func WithWriteCompressionPassword(password string) WriteOption {
 	return func(w *CommonWriteHandler) error {
 		if password == "" {

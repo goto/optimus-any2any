@@ -215,10 +215,14 @@ func (s *SMTPSink) process() error {
 			var handlers fs.WriteHandler
 			if s.storageConfig.Mode == "oss" {
 				// create new oss write handler
-				handlers, err = osssink.NewOSSHandler(s.Context(), s.Logger(), s.ossclient, s.enableOverwrite)
+				handlers, err = osssink.NewOSSHandler(s.Context(), s.Logger(), s.ossclient, s.enableOverwrite,
+					fs.WithWriteConcurrentFunc(s.ConcurrentTasks),
+				)
 			} else {
 				// create new file write handler
-				handlers, err = file.NewFileHandler(s.Context(), s.Logger())
+				handlers, err = file.NewFileHandler(s.Context(), s.Logger(),
+					fs.WithWriteConcurrentFunc(s.ConcurrentTasks),
+				)
 			}
 			if err != nil {
 				s.Logger().Error(fmt.Sprintf("create write handler error: %s", err.Error()))

@@ -52,6 +52,7 @@ func NewSink(commonSink common.Sink,
 	// prepare handlers
 	handlers, err := NewOSSHandler(commonSink.Context(), commonSink.Logger(),
 		client, enableOverwrite,
+		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 		fs.WithWriteCompression(compressionType),
 		fs.WithWriteCompressionPassword(compressionPassword),
 		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),

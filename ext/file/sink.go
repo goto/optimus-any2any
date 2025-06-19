@@ -33,7 +33,9 @@ func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector str
 	}
 
 	// prepare handlers
-	handlers, err := NewFileHandler(commonSink.Context(), commonSink.Logger())
+	handlers, err := NewFileHandler(commonSink.Context(), commonSink.Logger(),
+		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+	)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

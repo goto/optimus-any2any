@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/goto/optimus-any2any/internal/archive"
+	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
 )
 
@@ -29,14 +30,15 @@ type WriteHandler interface {
 }
 
 type CommonWriteHandler struct {
-	ctx          context.Context
-	logger       *slog.Logger
-	schema       string
-	newWriter    func(string) (io.Writer, error)
-	writers      map[string]xio.WriteFlushCloser
-	counters     map[string]int
-	logBatchSize int
-	chunkOpts    []xio.Option
+	ctx            context.Context
+	logger         *slog.Logger
+	schema         string
+	newWriter      func(string) (io.Writer, error)
+	writers        map[string]xio.WriteFlushCloser
+	counters       map[string]int
+	concurrentFunc func([]func() error) error
+	logBatchSize   int
+	chunkOpts      []xio.Option
 
 	// compression properties
 	compressionEnabled                           bool
@@ -56,9 +58,13 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 		newWriter: func(destinationURI string) (io.Writer, error) {
 			return nil, errors.New("newWriter function not implemented")
 		},
-		writers:      make(map[string]xio.WriteFlushCloser),
-		counters:     make(map[string]int),
+		writers:  make(map[string]xio.WriteFlushCloser),
+		counters: make(map[string]int),
+		concurrentFunc: func(funcs []func() error) error {
+			return common.ConcurrentTask(ctx, 1, funcs)
+		},
 		logBatchSize: 1000,
+		chunkOpts:    []xio.Option{},
 	}
 	for _, opt := range opts {
 		if err := opt(w); err != nil {
@@ -133,41 +139,55 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 }
 
 func (h *CommonWriteHandler) Sync() error {
+	funcs := []func() error{}
 	for _, writer := range h.writers {
-		if err := writer.Flush(); err != nil {
-			return err
-		}
+		funcs = append(funcs, writer.Flush)
 	}
+	// flush all writers concurrently
+	if err := h.concurrentFunc(funcs); err != nil {
+		return errors.WithStack(err)
+	}
+
 	if h.compressionEnabled {
 		h.logger.Info("compression enabled, starting compression")
 		if err := h.compress(); err != nil {
 			return errors.WithStack(err)
 		}
 		h.logger.Info("compression completed")
+
+		// after compression, we need to write the compressed files to their final destination URIs
+		funcs := []func() error{}
 		for filePath, destinationURI := range h.compressionTransientFilePathtoDestinationURI {
-			// create writer for destination URI
-			w, err := h.newWriter(destinationURI)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			h.logger.Debug(fmt.Sprintf("opening writer for %s", destinationURI))
+			funcs = append(funcs, func() error {
+				// create writer for destination URI
+				w, err := h.newWriter(destinationURI)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				h.logger.Debug(fmt.Sprintf("opening writer for %s", destinationURI))
 
-			// open the transient file
-			f, err := os.OpenFile(filePath, os.O_RDONLY, 0666)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			defer func() {
-				f.Close()
-				os.Remove(filePath) // remove the transient file after writing
-			}()
-			h.logger.Debug(fmt.Sprintf("opened transient file %s", filePath))
+				// open the transient file
+				f, err := os.OpenFile(filePath, os.O_RDONLY, 0666)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				defer func() {
+					f.Close()
+					os.Remove(filePath) // remove the transient file after writing
+				}()
+				h.logger.Debug(fmt.Sprintf("opened transient file %s", filePath))
 
-			// copy its content to the destination URI
-			if _, err := io.Copy(w, f); err != nil {
-				return errors.WithStack(err)
-			}
-			h.logger.Info(fmt.Sprintf("written compressed file to %s", destinationURI))
+				// copy its content to the destination URI
+				if _, err := io.Copy(w, f); err != nil {
+					return errors.WithStack(err)
+				}
+				h.logger.Info(fmt.Sprintf("written compressed file to %s", destinationURI))
+				return nil
+			})
+		}
+		// write the compressed files to their final destinations concurrently
+		if err := h.concurrentFunc(funcs); err != nil {
+			return errors.WithStack(err)
 		}
 	}
 	totalRecords := 0
@@ -198,6 +218,7 @@ func (h *CommonWriteHandler) DestinationURIs() []string {
 	return uris
 }
 
+// TODO: find a better way to refactor this
 func (h *CommonWriteHandler) compress() error {
 	// get all transient file paths and their corresponding destination URIs
 	filePaths := make([]string, 0, len(h.compressionTransientFilePathtoDestinationURI))

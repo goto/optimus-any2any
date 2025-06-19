@@ -50,6 +50,7 @@ func NewSink(commonSink common.Sink,
 		u.Host, u.User.Username(), password,
 		privateKey, hostFingerprint,
 		true, // TODO: make this configurable
+		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 		fs.WithWriteCompression(compressionType),
 		fs.WithWriteCompressionPassword(compressionPassword),
 		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(false)), // TODO: make this configurable
