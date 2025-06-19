@@ -11,7 +11,6 @@ import (
 	"strings"
 	"text/template"
 
-	osssink "github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/pkg/errors"
 )
@@ -22,48 +21,6 @@ func openFileURI(fileURI string) (io.ReadCloser, error) {
 		return nil, errors.WithStack(err)
 	}
 	return os.OpenFile(u.Path, os.O_RDONLY, 0644)
-}
-
-func toFilePaths(fileURIs []string) []string {
-	paths := make([]string, len(fileURIs))
-	for i, uri := range fileURIs {
-		u, _ := url.Parse(uri)
-		paths[i] = u.Path
-	}
-	return paths
-}
-
-func toFileURIs(filePaths []string) []string {
-	uris := make([]string, len(filePaths))
-	for i, path := range filePaths {
-		uris[i] = "file://" + path
-	}
-	return uris
-}
-
-func toOSSURI(fileURI string) string {
-	return "oss://" + strings.TrimPrefix(fileURI, "file:///tmp/")
-}
-
-func copy(client *osssink.Client, ossURI, fileURI string) error {
-	// open local file
-	src, err := openFileURI(fileURI)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer src.Close()
-	// create oss writer
-	dst, err := client.NewWriter(ossURI)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer dst.Close()
-
-	// upload to OSS
-	if _, err := io.Copy(dst, src); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
 }
 
 func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (emailMetadata, error) {
