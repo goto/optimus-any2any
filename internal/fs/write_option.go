@@ -26,9 +26,9 @@ func WithWriteCompression(compressionType string) WriteOption {
 			w.compressionTransientFilePathtoDestinationURI = make(map[string]string)
 			w.compressionTransientNewWriter = func(destinationURI string) (xio.WriteFlusher, error) {
 				// prepare transient directory for compression
-				dir, err := os.MkdirTemp(os.TempDir(), "compression-*")
+				dir, err := os.MkdirTemp(os.TempDir(), "*")
 				if err != nil {
-					return nil, errors.Wrap(err, "failed to create temp directory for compression")
+					return nil, errors.WithStack(err)
 				}
 
 				// use transient file path for compression
