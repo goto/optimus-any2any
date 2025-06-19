@@ -95,11 +95,13 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	}
 	w, ok := h.writers[destinationURI]
 	if !ok {
-		writer, err := h.newWriter(destinationURI)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if h.compressionEnabled {
+		var writer io.Writer
+		if !h.compressionEnabled {
+			writer, err = h.newWriter(destinationURI)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		} else {
 			writer, err = h.compressionTransientNewWriter(destinationURI)
 			if err != nil {
 				return errors.WithStack(err)
@@ -122,6 +124,8 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	if h.counters[destinationURI]%h.logBatchSize == 0 {
 		if !h.compressionEnabled {
 			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI], destinationURI))
+		} else {
+			h.logger.Info(fmt.Sprintf("written %d records to transient compressed file", h.counters[destinationURI]))
 		}
 	}
 
@@ -135,6 +139,7 @@ func (h *CommonWriteHandler) Sync() error {
 		}
 	}
 	if h.compressionEnabled {
+		h.logger.Info("compression enabled, starting compression")
 		if err := h.compress(); err != nil {
 			return errors.WithStack(err)
 		}
@@ -145,6 +150,7 @@ func (h *CommonWriteHandler) Sync() error {
 			if err != nil {
 				return errors.WithStack(err)
 			}
+			h.logger.Debug(fmt.Sprintf("opening writer for %s", destinationURI))
 
 			// open the transient file
 			f, err := os.OpenFile(filePath, os.O_RDONLY, 0666)
@@ -155,6 +161,7 @@ func (h *CommonWriteHandler) Sync() error {
 				f.Close()
 				os.Remove(filePath) // remove the transient file after writing
 			}()
+			h.logger.Debug(fmt.Sprintf("opened transient file %s", filePath))
 
 			// copy its content to the destination URI
 			if _, err := io.Copy(w, f); err != nil {
@@ -163,6 +170,11 @@ func (h *CommonWriteHandler) Sync() error {
 			h.logger.Info(fmt.Sprintf("written compressed file to %s", destinationURI))
 		}
 	}
+	totalRecords := 0
+	for _, count := range h.counters {
+		totalRecords += count
+	}
+	h.logger.Info(fmt.Sprintf("total %d records have been written", totalRecords))
 	return nil
 }
 
@@ -187,10 +199,13 @@ func (h *CommonWriteHandler) DestinationURIs() []string {
 }
 
 func (h *CommonWriteHandler) compress() error {
-	// get all transient file paths
+	// get all transient file paths and their corresponding destination URIs
 	filePaths := make([]string, 0, len(h.compressionTransientFilePathtoDestinationURI))
-	for transientFilePath := range h.compressionTransientFilePathtoDestinationURI {
+	destinationPaths := make([]string, 0, len(h.compressionTransientFilePathtoDestinationURI))
+	for transientFilePath, destinationURI := range h.compressionTransientFilePathtoDestinationURI {
 		filePaths = append(filePaths, transientFilePath)
+		u, _ := url.Parse(destinationURI)
+		destinationPaths = append(destinationPaths, u.Path)
 	}
 
 	// compress based on the compression type
@@ -228,21 +243,7 @@ func (h *CommonWriteHandler) compress() error {
 		// single archive file is created in the same directory as the nearest common parent directory of the filepaths
 		// eg. if filepaths are /tmp/a/b/c.txt and /tmp/a/d/e.txt, the archive file will be created as /tmp/a/archive.zip
 
-		// get the nearest common parent directory of the filepaths
-		dir := filepath.Dir(filePaths[0])
-		for _, filePath := range filePaths[1:] {
-			parentDir := filepath.Dir(filePath)
-			i := 0
-			for ; i < len(strings.Split(dir, "/")) && strings.Split(dir, "/")[i] == strings.Split(parentDir, "/")[i]; i++ {
-			}
-			dir = strings.Join(strings.Split(dir, "/")[:i], "/")
-		}
-
-		fileName := fmt.Sprintf("archive.%s", compressionType)
-		archivedPath := filepath.Join(dir, fileName)
-		archivedPaths = append(archivedPaths, archivedPath)
-
-		f, err := os.OpenFile(archivedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		f, err := os.CreateTemp(os.TempDir(), "compression-*")
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -261,19 +262,36 @@ func (h *CommonWriteHandler) compress() error {
 		// update the destination URI mapping
 		for _, filePath := range filePaths {
 			if destinationURI, ok := h.compressionTransientFilePathtoDestinationURI[filePath]; ok {
-				h.compressionTransientFilePathtoDestinationURI[archivedPath] = destinationURI
+				h.compressionTransientFilePathtoDestinationURI[f.Name()] = destinationURI
 				delete(h.compressionTransientFilePathtoDestinationURI, filePath)
 			}
 		}
-		destinationURI := h.compressionTransientFilePathtoDestinationURI[archivedPath]
+		destinationURI := h.compressionTransientFilePathtoDestinationURI[f.Name()]
 		u, err := url.Parse(destinationURI)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		u.Path = archivedPath
-		h.compressionTransientFilePathtoDestinationURI[archivedPath] = u.String()
+
+		// get the nearest common parent directory of the destination paths
+		destinationDir := nearestCommonParentDir(destinationPaths)
+		fileName := fmt.Sprintf("archive.%s", compressionType)
+		u.Path = filepath.Join(destinationDir, fileName)
+		// update the destination URI mapping
+		h.compressionTransientFilePathtoDestinationURI[f.Name()] = u.String()
 	default:
 		return fmt.Errorf("unsupported compression type: %s", compressionType)
 	}
 	return nil
+}
+
+func nearestCommonParentDir(filePaths []string) string {
+	dir := filepath.Dir(filePaths[0])
+	for _, filePath := range filePaths[1:] {
+		parentDir := filepath.Dir(filePath)
+		i := 0
+		for ; i < len(strings.Split(dir, "/")) && strings.Split(dir, "/")[i] == strings.Split(parentDir, "/")[i]; i++ {
+		}
+		dir = strings.Join(strings.Split(dir, "/")[:i], "/")
+	}
+	return dir
 }

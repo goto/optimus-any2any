@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -32,7 +33,8 @@ func WithWriteCompression(compressionType string) WriteOption {
 
 				// use transient file path for compression
 				u, _ := url.Parse(destinationURI)
-				transientFilePath := filepath.Join(dir, filepath.Base(u.Path))
+				transientFilePath := filepath.Join(dir, u.Path)
+				w.logger.Info(fmt.Sprintf("using transient file path for compression: %s", transientFilePath))
 				w.compressionTransientFilePathtoDestinationURI[transientFilePath] = destinationURI
 
 				return xio.NewWriteHandler(w.logger, transientFilePath)
