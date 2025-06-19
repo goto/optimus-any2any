@@ -3,14 +3,13 @@ package sftp
 import (
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"text/template"
 
 	"github.com/goccy/go-json"
 
-	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	xnet "github.com/goto/optimus-any2any/internal/net"
@@ -24,17 +23,7 @@ type SFTPSink struct {
 
 	// client                 *sftp.Client
 	destinationURITemplate *template.Template
-	handlers               xio.WriteHandler
-	privateKey             string
-	hostFingerprint        string
-	// writerHandlers         map[string]xio.WriteFlushCloser
-	// recordCounter          int
-	enableOverwrite bool
-
-	// archive properties
-	enableArchive       bool
-	compressionType     string
-	compressionPassword string
+	handlers               fs.WriteHandler
 
 	// json path selector
 	jsonPathSelector string
@@ -51,25 +40,24 @@ func NewSink(commonSink common.Sink,
 	opts ...common.Option) (*SFTPSink, error) {
 
 	// prepare handlers
-	var handlers xio.WriteHandler
-	if compressionType != "" {
-		handlers = file.NewFileHandler(commonSink.Context(), commonSink.Logger(),
-			xio.WithCSVSkipHeader(false), // TODO: make this configurable
-		)
-	} else {
-		u, err := url.Parse(destinationURI)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		// create a new SFTP handler
-		password, _ := u.User.Password()
-		handlers = NewSFTPHandler(commonSink.Context(), commonSink.Logger(),
-			u.Host, u.User.Username(), password,
-			privateKey, hostFingerprint,
-			true,                         // TODO: make this configurable
-			xio.WithCSVSkipHeader(false), // TODO: make this configurable
-		)
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
+	// create a new SFTP handler
+	password, _ := u.User.Password()
+	handlers, err := NewSFTPHandler(commonSink.Context(), commonSink.Logger(),
+		u.Host, u.User.Username(), password,
+		privateKey, hostFingerprint,
+		true, // TODO: make this configurable
+		fs.WithWriteCompression(compressionType),
+		fs.WithWriteCompressionPassword(compressionPassword),
+		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(false)), // TODO: make this configurable
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	t, err := compiler.NewTemplate("sink_sftp_destination_uri", destinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
@@ -79,12 +67,6 @@ func NewSink(commonSink common.Sink,
 		Sink:                   commonSink,
 		destinationURITemplate: t,
 		handlers:               handlers,
-		privateKey:             privateKey,
-		hostFingerprint:        hostFingerprint,
-		// archive options
-		enableArchive:       compressionType != "",
-		compressionType:     compressionType,
-		compressionPassword: compressionPassword,
 		// jsonPath selector
 		jsonPathSelector: jsonPathSelector,
 	}
@@ -104,7 +86,6 @@ func NewSink(commonSink common.Sink,
 
 func (s *SFTPSink) process() error {
 	recordCounter := 0
-	fileURItoSFTPURI := map[string]string{} // internal use to keep track of file URIs to SFTP URIs
 	for record, err := range s.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
@@ -118,10 +99,6 @@ func (s *SFTPSink) process() error {
 		if err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
 			return errors.WithStack(err)
-		}
-		if s.enableArchive {
-			fileURItoSFTPURI[toFileURI(destinationURI)] = destinationURI
-			destinationURI = toFileURI(destinationURI)
 		}
 
 		// record without metadata
@@ -168,56 +145,9 @@ func (s *SFTPSink) process() error {
 		return errors.WithStack(err)
 	}
 
-	// TODO: find a way to refactor this
-	if s.enableArchive {
-		err := s.DryRunable(func() error {
-			filePaths, err := s.Compress(s.compressionType, s.compressionPassword, toFilePaths(s.handlers.DestinationURIs()))
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-			for _, fileURI := range toFileURIs(filePaths) {
-				err := s.DryRunable(func() error {
-					sftpURI := fileURItoSFTPURI[fileURI]
-					c, err := NewSFTPClientFromURI(sftpURI, s.privateKey, s.hostFingerprint)
-					if err != nil {
-						s.Logger().Error(fmt.Sprintf("failed to create SFTP client: %s", err.Error()))
-						return errors.WithStack(err)
-					}
-					defer c.Close()
-
-					// if overwrite is enabled, remove the object first
-					if s.enableOverwrite {
-						if err := c.Remove(sftpURI); err != nil {
-							return errors.WithStack(err)
-						}
-					}
-					// copy the file to SFTP
-					return errors.WithStack(osscopy(c, sftpURI, fileURI))
-				})
-				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to copy file to SFTP: %s", err.Error()))
-					return errors.WithStack(err)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
 	_ = s.DryRunable(func() error { // ignore log when dry run
 		s.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
 		return nil
 	})
 	return nil
-}
-
-func getTmpPath(destinationURI string) (string, error) {
-	targetURI, err := url.Parse(destinationURI)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	return filepath.Join("/tmp", filepath.Base(targetURI.Path)), nil
 }

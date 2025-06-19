@@ -6,42 +6,48 @@ import (
 	"io"
 	"log/slog"
 
-	xio "github.com/goto/optimus-any2any/internal/io"
+	"github.com/goto/optimus-any2any/internal/fs"
 	"github.com/pkg/errors"
 )
 
+const (
+	// DefaultTransientSuffix is the default suffix used for transient files
+	DefaultTransientSuffix = "_inprogress"
+)
+
 type ossHandler struct {
-	*xio.CommonWriteHandler
-	client          *Client
-	transientSuffix string
+	*fs.CommonWriteHandler
+	client *Client
 }
 
-var _ xio.WriteHandler = (*ossHandler)(nil)
+var _ fs.WriteHandler = (*ossHandler)(nil)
 
-func NewOSSHandler(ctx context.Context, logger *slog.Logger, client *Client, enableOverwrite bool, opts ...xio.Option) xio.WriteHandler {
-	w := xio.NewCommonWriteHandler(ctx, logger, opts...)
-
-	// prepare oss handler
-	h := &ossHandler{
-		CommonWriteHandler: w,
-		client:             client,
-		transientSuffix:    "_inprogress",
-	}
-
-	// set appropriate schema and writer function
-	h.SetSchema("oss")
-	h.SetNewWriterFunc(func(destinationURI string) (io.Writer, error) {
+func NewOSSHandler(ctx context.Context, logger *slog.Logger, client *Client, enableOverwrite bool, opts ...fs.WriteOption) (*ossHandler, error) {
+	writerFunc := func(destinationURI string) (io.Writer, error) {
 		// remove object if it exists and overwrite is enabled
 		if enableOverwrite {
-			if err := h.client.Remove(destinationURI); err != nil {
+			if err := client.Remove(destinationURI); err != nil {
 				return nil, errors.WithStack(err)
 			}
 		}
 		// create a new writer with a transient suffix
-		destinationURI = destinationURI + h.transientSuffix
+		destinationURI = destinationURI + DefaultTransientSuffix
 		return client.NewWriter(destinationURI)
-	})
-	return h
+	}
+
+	// set appropriate schema and writer function
+	w, err := fs.NewCommonWriteHandler(ctx, logger, append(opts,
+		fs.WithWriteSchema("oss"), fs.WithWriteNewWriterFunc(writerFunc))...,
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// create oss handler
+	return &ossHandler{
+		CommonWriteHandler: w,
+		client:             client,
+	}, nil
 }
 
 func (h *ossHandler) Sync() error {
@@ -50,11 +56,11 @@ func (h *ossHandler) Sync() error {
 	// move all files from transient URIs to final URIs
 	for _, destinationURI := range h.DestinationURIs() {
 		// copy the file from transient URI to final URI
-		if err := h.client.Copy(destinationURI+h.transientSuffix, destinationURI); err != nil {
+		if err := h.client.Copy(destinationURI+DefaultTransientSuffix, destinationURI); err != nil {
 			return errors.WithStack(err)
 		}
 		// remove the transient file
-		if err := h.client.Remove(destinationURI + h.transientSuffix); err != nil {
+		if err := h.client.Remove(destinationURI + DefaultTransientSuffix); err != nil {
 			return errors.WithStack(err)
 		}
 		h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", destinationURI))

@@ -8,7 +8,7 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	xio "github.com/goto/optimus-any2any/internal/io"
+	"github.com/goto/optimus-any2any/internal/fs"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -17,9 +17,9 @@ import (
 // FileSink is a sink that writes data to a file.
 type FileSink struct {
 	common.Sink
-	DestinationURITemplate *template.Template
-	Handlers               xio.WriteHandler
-	// json path selector
+	destinationURITemplate *template.Template
+	handlers               fs.WriteHandler
+	// json path selector TODO: refactor this
 	jsonPathSelector string
 }
 
@@ -32,18 +32,24 @@ func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector str
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
+	// prepare handlers
+	handlers, err := NewFileHandler(commonSink.Context(), commonSink.Logger())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	// create sink
 	fs := &FileSink{
 		Sink:                   commonSink,
-		DestinationURITemplate: tmpl,
-		Handlers:               NewFileHandler(commonSink.Context(), commonSink.Logger()),
+		destinationURITemplate: tmpl,
+		handlers:               handlers,
 		jsonPathSelector:       jsonPathSelector,
 	}
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
 		fs.Logger().Info("close files")
-		fs.Handlers.Close()
+		fs.handlers.Close()
 		return nil
 	})
 	// register process, it will immediately start the process
@@ -65,7 +71,7 @@ func (fs *FileSink) Process() error {
 			continue
 		}
 
-		destinationURI, err := compiler.Compile(fs.DestinationURITemplate, model.ToMap(record))
+		destinationURI, err := compiler.Compile(fs.destinationURITemplate, model.ToMap(record))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -89,7 +95,7 @@ func (fs *FileSink) Process() error {
 		// write to file
 		err = fs.DryRunable(func() error {
 			fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
-			if err := fs.Handlers.Write(destinationURI, append(raw, '\n')); err != nil {
+			if err := fs.handlers.Write(destinationURI, append(raw, '\n')); err != nil {
 				fs.Logger().Error(fmt.Sprintf("failed to write to file"))
 				return errors.WithStack(err)
 			}
@@ -102,5 +108,5 @@ func (fs *FileSink) Process() error {
 	}
 
 	// flush all write handlers
-	return errors.WithStack(fs.DryRunable(fs.Handlers.Sync))
+	return errors.WithStack(fs.DryRunable(fs.handlers.Sync))
 }

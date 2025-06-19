@@ -5,22 +5,41 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"os"
+	"path/filepath"
 
-	xio "github.com/goto/optimus-any2any/internal/io"
+	"github.com/goto/optimus-any2any/internal/fs"
+	"github.com/pkg/errors"
 )
 
 type fileHandler struct {
-	*xio.CommonWriteHandler
+	*fs.CommonWriteHandler
 }
 
-var _ xio.WriteHandler = (*fileHandler)(nil)
+var _ fs.WriteHandler = (*fileHandler)(nil)
 
-func NewFileHandler(ctx context.Context, logger *slog.Logger, opts ...xio.Option) xio.WriteHandler {
-	w := xio.NewCommonWriteHandler(ctx, logger, opts...)
-	w.SetSchema("file")
-	w.SetNewWriterFunc(func(destinationURI string) (io.Writer, error) {
+func NewFileHandler(ctx context.Context, logger *slog.Logger, opts ...fs.WriteOption) (*fileHandler, error) {
+	writerFunc := func(destinationURI string) (io.Writer, error) {
 		u, _ := url.Parse(destinationURI)
-		return xio.NewWriteHandler(logger, u.Path)
-	})
-	return &fileHandler{w}
+		// ensure the directory exists
+		dir := filepath.Dir(u.Path)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+		// open the file for writing, creating it if it doesn't exist
+		return os.OpenFile(u.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	}
+
+	// set appropriate schema and writer function
+	w, err := fs.NewCommonWriteHandler(ctx, logger, append(opts,
+		fs.WithWriteSchema("file"), fs.WithWriteNewWriterFunc(writerFunc))...,
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// create file handler
+	return &fileHandler{w}, nil
 }

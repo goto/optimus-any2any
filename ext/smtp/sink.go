@@ -14,7 +14,7 @@ import (
 	osssink "github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	xio "github.com/goto/optimus-any2any/internal/io"
+	"github.com/goto/optimus-any2any/internal/fs"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
@@ -61,7 +61,7 @@ type emailMetadata struct {
 
 type emailHandler struct {
 	emailMetadata emailMetadata
-	handlers      xio.WriteHandler
+	handlers      fs.WriteHandler
 }
 
 type emailWithAttachment struct {
@@ -212,13 +212,17 @@ func (s *SMTPSink) process() error {
 		hash := hashMetadata(m)
 		eh, ok := s.emailHandlers[hash]
 		if !ok {
-			var handlers xio.WriteHandler
-			if s.storageConfig.Mode == "oss" && !s.enableArchive {
+			var handlers fs.WriteHandler
+			if s.storageConfig.Mode == "oss" {
 				// create new oss write handler
-				handlers = osssink.NewOSSHandler(s.Context(), s.Logger(), s.ossclient, s.enableOverwrite)
+				handlers, err = osssink.NewOSSHandler(s.Context(), s.Logger(), s.ossclient, s.enableOverwrite)
 			} else {
 				// create new file write handler
-				handlers = file.NewFileHandler(s.Context(), s.Logger())
+				handlers, err = file.NewFileHandler(s.Context(), s.Logger())
+			}
+			if err != nil {
+				s.Logger().Error(fmt.Sprintf("create write handler error: %s", err.Error()))
+				return errors.WithStack(err)
 			}
 			s.emailHandlers[hash] = emailHandler{emailMetadata: m, handlers: handlers}
 			eh = s.emailHandlers[hash]
@@ -231,7 +235,7 @@ func (s *SMTPSink) process() error {
 
 		// construct destination URI
 		destinationURI := constructFileURI(m, attachment)
-		if s.storageConfig.Mode == "oss" && !s.enableArchive {
+		if s.storageConfig.Mode == "oss" {
 			destinationURI = constructOSSURI(m, attachment, s.ossDestinationDir)
 		}
 
@@ -273,48 +277,6 @@ func (s *SMTPSink) process() error {
 		emailWithAttachments[hash] = &emailWithAttachment{
 			emailMetadata: eh.emailMetadata,
 			attachments:   eh.handlers.DestinationURIs(),
-		}
-	}
-
-	// compress files if enableArchive is true
-	if s.enableArchive {
-		for hash, eh := range s.emailHandlers {
-			err := s.DryRunable(func() error {
-				filePaths, err := s.Compress(s.compressionType, s.compressionPassword, toFilePaths(eh.handlers.DestinationURIs()))
-				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-					return errors.WithStack(err)
-				}
-				attachmentURIs := toFileURIs(filePaths)
-				if s.storageConfig.Mode == "oss" {
-					attachmentURIs := []string{}
-					for _, fileURI := range toFileURIs(filePaths) {
-						ossURI := toOSSURI(fileURI)
-						// if overwrite is enabled, remove the object first
-						if s.enableOverwrite {
-							if err := s.ossclient.Remove(ossURI); err != nil {
-								return errors.WithStack(err)
-							}
-						}
-						// copy file to OSS
-						if err := copy(s.ossclient, ossURI, fileURI); err != nil {
-							s.Logger().Error(fmt.Sprintf("failed to copy file to OSS: %s", err.Error()))
-							return errors.WithStack(err)
-						}
-						attachmentURIs = append(attachmentURIs, ossURI)
-					}
-				}
-				// update emailWithAttachments with compressed uris
-				emailWithAttachments[hash] = &emailWithAttachment{
-					emailMetadata: eh.emailMetadata,
-					attachments:   attachmentURIs,
-				}
-				return nil
-			})
-			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
-			}
 		}
 	}
 

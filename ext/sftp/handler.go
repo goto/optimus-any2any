@@ -5,28 +5,25 @@ import (
 	"io"
 	"log/slog"
 
-	xio "github.com/goto/optimus-any2any/internal/io"
+	"github.com/goto/optimus-any2any/internal/fs"
 	"github.com/pkg/errors"
 )
 
 type sftpHandler struct {
-	*xio.CommonWriteHandler
+	*fs.CommonWriteHandler
 	client *Client
 }
 
-var _ xio.WriteHandler = (*sftpHandler)(nil)
+var _ fs.WriteHandler = (*sftpHandler)(nil)
 
-func NewSFTPHandler(ctx context.Context, logger *slog.Logger, address, username, password, privateKey, hostFingerprint string,
-	enableOverwrite bool, opts ...xio.Option) xio.WriteHandler {
-	w := xio.NewCommonWriteHandler(ctx, logger, opts...)
-	s := &sftpHandler{
-		CommonWriteHandler: w,
-		client:             nil,
-	}
+func NewSFTPHandler(ctx context.Context, logger *slog.Logger,
+	address, username, password, privateKey, hostFingerprint string,
+	enableOverwrite bool, opts ...fs.WriteOption) (*sftpHandler, error) {
 
-	// set appropriate schema and writer function
-	s.SetSchema("sftp")
-	s.SetNewWriterFunc(func(destinationURI string) (io.Writer, error) {
+	// preapare the SFTP handler
+	s := &sftpHandler{client: nil}
+
+	writeFunc := func(destinationURI string) (io.Writer, error) {
 		if s.client == nil {
 			// create a new SFTP client
 			c, err := NewSFTPClient(address, username, password, privateKey, hostFingerprint)
@@ -43,7 +40,15 @@ func NewSFTPHandler(ctx context.Context, logger *slog.Logger, address, username,
 		}
 		// open or create file for writing
 		return s.client.NewWriter(destinationURI)
-	})
+	}
+	// set appropriate schema and writer function
+	w, err := fs.NewCommonWriteHandler(ctx, logger, append(opts,
+		fs.WithWriteSchema("sftp"), fs.WithWriteNewWriterFunc(writeFunc))...,
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
-	return s
+	s.CommonWriteHandler = w
+	return s, nil
 }

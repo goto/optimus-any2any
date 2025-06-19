@@ -6,9 +6,9 @@ import (
 
 	"github.com/goccy/go-json"
 
-	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -20,13 +20,7 @@ type OSSSink struct {
 
 	client                 *Client
 	destinationURITemplate *template.Template
-	handlers               xio.WriteHandler
-	enableOverwrite        bool
-
-	// archive properties TODO: refactor
-	enableArchive       bool
-	compressionType     string
-	compressionPassword string
+	handlers               fs.WriteHandler
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -56,16 +50,14 @@ func NewSink(commonSink common.Sink,
 	}
 
 	// prepare handlers
-	var handlers xio.WriteHandler
-	if compressionType != "" {
-		handlers = file.NewFileHandler(commonSink.Context(), commonSink.Logger(),
-			xio.WithCSVSkipHeader(skipHeader),
-		)
-	} else {
-		handlers = NewOSSHandler(commonSink.Context(), commonSink.Logger(),
-			client, enableOverwrite,
-			xio.WithCSVSkipHeader(skipHeader),
-		)
+	handlers, err := NewOSSHandler(commonSink.Context(), commonSink.Logger(),
+		client, enableOverwrite,
+		fs.WithWriteCompression(compressionType),
+		fs.WithWriteCompressionPassword(compressionPassword),
+		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
 	}
 
 	o := &OSSSink{
@@ -73,11 +65,6 @@ func NewSink(commonSink common.Sink,
 		client:                 client,
 		destinationURITemplate: tmpl,
 		handlers:               handlers,
-		enableOverwrite:        enableOverwrite,
-		// archive options
-		enableArchive:       compressionType != "",
-		compressionType:     compressionType,
-		compressionPassword: compressionPassword,
 	}
 
 	// add clean func
@@ -108,9 +95,6 @@ func (o *OSSSink) process() error {
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
 			return errors.WithStack(err)
-		}
-		if o.enableArchive {
-			destinationURI = toFileURI(destinationURI)
 		}
 
 		// TODO: batch splitting by using templating
@@ -145,35 +129,6 @@ func (o *OSSSink) process() error {
 	// flush all write handlers
 	if err := o.DryRunable(o.handlers.Sync); err != nil {
 		return errors.WithStack(err)
-	}
-
-	// TODO: find a way to refactor this
-	if o.enableArchive {
-		err := o.DryRunable(func() error {
-			filePaths, err := o.Compress(o.compressionType, o.compressionPassword, toFilePaths(o.handlers.DestinationURIs()))
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-			for _, fileURI := range toFileURIs(filePaths) {
-				ossURI := toOSSURI(fileURI)
-				// if overwrite is enabled, remove the object first
-				if o.enableOverwrite {
-					if err := o.client.Remove(ossURI); err != nil {
-						return errors.WithStack(err)
-					}
-				}
-				// copy file to OSS
-				if err := osscopy(o.client, ossURI, fileURI); err != nil {
-					o.Logger().Error(fmt.Sprintf("failed to copy file to OSS: %s", err.Error()))
-					return errors.WithStack(err)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
 	}
 
 	_ = o.DryRunable(func() error { // ignore log when dry run
