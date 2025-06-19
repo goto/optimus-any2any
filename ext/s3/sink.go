@@ -239,6 +239,9 @@ func (s3 *S3Sink) process() error {
 			pathsToArchives := map[string][]string{}
 			for destinationURI := range s3.writeHandlers {
 				_, compressionType := splitExtension(destinationURI)
+				compressionType = strings.TrimPrefix(compressionType, ".")
+				s3.Logger().Debug(fmt.Sprintf("compressionType: %s", compressionType))
+
 				tmpPath, err := getTmpPath(destinationURI)
 				if err != nil {
 					s3.Logger().Error(fmt.Sprintf("failed to get tmp path for %s: %s", destinationURI, err.Error()))
@@ -250,9 +253,16 @@ func (s3 *S3Sink) process() error {
 
 				pathsToArchives[compressionType] = append(pathsToArchives[compressionType], tmpPath)
 			}
-			s3.Logger().Info(fmt.Sprintf("compressing %d files", len(pathsToArchives)))
+
+			s3.Logger().Debug(fmt.Sprintf("pathsToArchives: %v", pathsToArchives))
+			for compressionType, pathsToArchive := range pathsToArchives {
+				if compressionType != "" {
+					s3.Logger().Info(fmt.Sprintf("compressing %d files with %s compression type: %v", len(pathsToArchive), compressionType, pathsToArchive))
+				}
+			}
 
 			if s3.compressionType != "" {
+				s3.Logger().Debug("s3.compressionType != \"\" branch")
 				paths := []string{}
 				for _, pathsToArchive := range pathsToArchives {
 					paths = append(paths, pathsToArchive...)
@@ -264,14 +274,17 @@ func (s3 *S3Sink) process() error {
 				}
 				s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
 			} else {
+				s3.Logger().Debug("s3.compressionType == \"\" branch")
 				for compressionType, pathsToArchive := range pathsToArchives {
+					s3.Logger().Debug(fmt.Sprintf("compressionType: %s, pathsToArchive: %v", compressionType, pathsToArchive))
+
 					archivePaths, err := s3.archive(compressionType, pathsToArchive)
 					if err != nil {
 						s3.Logger().Error(fmt.Sprintf("failed to compress files: %s", err.Error()))
 						return errors.WithStack(err)
 					}
 
-					s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to OSS: %s", strings.Join(archivePaths, ", ")))
+					s3.Logger().Info(fmt.Sprintf("successfully uploaded archive file(s) to s3: %s", strings.Join(archivePaths, ", ")))
 				}
 			}
 
