@@ -18,7 +18,6 @@ import (
 type OSSSink struct {
 	common.Sink
 
-	client                 *Client
 	destinationURITemplate *template.Template
 	handlers               fs.WriteHandler
 }
@@ -63,7 +62,6 @@ func NewSink(commonSink common.Sink,
 
 	o := &OSSSink{
 		Sink:                   commonSink,
-		client:                 client,
 		destinationURITemplate: tmpl,
 		handlers:               handlers,
 	}
