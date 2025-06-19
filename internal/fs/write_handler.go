@@ -296,6 +296,11 @@ func (h *CommonWriteHandler) compress() error {
 		// get the nearest common parent directory of the destination paths
 		destinationDir := nearestCommonParentDir(destinationPaths)
 		fileName := fmt.Sprintf("archive.%s", compressionType)
+		if len(destinationPaths) == 1 {
+			fileName = filepath.Base(destinationPaths[0])
+			fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+			fileName = fmt.Sprintf("%s.%s", fileName, compressionType)
+		}
 		u.Path = filepath.Join(destinationDir, fileName)
 		// update the destination URI mapping
 		h.compressionTransientFilePathtoDestinationURI[f.Name()] = u.String()
