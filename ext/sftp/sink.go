@@ -146,9 +146,5 @@ func (s *SFTPSink) process() error {
 		return errors.WithStack(err)
 	}
 
-	_ = s.DryRunable(func() error { // ignore log when dry run
-		s.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
-		return nil
-	})
 	return nil
 }

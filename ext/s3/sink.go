@@ -177,10 +177,6 @@ func (s3 *S3Sink) process() error {
 		return errors.WithStack(err)
 	}
 
-	_ = s3.DryRunable(func() error { // ignore log when dry run
-		s3.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
-		return nil
-	})
 	return nil
 }
 

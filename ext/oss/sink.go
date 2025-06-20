@@ -150,10 +150,6 @@ func (o *OSSSink) process() error {
 		return errors.WithStack(err)
 	}
 
-	_ = o.DryRunable(func() error { // ignore log when dry run
-		o.Logger().Info(fmt.Sprintf("successfully written %d records", recordCounter))
-		return nil
-	})
 	return nil
 }
 
