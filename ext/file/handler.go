@@ -23,11 +23,10 @@ func NewFileHandler(ctx context.Context, logger *slog.Logger, opts ...fs.WriteOp
 		u, _ := url.Parse(destinationURI)
 		// ensure the directory exists
 		dir := filepath.Dir(u.Path)
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				return nil, errors.WithStack(err)
-			}
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, errors.WithStack(err)
 		}
+
 		// open the file for writing, creating it if it doesn't exist
 		return os.OpenFile(u.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	}
