@@ -88,10 +88,8 @@ func (c *Client) NewWriter(destinationURI string) (io.WriteCloser, error) {
 	}
 	// create dir if it does not exist
 	dir := filepath.Dir(u.Path)
-	if _, err := c.Stat(dir); os.IsNotExist(err) {
-		if err := c.MkdirAll(dir); err != nil {
-			return nil, errors.WithStack(err)
-		}
+	if err := c.MkdirAll(dir); err != nil {
+		return nil, errors.WithStack(err)
 	}
 	// open or create file for writing
 	return c.OpenFile(u.Path, os.O_CREATE|os.O_WRONLY|os.O_APPEND)
