@@ -37,7 +37,7 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 		return em, errors.WithStack(err)
 	}
 	for _, t := range strings.Split(to, ",") {
-		em.to = append(em.to, t)
+		em.to = append(em.to, strings.TrimSpace(t))
 	}
 
 	cc, err := compiler.Compile(m.cc, record)
@@ -45,7 +45,7 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 		return em, errors.WithStack(err)
 	}
 	for _, c := range strings.Split(cc, ",") {
-		em.cc = append(em.cc, c)
+		em.cc = append(em.cc, strings.TrimSpace(c))
 	}
 
 	bcc, err := compiler.Compile(m.bcc, record)
@@ -53,7 +53,7 @@ func compileMetadata(m emailMetadataTemplate, record map[string]interface{}) (em
 		return em, errors.WithStack(err)
 	}
 	for _, b := range strings.Split(bcc, ",") {
-		em.bcc = append(em.bcc, b)
+		em.bcc = append(em.bcc, strings.TrimSpace(b))
 	}
 
 	subject, err := compiler.Compile(m.subject, record)
