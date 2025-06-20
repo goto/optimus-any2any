@@ -2,6 +2,8 @@ package oss
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/goccy/go-json"
@@ -20,6 +22,7 @@ type OSSSink struct {
 
 	destinationURITemplate *template.Template
 	handlers               fs.WriteHandler
+	batchStepTemplate      *template.Template // TODO: deprecate this
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -28,14 +31,13 @@ var _ flow.Sink = (*OSSSink)(nil)
 func NewSink(commonSink common.Sink,
 	creds, destinationURI string,
 	batchSize int, enableOverwrite bool, skipHeader bool,
-	maxTempFileRecordNumber int,
 	compressionType string, compressionPassword string,
 	connectionTimeout, readWriteTimeout int,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
 	client, err := NewOSSClient(commonSink.Context(), creds, OSSClientConfig{
-		ConnectionTimeoutSeconds: connectionTimeout,
+		ConnectionTimeoutSeconds: connectionTimeout, // TODO: refactor connection related configs
 		ReadWriteTimeoutSeconds:  readWriteTimeout,
 	})
 	if err != nil {
@@ -46,6 +48,15 @@ func NewSink(commonSink common.Sink,
 	tmpl, err := compiler.NewTemplate("sink_oss_destination_uri", destinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+	}
+
+	// parse batch step template // TODO: deprecate this, we keep this for backward compatibility
+	var batchStepTmpl *template.Template
+	if batchSize > 0 {
+		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", batchSize, batchSize))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse batch step template: %w", err)
+		}
 	}
 
 	// prepare handlers
@@ -64,6 +75,7 @@ func NewSink(commonSink common.Sink,
 		Sink:                   commonSink,
 		destinationURITemplate: tmpl,
 		handlers:               handlers,
+		batchStepTemplate:      batchStepTmpl,
 	}
 
 	// add clean func
@@ -96,7 +108,15 @@ func (o *OSSSink) process() error {
 			return errors.WithStack(err)
 		}
 
-		// TODO: batch splitting by using templating
+		// TODO: deprecate this, we keep this for backward compatibility
+		if o.batchStepTemplate != nil {
+			l, r := splitExtension(destinationURI)
+			batchStep, err := compiler.Compile(o.batchStepTemplate, model.ToMap(record))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			destinationURI = fmt.Sprintf("%s.%s", strings.TrimRight(destinationURI, l+r), batchStep) + l + r
+		}
 
 		// record without metadata
 		recordWithoutMetadata := o.RecordWithoutMetadata(record)
@@ -135,4 +155,20 @@ func (o *OSSSink) process() error {
 		return nil
 	})
 	return nil
+}
+
+// TODO: deprecate this, we keep this for backward compatibility
+func splitExtension(path string) (string, string) {
+	// get left most extension
+	leftExt := ""
+	rightExt := ""
+	for {
+		if filepath.Ext(path) == "" {
+			break
+		}
+		rightExt = leftExt + rightExt
+		leftExt = filepath.Ext(path)
+		path = path[:len(path)-len(leftExt)]
+	}
+	return leftExt, rightExt
 }

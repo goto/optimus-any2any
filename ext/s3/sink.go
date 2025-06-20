@@ -2,6 +2,7 @@ package s3
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -23,6 +24,7 @@ type S3Sink struct {
 
 	destinationURITemplate *template.Template
 	handlers               fs.WriteHandler
+	batchStepTemplate      *template.Template // TODO: deprecate this
 
 	// json path selector
 	jsonPathSelector string
@@ -79,10 +81,20 @@ func NewSink(commonSink common.Sink,
 		return nil, errors.WithStack(err)
 	}
 
+	// parse batch step template // TODO: deprecate this, we keep this for backward compatibility
+	var batchStepTmpl *template.Template
+	if batchSize > 0 {
+		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", batchSize, batchSize))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse batch step template: %w", err)
+		}
+	}
+
 	s3 := &S3Sink{
 		Sink:                   commonSink,
 		destinationURITemplate: tmpl,
 		handlers:               handlers,
+		batchStepTemplate:      batchStepTmpl,
 		// jsonPath selector
 		jsonPathSelector: jsonPathSelector,
 	}
@@ -117,7 +129,15 @@ func (s3 *S3Sink) process() error {
 			return errors.WithStack(err)
 		}
 
-		// TODO: batch splitting by using templating
+		// TODO: deprecate this, we keep this for backward compatibility
+		if s3.batchStepTemplate != nil {
+			l, r := splitExtension(destinationURI)
+			batchStep, err := compiler.Compile(s3.batchStepTemplate, model.ToMap(record))
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			destinationURI = fmt.Sprintf("%s.%s", strings.TrimRight(destinationURI, l+r), batchStep) + l + r
+		}
 
 		// record without metadata
 		recordWithoutMetadata := s3.RecordWithoutMetadata(record)
@@ -162,4 +182,20 @@ func (s3 *S3Sink) process() error {
 		return nil
 	})
 	return nil
+}
+
+// TODO: deprecate this, we keep this for backward compatibility
+func splitExtension(path string) (string, string) {
+	// get left most extension
+	leftExt := ""
+	rightExt := ""
+	for {
+		if filepath.Ext(path) == "" {
+			break
+		}
+		rightExt = leftExt + rightExt
+		leftExt = filepath.Ext(path)
+		path = path[:len(path)-len(leftExt)]
+	}
+	return leftExt, rightExt
 }

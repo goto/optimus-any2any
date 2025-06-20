@@ -143,7 +143,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return oss.NewSink(commonSink, sinkCfg.Credentials,
 			sinkCfg.DestinationURI,
 			sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
-			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber,
+			sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.ConnectionTimeoutSeconds, sinkCfg.ReadWriteTimeoutSeconds,
 			opts...)

@@ -126,7 +126,6 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format `oss://bucket/path/to/file.extension` |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
@@ -138,7 +137,6 @@ It applies when sink and source are in the same environment. For example, transf
 | S3 | S3__CREDENTIALS | Credentials for S3. |
 | | S3__PROVIDER | S3 provider availability: AWS, TIKTOK. (default: AWS) |
 | | S3__REGION | S3 region for the bucket. (default: us-east-1) |
-| | S3__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
 | | S3__DESTINATION_URI | The destination path in a S3 bucket to put the result files. Format `s3://bucket/path/to/file.extension` |
 | | S3__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | S3__SKIP_HEADER | Skip header for CSV file format. (default: false) |
