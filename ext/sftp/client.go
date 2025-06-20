@@ -101,7 +101,7 @@ func (c *Client) Remove(destinationURI string) error {
 		return errors.WithStack(err)
 	}
 	// remove file
-	if err := c.Remove(u.Path); err != nil {
+	if err := c.Client.Remove(u.Path); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil

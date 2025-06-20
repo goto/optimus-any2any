@@ -102,6 +102,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	}
 	w, ok := h.writers[destinationURI]
 	if !ok {
+		h.logger.Info(fmt.Sprintf("creating new writer for destination URI: %s", destinationURI))
 		var writer io.Writer
 		if !h.compressionEnabled {
 			writer, err = h.newWriter(destinationURI)
