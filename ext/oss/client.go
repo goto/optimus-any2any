@@ -1,6 +1,11 @@
 package oss
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/goccy/go-json"
@@ -20,6 +25,11 @@ type OSSClientConfig struct {
 	ReadWriteTimeoutSeconds  int
 }
 
+type Client struct {
+	*oss.Client
+	ctx context.Context
+}
+
 type ossCredentials struct {
 	AccessID      string `json:"access_key_id"`
 	AccessKey     string `json:"access_key_secret"`
@@ -37,7 +47,7 @@ func parseOSSCredentials(data []byte) (*ossCredentials, error) {
 	return cred, nil
 }
 
-func NewOSSClient(rawCreds string, clientCfg OSSClientConfig) (*oss.Client, error) {
+func NewOSSClient(ctx context.Context, rawCreds string, clientCfg OSSClientConfig) (*Client, error) {
 	cred, err := parseOSSCredentials([]byte(rawCreds))
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -62,5 +72,77 @@ func NewOSSClient(rawCreds string, clientCfg OSSClientConfig) (*oss.Client, erro
 
 	client := oss.NewClient(cfg)
 
-	return client, nil
+	return &Client{Client: client, ctx: ctx}, nil
+}
+
+func (c *Client) NewWriter(destinationURI string) (io.WriteCloser, error) {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// create a new append file writer
+	return oss.NewAppendFile(c.ctx, c.Client, u.Host, strings.TrimLeft(u.Path, "/"))
+}
+
+func (c *Client) Remove(destinationURI string) error {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// remove object
+	if response, err := c.Client.DeleteObject(c.ctx, &oss.DeleteObjectRequest{
+		Bucket: oss.Ptr(u.Host),
+		Key:    oss.Ptr(u.Path),
+	}); err != nil {
+		return errors.WithStack(err)
+	} else if response.StatusCode >= 400 {
+		err := errors.New(fmt.Sprintf("failed to delete object: %d; status %s", response.StatusCode, response.Status))
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func (c *Client) Copy(sourceURI, destinationURI string) error {
+	uSrc, err := url.Parse(sourceURI)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	uDst, err := url.Parse(destinationURI)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// copy object from source to destination
+	if response, err := c.Client.CopyObject(c.ctx, &oss.CopyObjectRequest{
+		SourceBucket: oss.Ptr(uSrc.Host),
+		SourceKey:    oss.Ptr(strings.TrimLeft(uDst.Path, "/")),
+		Bucket:       oss.Ptr(uDst.Host),
+		Key:          oss.Ptr(strings.TrimLeft(uDst.Path, "/")),
+	}); err != nil {
+		return errors.WithStack(err)
+	} else if response.StatusCode >= 400 {
+		err := errors.New(fmt.Sprintf("failed to copy object: %d; status: %s", response.StatusCode, response.Status))
+		return errors.WithStack(err)
+	}
+	return nil
+}
+
+func (c *Client) GeneratePresignURL(destinationURI string, expirationInSeconds int) (string, error) {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	// get object request
+	req := &oss.GetObjectRequest{
+		Bucket: oss.Ptr(u.Host),
+		Key:    oss.Ptr(strings.TrimLeft(u.Path, "/")),
+	}
+	// set expiration time
+	expireAt := time.Now().Add(time.Duration(expirationInSeconds) * time.Second)
+	// generate presigned URL
+	presignedURL, err := c.Client.Presign(c.ctx, req, oss.PresignExpiration(expireAt))
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return presignedURL.URL, nil
+
 }

@@ -3,6 +3,8 @@ package s3
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -41,15 +43,24 @@ func NewS3Client(ctx context.Context, region string, credProvider aws.Credential
 }
 
 // GetUploadWriter returns a writer for streaming data to S3
-func (s *S3Client) GetUploadWriter(ctx context.Context, bucketName, key string) *S3Writer {
-	return NewS3Writer(ctx, s.uploader, bucketName, key)
+func (s *S3Client) GetUploadWriter(ctx context.Context, destinationURI string) (*S3Writer, error) {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return NewS3Writer(ctx, s.uploader, u.Host, strings.TrimLeft(u.Path, "/")), nil
 }
 
 // DeleteObject deletes an object from S3
-func (s *S3Client) DeleteObject(ctx context.Context, bucketName, key string) error {
-	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: &bucketName,
-		Key:    &key,
+func (s *S3Client) DeleteObject(ctx context.Context, destinationURI string) error {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(u.Host),
+		Key:    aws.String(strings.TrimLeft(u.Path, "/")),
 	})
 	if err != nil {
 		return errors.WithStack(err)

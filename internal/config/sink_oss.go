@@ -6,7 +6,6 @@ type SinkOSSConfig struct {
 	BatchSize                int    `env:"OSS__BATCH_SIZE"`
 	EnableOverwrite          bool   `env:"OSS__ENABLE_OVERWRITE" envDefault:"false"`
 	SkipHeader               bool   `env:"OSS__SKIP_HEADER" envDefault:"false"`
-	MaxTempFileRecordNumber  int    `env:"OSS__MAX_TEMP_FILE_RECORD_NUMBER" envDefault:"50000"`
 	CompressionType          string `env:"OSS__COMPRESSION_TYPE"`
 	CompressionPassword      string `env:"OSS__COMPRESSION_PASSWORD"`
 	ConnectionTimeoutSeconds int    `env:"OSS__CONNECTION_TIMEOUT_SECONDS" envDefault:"30"`

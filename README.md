@@ -75,6 +75,9 @@ It applies when sink and source are in the same environment. For example, transf
 | Component | Configuration | Description |
 |---|---|---|
 | FILE | FILE__SOURCE_URI | Path to the input file. Format file:///directory/to/folder/or/file.ext |
+| | FILE__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
+| | FILE__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
+| | FILE__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
 | SF | SF__HOST | Salesforce instance host. |
 | | SF__USER | Salesforce username. |
 | | SF__PASS | Salesforce password. |
@@ -126,31 +129,29 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
-| | OSS__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format `oss://bucket/path/to/file.extension` |
 | | OSS__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | OSS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | OSS__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to OSS. (default: 50000) |
-| | OSS__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
-| | OSS__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
+| | OSS__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
+| | OSS__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | OSS__CONNECTION_TIMEOUT_SECONDS | OSS client transport configuration, timeout for client waiting for the first connection with OSS. (default: 30, in seconds) |
 | | OSS__READ_WRITE_TIMEOUT_SECONDS | OSS client transport configuration, timeout for any read/write process to OSS. (default: 60, in seconds) |
 | S3 | S3__CREDENTIALS | Credentials for S3. |
 | | S3__PROVIDER | S3 provider availability: AWS, TIKTOK. (default: AWS) |
 | | S3__REGION | S3 region for the bucket. (default: us-east-1) |
-| | S3__BATCH_SIZE | Batch size for the file upload. Keep empty for ignore |
 | | S3__DESTINATION_URI | The destination path in a S3 bucket to put the result files. Format `s3://bucket/path/to/file.extension` |
 | | S3__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
 | | S3__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | S3__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to S3. (default: 50000) |
-| | S3__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
-| | S3__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
+| | S3__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
+| | S3__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | S3__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
-| | SFTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
-| | SFTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
+| | SFTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
+| | SFTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | SFTP__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
 | SMTP | SMTP__CONNECTION_DSN | SMTP connection dsn, format `smtp://user[:password]@host[:port]`, if port is not specified, default port `587` will be used. user and password should be url encoded. |
 | | SMTP__FROM | SMTP from email address. |
@@ -163,8 +164,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__STORAGE_DESTINATION_DIR | If storage mode is set to other than attachment, this will be the root directory where the generated attachment will be uploaded |
 | | SMTP__STORAGE_LINK_EXPIRATION | If storage mode is set to other than attachment, the generated signed URLs expiration will be set to this number (seconds) |
 | | SMTP__STORAGE_CREDENTIALS | If storage mode is set to other than attachment, this credential will be used to authenticate to the bucket |
-| | SMTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `gz`, `tar.gz`, and `zip` |
-| | SMTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` comporession_type |
+| | SMTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
+| | SMTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |
