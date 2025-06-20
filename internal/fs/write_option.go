@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 
@@ -20,6 +21,9 @@ func WithWriteCompression(compressionType string) WriteOption {
 			return nil // No compression
 		}
 		switch compressionType {
+		case "auto":
+			w.compressionAutoDetect = true
+			fallthrough
 		case "gz", "gzip", "tar.gz", "zip":
 			w.compressionEnabled = true
 			w.compressionType = compressionType
@@ -33,7 +37,8 @@ func WithWriteCompression(compressionType string) WriteOption {
 
 				// use transient file path for compression
 				u, _ := url.Parse(destinationURI)
-				transientFilePath := filepath.Join(dir, u.Path)
+				_, compressionExt := splitExtension(destinationURI)
+				transientFilePath := filepath.Join(dir, strings.TrimSuffix(u.Path, compressionExt))
 				w.logger.Info(fmt.Sprintf("using transient file path for compression: %s", transientFilePath))
 				w.compressionTransientFilePathtoDestinationURI[transientFilePath] = destinationURI
 

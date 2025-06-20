@@ -132,7 +132,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSink(commonSink, sinkCfg.DestinationURI, sinkCfg.JSONPathSelector, opts...)
+		return file.NewSink(commonSink, sinkCfg.DestinationURI, sinkCfg.CompressionType, sinkCfg.CompressionPassword, sinkCfg.JSONPathSelector, opts...)
 	case IO:
 		return io.NewSink(commonSink), nil
 	case OSS:

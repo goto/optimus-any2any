@@ -25,7 +25,9 @@ type FileSink struct {
 
 var _ flow.Sink = (*FileSink)(nil)
 
-func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector string, opts ...common.Option) (*FileSink, error) {
+func NewSink(commonSink common.Sink, destinationURI string,
+	compressionType string, compressionPassword string,
+	jsonPathSelector string, opts ...common.Option) (*FileSink, error) {
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
@@ -35,6 +37,8 @@ func NewSink(commonSink common.Sink, destinationURI string, jsonPathSelector str
 	// prepare handlers
 	handlers, err := NewFileHandler(commonSink.Context(), commonSink.Logger(),
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+		fs.WithWriteCompression(compressionType),
+		fs.WithWriteCompressionPassword(compressionPassword),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)

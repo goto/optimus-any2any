@@ -43,6 +43,7 @@ type CommonWriteHandler struct {
 	// compression properties
 	compressionEnabled                           bool
 	compressionType                              string
+	compressionAutoDetect                        bool
 	compressionPassword                          string
 	compressionTransientNewWriter                func(string) (xio.WriteFlusher, error)
 	compressionTransientFilePathtoDestinationURI map[string]string
@@ -114,7 +115,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 			}
 		}
 
-		ext := filepath.Ext(destinationURI)
+		ext, _ := splitExtension(destinationURI)
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
 		w = xio.NewChunkWriter(h.logger, writer, opts...)
 		h.writers[destinationURI] = w
@@ -131,7 +132,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 		if !h.compressionEnabled {
 			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI], destinationURI))
 		} else {
-			h.logger.Info(fmt.Sprintf("written %d records to transient compressed file", h.counters[destinationURI]))
+			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", h.counters[destinationURI], destinationURI))
 		}
 	}
 
@@ -218,19 +219,58 @@ func (h *CommonWriteHandler) DestinationURIs() []string {
 	return uris
 }
 
-// TODO: find a better way to refactor this
 func (h *CommonWriteHandler) compress() error {
+	if !h.compressionAutoDetect {
+		return h.compressPerType(h.compressionType, h.compressionTransientFilePathtoDestinationURI)
+	}
+
+	h.logger.Info("compression auto detect enabled, compressing files based on their extensions")
+	compressionTypeMap := map[string]map[string]string{}
+	for filePath, destinationURI := range h.compressionTransientFilePathtoDestinationURI {
+		// get the file extension and determine the compression type
+		_, rightExt := splitExtension(destinationURI)
+		compressionType := strings.TrimPrefix(rightExt, ".")
+		destinationURI = strings.TrimSuffix(destinationURI, rightExt)
+
+		// register the file path and destination URI in the map
+		if _, ok := compressionTypeMap[compressionType]; !ok {
+			compressionTypeMap[compressionType] = make(map[string]string)
+		}
+		compressionTypeMap[compressionType][filePath] = destinationURI
+	}
+
+	// compress each type separately
+	h.compressionTransientFilePathtoDestinationURI = make(map[string]string) // reset the map to store the final destination URIs
+	for compressionType, compressionTransientFilePathtoDestinationURI := range compressionTypeMap {
+		if err := h.compressPerType(compressionType, compressionTransientFilePathtoDestinationURI); err != nil {
+			return errors.WithStack(err)
+		}
+		// merge the compressed file paths into the main map
+		for transientFilePath, destinationURI := range compressionTransientFilePathtoDestinationURI {
+			h.compressionTransientFilePathtoDestinationURI[transientFilePath] = destinationURI
+		}
+	}
+
+	return nil
+}
+
+// TODO: find a better way to refactor this
+func (h *CommonWriteHandler) compressPerType(compressionType string, compressionTransientFilePathtoDestinationURI map[string]string) error {
+	if compressionType == "" {
+		return nil // No compression
+	}
+
 	// get all transient file paths and their corresponding destination URIs
-	filePaths := make([]string, 0, len(h.compressionTransientFilePathtoDestinationURI))
-	destinationPaths := make([]string, 0, len(h.compressionTransientFilePathtoDestinationURI))
-	for transientFilePath, destinationURI := range h.compressionTransientFilePathtoDestinationURI {
+	filePaths := []string{}
+	destinationPaths := []string{}
+	for transientFilePath, destinationURI := range compressionTransientFilePathtoDestinationURI {
 		filePaths = append(filePaths, transientFilePath)
 		u, _ := url.Parse(destinationURI)
 		destinationPaths = append(destinationPaths, u.Path)
 	}
+	h.logger.Info(fmt.Sprintf("compressing %d files with compression type: %s", len(destinationPaths), compressionType))
 
 	// compress based on the compression type
-	compressionType := h.compressionType
 	var archivedPaths []string
 	switch compressionType {
 	case "gz", "gzip":
@@ -254,9 +294,9 @@ func (h *CommonWriteHandler) compress() error {
 				return errors.WithStack(err)
 			}
 			// update the destination URI mapping
-			if destinationURI, ok := h.compressionTransientFilePathtoDestinationURI[filePath]; ok {
-				h.compressionTransientFilePathtoDestinationURI[archivedPath] = fmt.Sprintf("%s.%s", destinationURI, compressionType)
-				delete(h.compressionTransientFilePathtoDestinationURI, filePath)
+			if destinationURI, ok := compressionTransientFilePathtoDestinationURI[filePath]; ok {
+				compressionTransientFilePathtoDestinationURI[archivedPath] = fmt.Sprintf("%s.%s", destinationURI, compressionType)
+				delete(compressionTransientFilePathtoDestinationURI, filePath)
 			}
 		}
 	case "zip", "tar.gz":
@@ -282,12 +322,12 @@ func (h *CommonWriteHandler) compress() error {
 		}
 		// update the destination URI mapping
 		for _, filePath := range filePaths {
-			if destinationURI, ok := h.compressionTransientFilePathtoDestinationURI[filePath]; ok {
-				h.compressionTransientFilePathtoDestinationURI[f.Name()] = destinationURI
-				delete(h.compressionTransientFilePathtoDestinationURI, filePath)
+			if destinationURI, ok := compressionTransientFilePathtoDestinationURI[filePath]; ok {
+				compressionTransientFilePathtoDestinationURI[f.Name()] = destinationURI
+				delete(compressionTransientFilePathtoDestinationURI, filePath)
 			}
 		}
-		destinationURI := h.compressionTransientFilePathtoDestinationURI[f.Name()]
+		destinationURI := compressionTransientFilePathtoDestinationURI[f.Name()]
 		u, err := url.Parse(destinationURI)
 		if err != nil {
 			return errors.WithStack(err)
@@ -303,7 +343,7 @@ func (h *CommonWriteHandler) compress() error {
 		}
 		u.Path = filepath.Join(destinationDir, fileName)
 		// update the destination URI mapping
-		h.compressionTransientFilePathtoDestinationURI[f.Name()] = u.String()
+		compressionTransientFilePathtoDestinationURI[f.Name()] = u.String()
 	default:
 		return fmt.Errorf("unsupported compression type: %s", compressionType)
 	}
@@ -320,4 +360,19 @@ func nearestCommonParentDir(filePaths []string) string {
 		dir = strings.Join(strings.Split(dir, "/")[:i], "/")
 	}
 	return dir
+}
+
+func splitExtension(path string) (string, string) {
+	// get left most extension
+	leftExt := ""
+	rightExt := ""
+	for {
+		if filepath.Ext(path) == "" {
+			break
+		}
+		rightExt = leftExt + rightExt
+		leftExt = filepath.Ext(path)
+		path = path[:len(path)-len(leftExt)]
+	}
+	return leftExt, rightExt
 }
