@@ -1,6 +1,8 @@
 package s3
 
 import (
+	"path/filepath"
+
 	"github.com/goccy/go-json"
 	"github.com/pkg/errors"
 )
@@ -21,4 +23,20 @@ func parseCredentials(creds string) (*AWSCredentials, error) {
 		return nil, errors.WithStack(err)
 	}
 	return parsedCreds, nil
+}
+
+// TODO: refactor this
+func splitExtension(path string) (string, string) {
+	// get left most extension
+	leftExt := ""
+	rightExt := ""
+	for {
+		if filepath.Ext(path) == "" {
+			break
+		}
+		rightExt = leftExt + rightExt
+		leftExt = filepath.Ext(path)
+		path = path[:len(path)-len(leftExt)]
+	}
+	return leftExt, rightExt
 }
