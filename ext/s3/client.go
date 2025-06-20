@@ -58,11 +58,9 @@ func (s *S3Client) DeleteObject(ctx context.Context, destinationURI string) erro
 		return errors.WithStack(err)
 	}
 
-	bucketName := u.Host
-	key := strings.TrimLeft(u.Path, "/")
 	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: &bucketName,
-		Key:    &key,
+		Bucket: aws.String(u.Host),
+		Key:    aws.String(strings.TrimLeft(u.Path, "/")),
 	})
 	if err != nil {
 		return errors.WithStack(err)
