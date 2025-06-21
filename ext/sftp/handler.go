@@ -40,7 +40,7 @@ func NewSFTPHandler(ctx context.Context, logger *slog.Logger,
 				if err := s.client.Remove(destinationURI); err != nil {
 					return nil, errors.WithStack(err)
 				}
-			} else if !os.IsNotExist(err) {
+			} else if !errors.Is(err, os.ErrNotExist) {
 				// if the error is not "file does not exist", return the error
 				return nil, errors.WithStack(err)
 			}
