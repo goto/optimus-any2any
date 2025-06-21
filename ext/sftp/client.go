@@ -106,3 +106,16 @@ func (c *Client) Remove(destinationURI string) error {
 	}
 	return nil
 }
+
+func (c *Client) Stat(destinationURI string) (os.FileInfo, error) {
+	u, err := url.Parse(destinationURI)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	// stat file
+	info, err := c.Client.Stat(u.Path)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return info, nil
+}

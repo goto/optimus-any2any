@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"os"
 
 	"github.com/goto/optimus-any2any/internal/fs"
 	"github.com/pkg/errors"
@@ -34,7 +35,13 @@ func NewSFTPHandler(ctx context.Context, logger *slog.Logger,
 		}
 		// remove file if it exists and overwrite is enabled
 		if enableOverwrite {
-			if err := s.client.Remove(destinationURI); err != nil {
+			if _, err := s.client.Stat(destinationURI); err == nil {
+				// file exists, remove it
+				if err := s.client.Remove(destinationURI); err != nil {
+					return nil, errors.WithStack(err)
+				}
+			} else if !os.IsNotExist(err) {
+				// if the error is not "file does not exist", return the error
 				return nil, errors.WithStack(err)
 			}
 		}
