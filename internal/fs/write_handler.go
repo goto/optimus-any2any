@@ -213,6 +213,16 @@ func (h *CommonWriteHandler) Close() error {
 }
 
 func (h *CommonWriteHandler) DestinationURIs() []string {
+	if h.compressionEnabled {
+		// if compression is enabled, return the destination URIs of the compressed files
+		uris := make([]string, 0, len(h.compressionTransientFilePathtoDestinationURI))
+		for _, destinationURI := range h.compressionTransientFilePathtoDestinationURI {
+			uris = append(uris, destinationURI)
+		}
+		return uris
+	}
+
+	// otherwise, return the destination URIs of the writers
 	uris := make([]string, 0, len(h.writers))
 	for uri := range h.writers {
 		uris = append(uris, uri)
