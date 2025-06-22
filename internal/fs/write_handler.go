@@ -131,9 +131,9 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	h.counters[destinationURI]++
 	if h.counters[destinationURI]%h.logBatchSize == 0 {
 		if !h.compressionEnabled {
-			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI], destinationURI))
+			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI], MaskedURI(destinationURI)))
 		} else {
-			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", h.counters[destinationURI], destinationURI))
+			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", h.counters[destinationURI], MaskedURI(destinationURI)))
 		}
 	}
 
@@ -151,7 +151,7 @@ func (h *CommonWriteHandler) Sync() error {
 	}
 
 	if h.compressionEnabled {
-		h.logger.Info("compression enabled, starting compression")
+		h.logger.Info("compression enabled, starting compression...")
 		if err := h.compress(); err != nil {
 			return errors.WithStack(err)
 		}
@@ -183,7 +183,7 @@ func (h *CommonWriteHandler) Sync() error {
 				if _, err := io.Copy(w, f); err != nil {
 					return errors.WithStack(err)
 				}
-				h.logger.Info(fmt.Sprintf("written compressed file to %s", destinationURI))
+				h.logger.Info(fmt.Sprintf("written compressed file to %s", MaskedURI(destinationURI)))
 				return nil
 			})
 		}

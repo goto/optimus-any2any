@@ -63,7 +63,7 @@ func (h *ossHandler) Sync() error {
 		if err := h.client.Remove(destinationURI + DefaultTransientSuffix); err != nil {
 			return errors.WithStack(err)
 		}
-		h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", destinationURI))
+		h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", fs.MaskedURI(destinationURI)))
 	}
 	return nil
 }

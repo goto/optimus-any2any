@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"net/url"
 	"path/filepath"
 	"strings"
 )
@@ -48,4 +49,9 @@ func SplitExtension(path string) (string, string) {
 		path = path[:len(path)-len(leftExt)]
 	}
 	return leftExt, rightExt
+}
+
+func MaskedURI(uri string) string {
+	u, _ := url.Parse(uri)
+	return u.Scheme + "://" + filepath.Join(u.Host, u.Path)
 }
