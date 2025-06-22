@@ -2,7 +2,6 @@ package oss
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -110,7 +109,7 @@ func (o *OSSSink) process() error {
 
 		// TODO: deprecate this, we keep this for backward compatibility
 		if o.batchStepTemplate != nil {
-			l, r := splitExtension(destinationURI)
+			l, r := fs.SplitExtension(destinationURI)
 			batchStep, err := compiler.Compile(o.batchStepTemplate, model.ToMap(record))
 			if err != nil {
 				return errors.WithStack(err)
@@ -151,20 +150,4 @@ func (o *OSSSink) process() error {
 	}
 
 	return nil
-}
-
-// TODO: deprecate this, we keep this for backward compatibility
-func splitExtension(path string) (string, string) {
-	// get left most extension
-	leftExt := ""
-	rightExt := ""
-	for {
-		if filepath.Ext(path) == "" {
-			break
-		}
-		rightExt = leftExt + rightExt
-		leftExt = filepath.Ext(path)
-		path = path[:len(path)-len(leftExt)]
-	}
-	return leftExt, rightExt
 }

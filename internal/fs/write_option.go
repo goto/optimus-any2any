@@ -37,7 +37,7 @@ func WithWriteCompression(compressionType string) WriteOption {
 
 				// use transient file path for compression
 				u, _ := url.Parse(destinationURI)
-				_, compressionExt := splitExtension(destinationURI)
+				_, compressionExt := SplitExtension(destinationURI)
 				transientFilePath := filepath.Join(dir, strings.TrimSuffix(u.Path, compressionExt))
 				w.logger.Info(fmt.Sprintf("using transient file path for compression: %s", transientFilePath))
 				w.compressionTransientFilePathtoDestinationURI[transientFilePath] = destinationURI

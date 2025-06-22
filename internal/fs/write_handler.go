@@ -102,7 +102,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	}
 	w, ok := h.writers[destinationURI]
 	if !ok {
-		h.logger.Info(fmt.Sprintf("creating new writer for destination URI: %s", destinationURI))
+		h.logger.Debug(fmt.Sprintf("creating new writer for destination URI: %s", destinationURI))
 		var writer io.Writer
 		if !h.compressionEnabled {
 			writer, err = h.newWriter(destinationURI)
@@ -116,7 +116,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 			}
 		}
 
-		ext, _ := splitExtension(destinationURI)
+		ext, _ := SplitExtension(destinationURI)
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
 		w = xio.NewChunkWriter(h.logger, writer, opts...)
 		h.writers[destinationURI] = w
@@ -229,7 +229,7 @@ func (h *CommonWriteHandler) compress() error {
 	compressionTypeMap := map[string]map[string]string{}
 	for filePath, destinationURI := range h.compressionTransientFilePathtoDestinationURI {
 		// get the file extension and determine the compression type
-		_, rightExt := splitExtension(destinationURI)
+		_, rightExt := SplitExtension(destinationURI)
 		compressionType := strings.TrimPrefix(rightExt, ".")
 		destinationURI = strings.TrimSuffix(destinationURI, rightExt)
 
@@ -335,7 +335,7 @@ func (h *CommonWriteHandler) compressPerType(compressionType string, compression
 		}
 
 		// get the nearest common parent directory of the destination paths
-		destinationDir := nearestCommonParentDir(destinationPaths)
+		destinationDir := NearestCommonParentDir(destinationPaths)
 		fileName := fmt.Sprintf("archive.%s", compressionType)
 		if len(destinationPaths) == 1 {
 			fileName = filepath.Base(destinationPaths[0])
@@ -349,31 +349,4 @@ func (h *CommonWriteHandler) compressPerType(compressionType string, compression
 		return fmt.Errorf("unsupported compression type: %s", compressionType)
 	}
 	return nil
-}
-
-func nearestCommonParentDir(filePaths []string) string {
-	dir := filepath.Dir(filePaths[0])
-	for _, filePath := range filePaths[1:] {
-		parentDir := filepath.Dir(filePath)
-		i := 0
-		for ; i < len(strings.Split(dir, "/")) && strings.Split(dir, "/")[i] == strings.Split(parentDir, "/")[i]; i++ {
-		}
-		dir = strings.Join(strings.Split(dir, "/")[:i], "/")
-	}
-	return dir
-}
-
-func splitExtension(path string) (string, string) {
-	// get left most extension
-	leftExt := ""
-	rightExt := ""
-	for {
-		if filepath.Ext(path) == "" {
-			break
-		}
-		rightExt = leftExt + rightExt
-		leftExt = filepath.Ext(path)
-		path = path[:len(path)-len(leftExt)]
-	}
-	return leftExt, rightExt
 }

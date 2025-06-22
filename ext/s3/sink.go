@@ -2,7 +2,6 @@ package s3
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -131,7 +130,7 @@ func (s3 *S3Sink) process() error {
 
 		// TODO: deprecate this, we keep this for backward compatibility
 		if s3.batchStepTemplate != nil {
-			l, r := splitExtension(destinationURI)
+			l, r := fs.SplitExtension(destinationURI)
 			batchStep, err := compiler.Compile(s3.batchStepTemplate, model.ToMap(record))
 			if err != nil {
 				return errors.WithStack(err)
@@ -178,20 +177,4 @@ func (s3 *S3Sink) process() error {
 	}
 
 	return nil
-}
-
-// TODO: deprecate this, we keep this for backward compatibility
-func splitExtension(path string) (string, string) {
-	// get left most extension
-	leftExt := ""
-	rightExt := ""
-	for {
-		if filepath.Ext(path) == "" {
-			break
-		}
-		rightExt = leftExt + rightExt
-		leftExt = filepath.Ext(path)
-		path = path[:len(path)-len(leftExt)]
-	}
-	return leftExt, rightExt
 }
