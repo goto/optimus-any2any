@@ -92,7 +92,7 @@ func (c *Client) Remove(destinationURI string) error {
 	// remove object
 	if response, err := c.Client.DeleteObject(c.ctx, &oss.DeleteObjectRequest{
 		Bucket: oss.Ptr(u.Host),
-		Key:    oss.Ptr(u.Path),
+		Key:    oss.Ptr(strings.TrimLeft(u.Path, "/")),
 	}); err != nil {
 		return errors.WithStack(err)
 	} else if response.StatusCode >= 400 {
