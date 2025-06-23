@@ -59,16 +59,16 @@ func NewOSSClient(ctx context.Context, rawCreds string, clientCfg OSSClientConfi
 		WithEndpoint(cred.Endpoint).
 		WithRegion(cred.Region)
 
-	timeoutCfg := defaultConnectTimeoutSeconds
-	readWriteTimeoutCfg := defaultReadWriteTimeoutSeconds
+	// timeoutCfg := defaultConnectTimeoutSeconds
+	// readWriteTimeoutCfg := defaultReadWriteTimeoutSeconds
 
-	if clientCfg.ConnectionTimeoutSeconds > 0 {
-		timeoutCfg = time.Duration(clientCfg.ConnectionTimeoutSeconds) * time.Second
-	}
-	if clientCfg.ReadWriteTimeoutSeconds > 0 {
-		readWriteTimeoutCfg = time.Duration(clientCfg.ReadWriteTimeoutSeconds) * time.Second
-	}
-	cfg = cfg.WithConnectTimeout(timeoutCfg).WithReadWriteTimeout(readWriteTimeoutCfg)
+	// if clientCfg.ConnectionTimeoutSeconds > 0 {
+	// 	timeoutCfg = time.Duration(clientCfg.ConnectionTimeoutSeconds) * time.Second
+	// }
+	// if clientCfg.ReadWriteTimeoutSeconds > 0 {
+	// 	readWriteTimeoutCfg = time.Duration(clientCfg.ReadWriteTimeoutSeconds) * time.Second
+	// }
+	cfg = cfg.WithConnectTimeout(0).WithReadWriteTimeout(0)
 
 	client := oss.NewClient(cfg)
 
