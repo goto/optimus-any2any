@@ -135,8 +135,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to OSS. (default: 50000) |
 | | OSS__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
 | | OSS__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
-| | OSS__CONNECTION_TIMEOUT_SECONDS | OSS client transport configuration, timeout for client waiting for the first connection with OSS. (default: 30, in seconds) |
-| | OSS__READ_WRITE_TIMEOUT_SECONDS | OSS client transport configuration, timeout for any read/write process to OSS. (default: 60, in seconds) |
+| | OSS__CONNECTION_TIMEOUT_SECONDS | OSS client transport configuration, timeout for client waiting for the first connection with OSS. (default: 0, no timeout) |
+| | OSS__READ_WRITE_TIMEOUT_SECONDS | OSS client transport configuration, timeout for any read/write process to OSS. (default: 0, no timeout) |
 | S3 | S3__CREDENTIALS | Credentials for S3. |
 | | S3__PROVIDER | S3 provider availability: AWS, TIKTOK. (default: AWS) |
 | | S3__REGION | S3 region for the bucket. (default: us-east-1) |

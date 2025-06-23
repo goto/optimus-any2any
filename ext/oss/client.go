@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	defaultConnectTimeoutSeconds   = 30 * time.Second
-	defaultReadWriteTimeoutSeconds = 60 * time.Second
+	defaultConnectTimeoutSeconds   = 0 * time.Second // no timeout
+	defaultReadWriteTimeoutSeconds = 0 * time.Second // no timeout
 )
 
 type OSSClientConfig struct {
@@ -59,16 +59,17 @@ func NewOSSClient(ctx context.Context, rawCreds string, clientCfg OSSClientConfi
 		WithEndpoint(cred.Endpoint).
 		WithRegion(cred.Region)
 
-	// timeoutCfg := defaultConnectTimeoutSeconds
-	// readWriteTimeoutCfg := defaultReadWriteTimeoutSeconds
+	// will be deprecated in the future
+	timeoutCfg := defaultConnectTimeoutSeconds
+	readWriteTimeoutCfg := defaultReadWriteTimeoutSeconds
 
-	// if clientCfg.ConnectionTimeoutSeconds > 0 {
-	// 	timeoutCfg = time.Duration(clientCfg.ConnectionTimeoutSeconds) * time.Second
-	// }
-	// if clientCfg.ReadWriteTimeoutSeconds > 0 {
-	// 	readWriteTimeoutCfg = time.Duration(clientCfg.ReadWriteTimeoutSeconds) * time.Second
-	// }
-	cfg = cfg.WithConnectTimeout(0).WithReadWriteTimeout(0)
+	if clientCfg.ConnectionTimeoutSeconds > 0 {
+		timeoutCfg = time.Duration(clientCfg.ConnectionTimeoutSeconds) * time.Second
+	}
+	if clientCfg.ReadWriteTimeoutSeconds > 0 {
+		readWriteTimeoutCfg = time.Duration(clientCfg.ReadWriteTimeoutSeconds) * time.Second
+	}
+	cfg = cfg.WithConnectTimeout(timeoutCfg).WithReadWriteTimeout(readWriteTimeoutCfg)
 
 	client := oss.NewClient(cfg)
 
