@@ -114,7 +114,7 @@ func (c *Client) Copy(sourceURI, destinationURI string) error {
 	// copy object from source to destination
 	if response, err := c.Client.CopyObject(c.ctx, &oss.CopyObjectRequest{
 		SourceBucket: oss.Ptr(uSrc.Host),
-		SourceKey:    oss.Ptr(strings.TrimLeft(uDst.Path, "/")),
+		SourceKey:    oss.Ptr(strings.TrimLeft(uSrc.Path, "/")),
 		Bucket:       oss.Ptr(uDst.Host),
 		Key:          oss.Ptr(strings.TrimLeft(uDst.Path, "/")),
 	}); err != nil {
