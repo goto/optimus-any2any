@@ -141,11 +141,23 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 }
 
 func (h *CommonWriteHandler) Sync() error {
+	// for logging purposes
+	for destinationURI := range h.counters {
+		if h.counters[destinationURI]%h.logBatchSize != 0 {
+			continue // skip logging if the batch size is not reached
+		}
+		if !h.compressionEnabled {
+			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI]%h.logBatchSize, MaskedURI(destinationURI)))
+		} else {
+			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", h.counters[destinationURI]%h.logBatchSize, MaskedURI(destinationURI)))
+		}
+	}
+
+	// flush all writers concurrently
 	funcs := []func() error{}
 	for _, writer := range h.writers {
 		funcs = append(funcs, writer.Flush)
 	}
-	// flush all writers concurrently
 	if err := h.concurrentFunc(funcs); err != nil {
 		return errors.WithStack(err)
 	}
