@@ -63,6 +63,7 @@ func NewSink(commonSink common.Sink,
 		client, enableOverwrite,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 		fs.WithWriteCompression(compressionType),
+		fs.WithWriteCompressionStaticDestinationURI(destinationURI),
 		fs.WithWriteCompressionPassword(compressionPassword),
 		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
 	)
