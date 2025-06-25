@@ -51,6 +51,16 @@ func WithWriteCompression(compressionType string) WriteOption {
 	}
 }
 
+func WithWriteCompressionStaticDestinationURI(destinationURI string) WriteOption {
+	return func(w *CommonWriteHandler) error {
+		// only set static destination URI if it does not contain template placeholders
+		if !(strings.Contains(destinationURI, "[[") && strings.Contains(destinationURI, "]]")) {
+			w.compressionStaticDestinationURI = destinationURI
+		}
+		return nil
+	}
+}
+
 func WithWriteConcurrentFunc(f func([]func() error) error) WriteOption {
 	return func(w *CommonWriteHandler) error {
 		if f == nil {

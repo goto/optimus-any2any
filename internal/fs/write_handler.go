@@ -43,6 +43,7 @@ type CommonWriteHandler struct {
 	// compression properties
 	compressionEnabled                           bool
 	compressionType                              string
+	compressionStaticDestinationURI              string // special case for zip and tar.gz compression. TODO: find a better way to handle this
 	compressionAutoDetect                        bool
 	compressionPassword                          string
 	compressionTransientNewWriter                func(string) (xio.WriteFlusher, error)
@@ -356,17 +357,28 @@ func (h *CommonWriteHandler) compressPerType(compressionType string, compression
 			return errors.WithStack(err)
 		}
 
-		// get the nearest common parent directory of the destination paths
-		destinationDir := NearestCommonParentDir(destinationPaths)
-		fileName := fmt.Sprintf("archive.%s", compressionType)
-		if len(destinationPaths) == 1 {
-			fileName = filepath.Base(destinationPaths[0])
-			fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-			fileName = fmt.Sprintf("%s.%s", fileName, compressionType)
+		if h.compressionStaticDestinationURI != "" {
+			// if static destination URI is set, use it instead of the generated one
+			destinationURI = h.compressionStaticDestinationURI
+			// ensure the static destination URI has the correct compression extension
+			ext, rightExt := SplitExtension(h.compressionStaticDestinationURI)
+			destinationURI = strings.TrimSuffix(destinationURI, rightExt)
+			destinationURI = strings.TrimSuffix(destinationURI, ext)
+			destinationURI = fmt.Sprintf("%s.%s", destinationURI, compressionType)
+		} else {
+			// get the nearest common parent directory of the destination paths
+			destinationDir := NearestCommonParentDir(destinationPaths)
+			fileName := fmt.Sprintf("archive.%s", compressionType)
+			if len(destinationPaths) == 1 {
+				fileName = filepath.Base(destinationPaths[0])
+				fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
+				fileName = fmt.Sprintf("%s.%s", fileName, compressionType)
+			}
+			u.Path = filepath.Join(destinationDir, fileName)
+			destinationURI = u.String()
 		}
-		u.Path = filepath.Join(destinationDir, fileName)
 		// update the destination URI mapping
-		compressionTransientFilePathtoDestinationURI[f.Name()] = u.String()
+		compressionTransientFilePathtoDestinationURI[f.Name()] = destinationURI
 	default:
 		return fmt.Errorf("unsupported compression type: %s", compressionType)
 	}
