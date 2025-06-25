@@ -6,6 +6,7 @@ import (
 	"context"
 	errs "errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os/exec"
 	"strings"
@@ -92,33 +93,32 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 	return nil
 }
 
-func processMetadata(_ context.Context, l *slog.Logger, metadataBytes []byte, inlets ...flow.Inlet) error {
+func processMetadata(_ context.Context, l *slog.Logger, metadataBytes []byte, inlet flow.Inlet) error {
 	if len(metadataBytes) == 0 {
 		l.Debug("no metadata to process")
 		return nil
 	}
 
 	// split the metadata by newlines and send each record
-	// metadata record should not be large, so we can use a default buffer
-	sc := bufio.NewScanner(bytes.NewReader(metadataBytes))
-
-	sc.Split(bufio.ScanLines)
-	for sc.Scan() {
-		raw := sc.Bytes()
-		line := make([]byte, len(raw))
-		copy(line, raw)
-		for _, inlet := range inlets {
-			inlet.In(line)
+	reader := bufio.NewReader(bytes.NewReader(metadataBytes))
+	for {
+		raw, err := reader.ReadBytes('\n')
+		if len(raw) > 0 {
+			line := make([]byte, len(raw))
+			copy(line, raw)
+			inlet.In(bytes.TrimSpace(line))
 		}
-	}
-	if err := sc.Err(); err != nil {
-		l.Error(fmt.Sprintf("failed to read metadata: %v", err))
-		return errors.WithStack(err)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	return nil
 }
 
-func processBatch(ctx context.Context, l *slog.Logger, bufferSizeInMB int, query string, batchBytes []byte, inlet flow.Inlet) error {
+func processBatch(ctx context.Context, l *slog.Logger, _ int, query string, batchBytes []byte, inlet flow.Inlet) error {
 	// transform the batch using JQ
 	outputJSON, err := execJQ(ctx, l, query, batchBytes)
 	if err != nil {
@@ -127,43 +127,36 @@ func processBatch(ctx context.Context, l *slog.Logger, bufferSizeInMB int, query
 	}
 
 	// split the result by newlines and send each record
-	sc := bufio.NewScanner(bytes.NewReader(outputJSON))
-	buf := make([]byte, 0, 4*1024)
-	sc.Buffer(buf, 1024*1024*bufferSizeInMB) // set buffer with maximum size by bufferSizeInMB
-
-	sc.Split(bufio.ScanLines)
-	for sc.Scan() {
-		raw := sc.Bytes()
-		line := make([]byte, len(raw))
-		copy(line, raw)
-		inlet.In(line)
-	}
-	if err := sc.Err(); err != nil {
-		l.Error(fmt.Sprintf("failed to read transformed JSON: %v", err))
-		return errors.WithStack(err)
+	reader := bufio.NewReader(bytes.NewReader(outputJSON))
+	for {
+		raw, err := reader.ReadBytes('\n')
+		if len(raw) > 0 {
+			line := make([]byte, len(raw))
+			copy(line, raw)
+			inlet.In(bytes.TrimSpace(line))
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return nil
 }
 
 func flush(ctx context.Context, l *slog.Logger, bufferSizeInMB int, query string, metadataBuffer, batchBuffer *bytes.Buffer, inlets ...flow.Inlet) error {
-	// store the record in a temporary buffer
-	metadataBytes := make([]byte, metadataBuffer.Len())
-	batchBytes := make([]byte, batchBuffer.Len())
-	copy(metadataBytes, metadataBuffer.Bytes())
-	copy(batchBytes, batchBuffer.Bytes())
-
 	for _, inlet := range inlets {
 		// send metadata records to the inlet
-		if err := processMetadata(ctx, l, metadataBytes, inlet); err != nil {
+		if err := processMetadata(ctx, l, metadataBuffer.Bytes(), inlet); err != nil {
 			return errors.WithStack(err)
 		}
 		// process the batch
-		if err := processBatch(ctx, l, bufferSizeInMB, query, batchBytes, inlet); err != nil {
+		if err := processBatch(ctx, l, bufferSizeInMB, query, batchBuffer.Bytes(), inlet); err != nil {
 			return errors.WithStack(err)
 		}
 	}
-
 	return nil
 }
 
