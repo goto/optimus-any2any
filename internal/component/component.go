@@ -146,6 +146,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.ConnectionTimeoutSeconds, sinkCfg.ReadWriteTimeoutSeconds,
+			sinkCfg.JSONPathSelector,
 			opts...)
 	case S3:
 		sinkCfg, err := config.SinkS3(envs...)
