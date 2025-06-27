@@ -10,6 +10,7 @@ type SinkOSSConfig struct {
 	CompressionPassword      string `env:"OSS__COMPRESSION_PASSWORD"`
 	ConnectionTimeoutSeconds int    `env:"OSS__CONNECTION_TIMEOUT_SECONDS" envDefault:"30"`
 	ReadWriteTimeoutSeconds  int    `env:"OSS__READ_WRITE_TIMEOUT_SECONDS" envDefault:"60"`
+	JSONPathSelector         string `env:"OSS__JSONPATH_SELECTOR"`
 }
 
 func SinkOSS(envs ...string) (*SinkOSSConfig, error) {

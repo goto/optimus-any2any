@@ -22,6 +22,9 @@ type OSSSink struct {
 	destinationURITemplate *template.Template
 	handlers               fs.WriteHandler
 	batchStepTemplate      *template.Template // TODO: deprecate this
+
+	// json path selector
+	jsonPathSelector string
 }
 
 var _ flow.Sink = (*OSSSink)(nil)
@@ -32,6 +35,7 @@ func NewSink(commonSink common.Sink,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	compressionType string, compressionPassword string,
 	connectionTimeout, readWriteTimeout int,
+	jsonPathSelector string,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
@@ -76,6 +80,8 @@ func NewSink(commonSink common.Sink,
 		destinationURITemplate: tmpl,
 		handlers:               handlers,
 		batchStepTemplate:      batchStepTmpl,
+		// jsonPath selector
+		jsonPathSelector: jsonPathSelector,
 	}
 
 	// add clean func
@@ -124,6 +130,14 @@ func (o *OSSSink) process() error {
 		if err != nil {
 			o.Logger().Error(fmt.Sprintf("failed to marshal record"))
 			return errors.WithStack(err)
+		}
+		// if jsonPathSelector is provided, select the data using it
+		if o.jsonPathSelector != "" {
+			raw, err = o.JSONPathSelector(raw, o.jsonPathSelector)
+			if err != nil {
+				o.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				return errors.WithStack(err)
+			}
 		}
 
 		err = o.DryRunable(func() error {
