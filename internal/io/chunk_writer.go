@@ -126,7 +126,7 @@ func (w *chunkWriter) initFileTmp() error {
 	// create a temporary file
 	f, err := os.CreateTemp(os.TempDir(), "*.json")
 	if err != nil {
-		return nil
+		return err
 	}
 	w.fileTmp = f
 	return nil
