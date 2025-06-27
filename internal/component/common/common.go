@@ -74,6 +74,7 @@ func NewCommon(c *component.Core) *Common {
 		dryRunPCs:      make(map[uintptr]bool), // default
 		retryMax:       1,                      // default
 		retryBackoffMs: 1000,                   // default
+		concurrency:    4,                      // default
 		metadataPrefix: "__METADATA__",         // default
 	}
 

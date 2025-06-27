@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/errors"
 )
@@ -76,7 +77,7 @@ func (w *S3Writer) Flush() error {
 	}
 
 	// upload the file to S3
-	_, err := w.client.PutObject(w.ctx, &s3.PutObjectInput{
+	_, err := manager.NewUploader(w.client).Upload(w.ctx, &s3.PutObjectInput{
 		Bucket: &w.bucketName,
 		Key:    &w.key,
 		Body:   w.fileTmp,
