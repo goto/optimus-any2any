@@ -45,7 +45,7 @@ func execJQ(ctx context.Context, l *slog.Logger, query string, inputReader io.Re
 	return &stdout, nil
 }
 
-func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadataPrefix string, batchSize int, batchIndexColumn string, bufferSizeInMB int, outlet flow.Outlet, inlets ...flow.Inlet) error {
+func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadataPrefix string, batchSize int, batchIndexColumn string, outlet flow.Outlet, inlets ...flow.Inlet) error {
 	// create a buffer to hold the batch of records
 	var metadataBuffer bytes.Buffer
 	var batchBuffer bytes.Buffer
@@ -72,7 +72,7 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 
 		// when we reach batch size, process the batch
 		if recordCount%batchSize == 0 {
-			if err := flush(ctx, l, bufferSizeInMB, query, &metadataBuffer, &batchBuffer, inlets...); err != nil {
+			if err := flush(ctx, l, query, &metadataBuffer, &batchBuffer, inlets...); err != nil {
 				return errors.WithStack(err)
 			}
 			// reset the buffer
@@ -83,7 +83,7 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 
 	// process any remaining records
 	if recordCount%batchSize != 0 {
-		if err := flush(ctx, l, bufferSizeInMB, query, &metadataBuffer, &batchBuffer, inlets...); err != nil {
+		if err := flush(ctx, l, query, &metadataBuffer, &batchBuffer, inlets...); err != nil {
 			return errors.WithStack(err)
 		}
 		// reset the buffer
@@ -113,7 +113,7 @@ func processMetadata(_ context.Context, _ *slog.Logger, metadataReader io.Reader
 	return nil
 }
 
-func processBatch(ctx context.Context, l *slog.Logger, _ int, query string, batchReader io.Reader, inlet flow.Inlet) error {
+func processBatch(ctx context.Context, l *slog.Logger, query string, batchReader io.Reader, inlet flow.Inlet) error {
 	// transform the batch using JQ
 	outputJSON, err := execJQ(ctx, l, query, batchReader)
 	if err != nil {
@@ -141,14 +141,14 @@ func processBatch(ctx context.Context, l *slog.Logger, _ int, query string, batc
 	return nil
 }
 
-func flush(ctx context.Context, l *slog.Logger, bufferSizeInMB int, query string, metadataBuffer, batchBuffer *bytes.Buffer, inlets ...flow.Inlet) error {
+func flush(ctx context.Context, l *slog.Logger, query string, metadataBuffer, batchBuffer *bytes.Buffer, inlets ...flow.Inlet) error {
 	for _, inlet := range inlets {
 		// send metadata records to the inlet
 		if err := processMetadata(ctx, l, metadataBuffer, inlet); err != nil {
 			return errors.WithStack(err)
 		}
 		// process the batch
-		if err := processBatch(ctx, l, bufferSizeInMB, query, batchBuffer, inlet); err != nil {
+		if err := processBatch(ctx, l, query, batchBuffer, inlet); err != nil {
 			return errors.WithStack(err)
 		}
 	}
