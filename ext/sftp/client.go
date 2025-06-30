@@ -89,6 +89,7 @@ func (c *Client) NewWriter(destinationURI string) (io.WriteCloser, error) {
 	// create dir if it does not exist
 	dir := filepath.Dir(u.Path)
 	if err := c.MkdirAll(dir); err != nil {
+		err = fmt.Errorf("failed to create directory %s: %w", dir, err)
 		return nil, errors.WithStack(err)
 	}
 	// open or create file for writing
@@ -102,6 +103,7 @@ func (c *Client) Remove(destinationURI string) error {
 	}
 	// remove file
 	if err := c.Client.Remove(u.Path); err != nil {
+		err = fmt.Errorf("failed to remove file %s: %w", u.Path, err)
 		return errors.WithStack(err)
 	}
 	return nil
@@ -115,6 +117,7 @@ func (c *Client) Stat(destinationURI string) (os.FileInfo, error) {
 	// stat file
 	info, err := c.Client.Stat(u.Path)
 	if err != nil {
+		err = fmt.Errorf("failed to stat file %s: %w", u.Path, err)
 		return nil, errors.WithStack(err)
 	}
 	return info, nil
