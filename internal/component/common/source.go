@@ -68,17 +68,6 @@ func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *s
 // Send sends the given data to the source.
 // This is a wrapper around the CoreSource's Send method.
 func (c *CommonSource) Send(v []byte) {
-	sendCount, err := c.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
-	if err != nil {
-		c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))
-	}
-	sendBytes, err := c.m.Int64Counter("send_bytes", metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
-	if err != nil {
-		c.Logger().Error(fmt.Sprintf("send bytes error: %s", err.Error()))
-	}
-	sendCount.Add(context.Background(), 1)
-	sendBytes.Add(context.Background(), int64(len(v)))
-
 	c.Common.Core.In(v)
 }
 
@@ -102,6 +91,22 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+
+	// if record is not a specialized metadata record,
+	// we increment the record related metrics
+	if !c.IsSpecializedMetadataRecord(record) {
+		sendCount, err := c.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
+		if err != nil {
+			c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))
+		}
+		sendBytes, err := c.m.Int64Counter("send_bytes", metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
+		if err != nil {
+			c.Logger().Error(fmt.Sprintf("send bytes error: %s", err.Error()))
+		}
+		sendCount.Add(context.Background(), 1)
+		sendBytes.Add(context.Background(), int64(len(raw)))
+	}
+
 	c.Send(raw)
 	return nil
 }
