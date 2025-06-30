@@ -280,7 +280,7 @@ func (s *SMTPSink) process() error {
 			return s.DryRunable(func() error {
 				body := eh.emailMetadata.body
 
-				attachmentReaders := map[string]io.Reader{}
+				attachmentReaders := map[string]io.ReadSeeker{}
 				attachmentLinks := []attachmentBody{}
 
 				// modify email body to include attachments if storage mode is oss

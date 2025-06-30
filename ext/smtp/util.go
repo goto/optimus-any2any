@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func openFileURI(fileURI string) (io.ReadCloser, error) {
+func openFileURI(fileURI string) (io.ReadSeekCloser, error) {
 	u, err := url.Parse(fileURI)
 	if err != nil {
 		return nil, errors.WithStack(err)

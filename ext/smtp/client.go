@@ -68,7 +68,7 @@ func (c *SMTPClient) Close() error {
 }
 
 // SendMail sends an email
-func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string, msg string, readers map[string]io.Reader) error {
+func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string, msg string, readers map[string]io.ReadSeeker) error {
 	m := mail.NewMsg()
 	m.From(from)
 	m.To(to...)
@@ -82,7 +82,7 @@ func (c *SMTPClient) SendMail(from string, to, cc, bcc []string, subject string,
 	m.SetBodyString(mail.TypeTextHTML, msg)
 	// attach file from readers
 	for attachment, reader := range readers {
-		m.AttachReader(attachment, reader)
+		m.AttachReadSeeker(attachment, reader)
 	}
 
 	return errors.WithStack(c.DialAndSendWithContext(c.ctx, m))
