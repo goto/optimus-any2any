@@ -19,12 +19,12 @@ func NewS3Handler(ctx context.Context, logger *slog.Logger, client *S3Client, en
 	writeFunc := func(destinationURI string) (io.Writer, error) {
 		// remove object if it exists and overwrite is enabled
 		if enableOverwrite {
-			if err := client.DeleteObject(ctx, destinationURI); err != nil {
+			if err := client.Remove(destinationURI); err != nil {
 				return nil, errors.WithStack(err)
 			}
 		}
 		// create a new writer for the S3 upload
-		return client.GetUploadWriter(ctx, destinationURI)
+		return client.NewWriter(destinationURI)
 	}
 
 	// set appropriate schema and writer function
