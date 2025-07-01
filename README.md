@@ -185,6 +185,9 @@ It applies when sink and source are in the same environment. For example, transf
 | | HTTP__BODY | HTTP body for the request. |
 | | HTTP__BODY_FILE_PATH | HTTP body loaded from file. |
 | | HTTP__BATCH_SIZE | Batch size for the HTTP request. |
+| | HTTP__CONNECTION_TLS_CERT | HTTP TLS certificate. (optional) |
+| | HTTP__CONNECTION_TLS_CACERT | HTTP TLS CA certificate. (optional) |
+| | HTTP__CONNECTION_TLS_KEY | HTTP TLS key. (optional) |
 | KAFKA | KAFKA__BOOTSTRAP_SERVERS | Kafka bootstrap servers, comma-separated. |
 | | KAFKA__TOPIC | Kafka topic to write the data. |
 
