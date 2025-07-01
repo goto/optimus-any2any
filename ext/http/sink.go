@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/template"
 
+	xauth "github.com/goto/optimus-any2any/internal/auth"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -50,7 +51,9 @@ var _ flow.Sink = (*HTTPSink)(nil)
 func NewSink(commonSink common.Sink,
 	method, endpoint string, headers map[string]string, headerContent string,
 	body, bodyContent string,
-	batchSize int, opts ...common.Option) (*HTTPSink, error) {
+	batchSize int,
+	connectionTLSCert, connectionTLSCACert, connectionTLSKey string,
+	opts ...common.Option) (*HTTPSink, error) {
 
 	// prepare template
 	m := httpMetadataTemplate{}
@@ -70,9 +73,22 @@ func NewSink(commonSink common.Sink,
 	}
 	bodyContentTemplate := template.Must(compiler.NewTemplate("sink_http_body", body))
 
+	client := http.DefaultClient
+
+	if connectionTLSCert != "" && connectionTLSKey != "" && connectionTLSCACert != "" {
+		commonSink.Logger().Info("using TLS for connection")
+		tlsconfig, err := xauth.NewTLSConfig(connectionTLSCert, connectionTLSKey, connectionTLSCACert)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		client.Transport = &http.Transport{
+			TLSClientConfig: tlsconfig,
+		}
+	}
+
 	s := &HTTPSink{
 		Sink:                 commonSink,
-		client:               http.DefaultClient,
+		client:               client,
 		bodyContentTemplate:  bodyContentTemplate,
 		httpMetadataTemplate: m,
 		httpHandlers:         make(map[string]httpHandler),
