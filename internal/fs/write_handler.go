@@ -218,7 +218,7 @@ func (h *CommonWriteHandler) Close() error {
 		if err := writer.Close(); err != nil {
 			return errors.WithStack(err)
 		}
-		h.logger.Info(fmt.Sprintf("closed writer for %s", uri))
+		h.logger.Info(fmt.Sprintf("closed writer for %s", MaskedURI(uri)))
 		delete(h.writers, uri)
 		delete(h.counters, uri)
 	}
