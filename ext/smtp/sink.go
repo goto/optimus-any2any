@@ -291,6 +291,7 @@ func (s *SMTPSink) process() error {
 							s.Logger().Error(fmt.Sprintf("failed to generate presigned URL for %s: %s", ossURI, err.Error()))
 							return errors.WithStack(err)
 						}
+						s.Logger().Debug(fmt.Sprintf("generated presigned URL for %s: %s", filepath.Base(ossURI), url))
 						attachmentLinks = append(attachmentLinks, attachmentBody{
 							Filename: filepath.Base(ossURI),
 							URI:      url,

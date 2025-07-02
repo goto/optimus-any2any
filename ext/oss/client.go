@@ -20,6 +20,11 @@ var (
 	defaultReadWriteTimeoutSeconds = 0 * time.Second // no timeout
 )
 
+const (
+	ossInternalEndpointSuffix = "-internal.aliyuncs.com"
+	ossPublicEndpointSuffix   = ".aliyuncs.com"
+)
+
 type OSSClientConfig struct {
 	ConnectionTimeoutSeconds int
 	ReadWriteTimeoutSeconds  int
@@ -140,10 +145,20 @@ func (c *Client) GeneratePresignURL(destinationURI string, expirationInSeconds i
 	// set expiration time
 	expireAt := time.Now().Add(time.Duration(expirationInSeconds) * time.Second)
 	// generate presigned URL
-	presignedURL, err := c.Client.Presign(c.ctx, req, oss.PresignExpiration(expireAt))
+	presignResponse, err := c.Client.Presign(c.ctx, req, oss.PresignExpiration(expireAt))
 	if err != nil {
 		return "", errors.WithStack(err)
 	}
-	return presignedURL.URL, nil
 
+	presignedURL := presignResponse.URL
+	// remove internal endpoint suffix. Since presigned URL will be exposed to public,
+	// usage of internal endpoint in the resulting URL will make it inaccessible.
+	parsedURL, err := url.Parse(presignedURL)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	parsedURL.Host = strings.Replace(parsedURL.Host, ossInternalEndpointSuffix, ossPublicEndpointSuffix, 1)
+	presignedURL = parsedURL.String()
+
+	return presignedURL, nil
 }
