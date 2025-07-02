@@ -177,7 +177,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		}
 
 		storageCfg := smtp.StorageConfig{
-			Mode:           sinkCfg.StorageMode,
+			Mode:           strings.ToLower(sinkCfg.StorageMode),
 			DestinationDir: sinkCfg.StorageDestinationDir,
 			Credentials:    sinkCfg.StorageCredentials,
 			LinkExpiration: sinkCfg.StorageLinkExpiration,

@@ -150,7 +150,7 @@ func NewSink(commonSink common.Sink,
 	commonSink.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageConfig.Mode))
 
 	// prepare handlers
-	if strings.EqualFold(storageConfig.Mode, "oss") {
+	if storageConfig.Mode == "oss" {
 		ossclient, err := osssink.NewOSSClient(commonSink.Context(), storageConfig.Credentials, osssink.OSSClientConfig{})
 		if err != nil {
 			return nil, errors.WithStack(err)
@@ -227,7 +227,7 @@ func (s *SMTPSink) process() error {
 
 		// construct destination URI
 		destinationURI := constructFileURI(m, attachment)
-		if strings.EqualFold(s.storageConfig.Mode, "oss") {
+		if s.storageConfig.Mode == "oss" {
 			destinationURI = constructOSSURI(m, attachment, s.storageConfig.DestinationDir)
 		}
 
@@ -284,7 +284,7 @@ func (s *SMTPSink) process() error {
 				attachmentLinks := []attachmentBody{}
 
 				// modify email body to include attachments if storage mode is oss
-				if strings.EqualFold(s.storageConfig.Mode, "oss") {
+				if s.storageConfig.Mode == "oss" {
 					for _, ossURI := range emailWithAttachments[hash].attachments {
 						url, err := s.ossclient.GeneratePresignURL(ossURI, s.storageConfig.LinkExpiration)
 						if err != nil {
