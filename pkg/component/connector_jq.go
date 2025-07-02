@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/GitRowin/orderedmapjson"
 	"github.com/goccy/go-json"
@@ -49,8 +50,12 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 	// create a buffer to hold the batch of records
 	var metadataBuffer bytes.Buffer
 	var batchBuffer bytes.Buffer
-	recordCount := 0
+	// TODO: refactor this to use a proper package
+	sem := make(chan int, 16)
+	var wg sync.WaitGroup
+	var errChan chan error
 
+	recordCount := 0
 	// process records in batches
 	for v := range outlet.Out() {
 		if ok, err := isSpecializedMetadata(v, metadataPrefix); err != nil {
@@ -72,9 +77,28 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 
 		// when we reach batch size, process the batch
 		if recordCount%batchSize == 0 {
-			if err := flush(ctx, l, query, &metadataBuffer, &batchBuffer, inlets...); err != nil {
-				return errors.WithStack(err)
-			}
+			sem <- 0
+			wg.Add(1)
+			// copy the metadata buffer
+			var metadataBufferCopy bytes.Buffer
+			metadataBufferCopy.Write(metadataBuffer.Bytes())
+			// copy the batch buffer
+			var batchBufferCopy bytes.Buffer
+			batchBufferCopy.Write(batchBuffer.Bytes())
+
+			go func() {
+				// TODO: refactor this to use a proper package
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
+
+				// process the batch
+				if err := flush(ctx, l, query, &metadataBufferCopy, &batchBufferCopy, inlets...); err != nil {
+					errChan <- errors.WithStack(err)
+				}
+			}()
+
 			// reset the buffer
 			metadataBuffer = bytes.Buffer{}
 			batchBuffer = bytes.Buffer{}
@@ -90,7 +114,16 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 		metadataBuffer = bytes.Buffer{}
 		batchBuffer = bytes.Buffer{}
 	}
-	return nil
+
+	wg.Wait() // wait for all goroutines to finish
+
+	// check if there were any errors during processing
+	select {
+	case err := <-errChan:
+		return errors.WithStack(err)
+	default:
+		return nil
+	}
 }
 
 func processMetadata(_ context.Context, _ *slog.Logger, metadataReader io.Reader, inlet flow.Inlet) error {
