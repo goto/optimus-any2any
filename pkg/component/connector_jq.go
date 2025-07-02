@@ -49,8 +49,11 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 	// create a buffer to hold the batch of records
 	var metadataBuffer bytes.Buffer
 	var batchBuffer bytes.Buffer
-	recordCount := 0
+	// TODO: refactor this to use a proper semaphore package
+	var sem chan uint8
+	var errChan chan error
 
+	recordCount := 0
 	// process records in batches
 	for v := range outlet.Out() {
 		if ok, err := isSpecializedMetadata(v, metadataPrefix); err != nil {
@@ -72,9 +75,26 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 
 		// when we reach batch size, process the batch
 		if recordCount%batchSize == 0 {
-			if err := flush(ctx, l, query, &metadataBuffer, &batchBuffer, inlets...); err != nil {
-				return errors.WithStack(err)
-			}
+			sem <- 0
+			go func() {
+				// TODO: refactor this to use a proper semaphore package
+				defer func() { <-sem }()
+
+				// copy the metadata buffer
+				metadataBytesCopy := make([]byte, metadataBuffer.Len())
+				copy(metadataBytesCopy, metadataBuffer.Bytes())
+				metadataBufferCopy := bytes.NewBuffer(metadataBytesCopy)
+				// copy the batch buffer
+				batchBytesCopy := make([]byte, batchBuffer.Len())
+				copy(batchBytesCopy, batchBuffer.Bytes())
+				batchBufferCopy := bytes.NewBuffer(batchBytesCopy)
+
+				// process the batch
+				if err := flush(ctx, l, query, metadataBufferCopy, batchBufferCopy, inlets...); err != nil {
+					errChan <- errors.WithStack(err)
+				}
+			}()
+
 			// reset the buffer
 			metadataBuffer = bytes.Buffer{}
 			batchBuffer = bytes.Buffer{}
@@ -90,6 +110,15 @@ func transformWithJQ(ctx context.Context, l *slog.Logger, query string, metadata
 		metadataBuffer = bytes.Buffer{}
 		batchBuffer = bytes.Buffer{}
 	}
+
+	sem <- 0 // signal that we are done processing
+	close(sem)
+
+	// check if there were any errors during processing
+	if err := <-errChan; err != nil {
+		return errors.WithStack(err)
+	}
+
 	return nil
 }
 
