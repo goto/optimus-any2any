@@ -3,6 +3,7 @@ package component
 import (
 	"iter"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -12,6 +13,7 @@ type backendChannel struct {
 	l        *slog.Logger
 	c        chan []byte
 	isClosed atomic.Bool
+	mu       sync.Mutex
 }
 
 var _ flow.Inlet = (*backendChannel)(nil)
@@ -43,6 +45,10 @@ func (b *backendChannel) In(v []byte) {
 		// skip
 		return
 	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.isClosed.Load() {
 		return
 	}
@@ -50,6 +56,9 @@ func (b *backendChannel) In(v []byte) {
 }
 
 func (b *backendChannel) CloseInlet() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.isClosed.Store(true)
 	close(b.c)
 	return nil

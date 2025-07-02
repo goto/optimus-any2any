@@ -46,18 +46,21 @@ type DryRunabler interface {
 // ConcurrentLimiter is an interface that defines a method to limit the number of concurrent tasks.
 type ConcurrentLimiter interface {
 	ConcurrentTasks([]func() error) error
+	ConcurrentQueue(func() error)
+	ConcurrentQueueWait() error
 }
 
 // Common is an extension of the component.Core struct
 type Common struct {
-	Core           *component.Core
-	m              metric.Meter
-	dryRun         bool
-	dryRunPCs      map[uintptr]bool
-	retryMax       int
-	retryBackoffMs int64
-	concurrency    int
-	metadataPrefix string
+	Core            *component.Core
+	m               metric.Meter
+	dryRun          bool
+	dryRunPCs       map[uintptr]bool
+	retryMax        int
+	retryBackoffMs  int64
+	concurrency     int
+	concurrentQueue *concurrentQueue
+	metadataPrefix  string
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -151,6 +154,26 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 	return ConcurrentTask(c.Core.Context(), c.concurrency, funcs)
 }
 
+// ConcurrentQueue adds a function to the queue to be run concurrently
+func (c *Common) ConcurrentQueue(fn func() error) {
+	if c.concurrentQueue == nil {
+		c.concurrentQueue = newConcurrentQueue(c.Core.Context(), c.concurrency)
+	}
+
+	// add the function to the queue
+	c.concurrentQueue.add(fn)
+}
+
+// ConcurrentQueueWait waits for all queued functions to finish
+func (c *Common) ConcurrentQueueWait() error {
+	if c.concurrentQueue == nil {
+		return nil // no functions to wait for
+	}
+
+	// wait for all queued functions to finish
+	return c.concurrentQueue.wait()
+}
+
 // RecordWithMetadata returns a new record without metadata prefix
 func (c *Common) RecordWithoutMetadata(record *model.Record) *model.Record {
 	return RecordWithoutMetadata(record, c.metadataPrefix)
@@ -216,57 +239,71 @@ func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) e
 // ConcurrentTask runs N tasks concurrently with a limit, cancels on first error or context cancel.
 // TODO: refactor this function to use proper package for concurrency
 func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() error) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	if len(funcs) == 0 {
+		return nil // nothing to run
+	}
 
-	sem := make(chan struct{}, concurrencyLimit)
-	errCh := make(chan error, 1)
-	var wg sync.WaitGroup
-
+	cq := newConcurrentQueue(ctx, concurrencyLimit)
 	for _, fn := range funcs {
-		select {
-		case <-ctx.Done():
-			break
-		default:
-		}
+		cq.add(fn)
+	}
+	return cq.wait()
+}
 
-		wg.Add(1)
-		go func(f func() error) {
-			defer wg.Done()
+// concurrentQueue is a simple concurrent queue that allows adding functions to be run concurrently
+// It uses a semaphore to limit the number of concurrent tasks and a wait group to wait for all tasks to finish.
+type concurrentQueue struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	sem    chan struct{}
+	wg     sync.WaitGroup
+	errCh  chan error
+}
 
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-			case <-ctx.Done():
-				return
-			}
+func newConcurrentQueue(ctx context.Context, concurrencyLimit int) *concurrentQueue {
+	ctx, cancel := context.WithCancel(ctx)
+	return &concurrentQueue{
+		ctx:    ctx,
+		cancel: cancel,
+		sem:    make(chan struct{}, concurrencyLimit),
+		errCh:  make(chan error, 1),
+	}
+}
 
-			// run the task
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				if err := f(); err != nil {
-					select {
-					case errCh <- err:
-						cancel() // cancel all other tasks
-					default:
-					}
-				}
+func (cq *concurrentQueue) add(fn func() error) {
+	select {
+	case cq.sem <- struct{}{}:
+		cq.wg.Add(1)
+		go func() {
+			defer func() {
+				<-cq.sem
+				cq.wg.Done()
 			}()
 
 			select {
-			case <-done:
-			case <-ctx.Done():
+			case <-cq.ctx.Done():
 				return
+			default:
 			}
-		}(fn)
+
+			if err := fn(); err != nil {
+				select {
+				case cq.errCh <- err:
+					cq.cancel() // cancel all other tasks
+				default:
+				}
+			}
+		}()
+	case <-cq.ctx.Done():
+		return
 	}
+}
 
-	wg.Wait()
-
+func (cq *concurrentQueue) wait() error {
+	cq.wg.Wait()
 	select {
-	case err := <-errCh:
-		return err
+	case err := <-cq.errCh:
+		return errors.WithStack(err)
 	default:
 		return nil
 	}
