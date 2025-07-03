@@ -62,35 +62,27 @@ func NewSource(commonSource common.Source,
 
 // process reads data from Salesforce and sends it to the channel.
 func (sf *SalesforceSource) process() error {
-	// initiate record result
-	result := &simpleforce.QueryResult{
-		Done:           false,
-		NextRecordsURL: sf.soqlQuery, // next records url can be soql query or url
-	}
-	totalRecords := 0
-	batchSize := 0
-	urlTemplate := ""
-	sf.Logger().Info(fmt.Sprintf("fetching records from:\n%s", sf.soqlQuery))
-
 	// fetch initial records
-	result, err := sf.client.Query(sf.includeDeleted, result.NextRecordsURL)
+	sf.Logger().Info(fmt.Sprintf("fetching records from:\n%s", sf.soqlQuery))
+	result, err := sf.client.Query(sf.includeDeleted, sf.soqlQuery)
 	if err != nil {
 		sf.Logger().Error(fmt.Sprintf("failed to query salesforce: %s", err.Error()))
 		return errors.WithStack(err)
 	}
 
-	totalRecords = result.TotalSize
+	// prepare to handle pagination
+	totalRecords := result.TotalSize
 	splittedURL := strings.Split(result.NextRecordsURL, "-")
-	batchSize, err = strconv.Atoi(splittedURL[len(splittedURL)-1])
+	batchSize, err := strconv.Atoi(splittedURL[len(splittedURL)-1])
 	if err != nil {
 		sf.Logger().Error(fmt.Sprintf("failed to parse batch size from next records URL: %s", err.Error()))
 		return errors.WithStack(err)
 	}
-	urlTemplate = strings.Join(splittedURL[:len(splittedURL)-1], "-") + "-%d"
+	urlTemplate := strings.Join(splittedURL[:len(splittedURL)-1], "-") + "-%d"
 	sf.Logger().Info(fmt.Sprintf("total records: %d, batch size: %d, url template: %s", totalRecords, batchSize, urlTemplate))
 
-	// generate next records URLs
-	for i := 0; i < totalRecords; i += batchSize {
+	// fetch records in batches
+	for i := 0; i < result.TotalSize; i += batchSize {
 		url := fmt.Sprintf(urlTemplate, i)
 		if i == 0 {
 			url = sf.soqlQuery // use the initial SOQL query for the first batch
@@ -98,8 +90,8 @@ func (sf *SalesforceSource) process() error {
 
 		// fetch records from the next records URL concurrently
 		sf.ConcurrentQueue(func() error {
+			var result *simpleforce.QueryResult
 			err := sf.DryRunable(func() error {
-				var err error
 				result, err = sf.client.Query(sf.includeDeleted, url)
 				if err != nil {
 					sf.Logger().Error(fmt.Sprintf("failed to query salesforce: %s", err.Error()))
