@@ -3,6 +3,8 @@ package salesforce
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -60,52 +62,69 @@ func NewSource(commonSource common.Source,
 
 // process reads data from Salesforce and sends it to the channel.
 func (sf *SalesforceSource) process() error {
-	// initiate record result
-	result := &simpleforce.QueryResult{
-		Done:           false,
-		NextRecordsURL: sf.soqlQuery, // next records url can be soql query or url
-	}
-	totalRecords := 0
+	// fetch initial records
 	sf.Logger().Info(fmt.Sprintf("fetching records from:\n%s", sf.soqlQuery))
+	result, err := sf.client.Query(sf.includeDeleted, sf.soqlQuery)
+	if err != nil {
+		sf.Logger().Error(fmt.Sprintf("failed to query salesforce: %s", err.Error()))
+		return errors.WithStack(err)
+	}
 
-	// fetch records until done
-	for !result.Done {
-		sf.Logger().Debug(fmt.Sprintf("fetching more records from: %s", result.NextRecordsURL))
+	// prepare to handle pagination
+	totalRecords := result.TotalSize
+	splittedURL := strings.Split(result.NextRecordsURL, "-")
+	batchSize, err := strconv.Atoi(splittedURL[len(splittedURL)-1])
+	if err != nil {
+		sf.Logger().Error(fmt.Sprintf("failed to parse batch size from next records URL: %s", err.Error()))
+		return errors.WithStack(err)
+	}
+	urlTemplate := strings.Join(splittedURL[:len(splittedURL)-1], "-") + "-%d"
+	sf.Logger().Info(fmt.Sprintf("total records: %d, batch size: %d, url template: %s", totalRecords, batchSize, urlTemplate))
 
-		// query salesforce
-		err := sf.DryRunable(func() error {
-			var err error
-			result, err = sf.client.Query(sf.includeDeleted, result.NextRecordsURL)
+	// fetch records in batches
+	for i := 0; i < result.TotalSize; i += batchSize {
+		url := fmt.Sprintf(urlTemplate, i)
+		if i == 0 {
+			url = sf.soqlQuery // use the initial SOQL query for the first batch
+		}
+
+		// fetch records from the next records URL concurrently
+		sf.ConcurrentQueue(func() error {
+			var result *simpleforce.QueryResult
+			err := sf.DryRunable(func() error {
+				result, err = sf.client.Query(sf.includeDeleted, url)
+				if err != nil {
+					sf.Logger().Error(fmt.Sprintf("failed to query salesforce: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+				if url != sf.soqlQuery {
+					sf.Logger().Info(fmt.Sprintf("fetched %d records from %s", len(result.Records), url))
+				}
+				return nil
+			}, func() error {
+				// In dry-run mode, simulate an empty result
+				result = &simpleforce.QueryResult{
+					Done:    true,
+					Records: []simpleforce.SObject{},
+				}
+				return nil
+			})
 			if err != nil {
-				sf.Logger().Error(fmt.Sprintf("failed to query more salesforce: %s", err.Error()))
+				sf.Logger().Error(fmt.Sprintf("failed to query salesforce: %s", err.Error()))
 				return errors.WithStack(err)
 			}
-			if totalRecords == 0 {
-				totalRecords = result.TotalSize
-				sf.Logger().Info(fmt.Sprintf("total records: %d", totalRecords))
-			}
-			sf.Logger().Info(fmt.Sprintf("fetched %d records", len(result.Records)))
-			return nil
-		}, func() error {
-			// In dry-run mode, simulate an empty result
-			result = &simpleforce.QueryResult{
-				Done:    true,
-				Records: []simpleforce.SObject{},
+
+			// send records to the channel
+			for _, v := range result.Records {
+				record := model.NewRecordFromMap(map[string]interface{}(v))
+				if err := sf.SendRecord(record); err != nil {
+					sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
+					return errors.WithStack(err)
+				}
 			}
 			return nil
 		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		// send records to the channel
-		for _, v := range result.Records {
-			record := model.NewRecordFromMap(map[string]interface{}(v))
-			if err := sf.SendRecord(record); err != nil {
-				sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-				return errors.WithStack(err)
-			}
-		}
 	}
-	return nil
+
+	return errors.WithStack(sf.ConcurrentQueueWait()) // wait for all queued functions to finish
 }

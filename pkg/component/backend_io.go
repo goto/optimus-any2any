@@ -7,6 +7,7 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
 	"github.com/djherbis/buffer"
@@ -19,6 +20,7 @@ type backendIO struct {
 	w        io.WriteCloser
 	r        io.ReadCloser
 	isClosed atomic.Bool
+	mu       sync.Mutex
 }
 
 var _ flow.Inlet = (*backendIO)(nil)
@@ -68,6 +70,10 @@ func (b *backendIO) In(v []byte) {
 		// skip
 		return
 	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.isClosed.Load() {
 		return
 	}
@@ -78,6 +84,9 @@ func (b *backendIO) In(v []byte) {
 }
 
 func (b *backendIO) CloseInlet() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.isClosed.Store(true)
 	return b.w.Close()
 }
