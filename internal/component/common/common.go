@@ -161,7 +161,7 @@ func (c *Common) ConcurrentQueue(fn func() error) {
 	}
 
 	// add the function to the queue
-	c.concurrentQueue.add(fn)
+	c.concurrentQueue.submit(fn)
 }
 
 // ConcurrentQueueWait waits for all queued functions to finish
@@ -245,7 +245,7 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 
 	cq := newConcurrentQueue(ctx, concurrencyLimit)
 	for _, fn := range funcs {
-		cq.add(fn)
+		cq.submit(fn)
 	}
 	return cq.wait()
 }
@@ -270,7 +270,7 @@ func newConcurrentQueue(ctx context.Context, concurrencyLimit int) *concurrentQu
 	}
 }
 
-func (cq *concurrentQueue) add(fn func() error) {
+func (cq *concurrentQueue) submit(fn func() error) {
 	select {
 	case cq.sem <- struct{}{}:
 		cq.wg.Add(1)
@@ -280,18 +280,22 @@ func (cq *concurrentQueue) add(fn func() error) {
 				cq.wg.Done()
 			}()
 
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				if err := fn(); err != nil {
+					select {
+					case cq.errCh <- err:
+						cq.cancel() // cancel all other tasks
+					default:
+					}
+				}
+			}()
+
 			select {
+			case <-done:
 			case <-cq.ctx.Done():
 				return
-			default:
-			}
-
-			if err := fn(); err != nil {
-				select {
-				case cq.errCh <- err:
-					cq.cancel() // cancel all other tasks
-				default:
-				}
 			}
 		}()
 	case <-cq.ctx.Done():
