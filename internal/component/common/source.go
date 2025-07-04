@@ -8,6 +8,7 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -30,6 +31,7 @@ type Source interface {
 	Retrier
 	DryRunabler
 	ConcurrentLimiter
+	InstrumentationGetter
 }
 
 // Sender is an interface that defines a method to send data to a source.
@@ -95,16 +97,21 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	// if record is not a specialized metadata record,
 	// we increment the record related metrics
 	if !c.IsSpecializedMetadataRecord(record) {
-		sendCount, err := c.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
-		if err != nil {
+		if sendCount, err := c.Meter().Int64Counter(otel.SourceRecordCount, metric.WithDescription("The total number of data sent")); err != nil {
 			c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))
+		} else {
+			sendCount.Add(context.Background(), 1)
 		}
-		sendBytes, err := c.m.Int64Counter("send_bytes", metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
-		if err != nil {
+		if sendBytes, err := c.Meter().Int64Counter(otel.SourceRecordBytes, metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes")); err != nil {
 			c.Logger().Error(fmt.Sprintf("send bytes error: %s", err.Error()))
+		} else {
+			sendBytes.Add(context.Background(), int64(len(raw)))
 		}
-		sendCount.Add(context.Background(), 1)
-		sendBytes.Add(context.Background(), int64(len(raw)))
+		if sendBytesBucket, err := c.Meter().Int64Histogram(otel.SourceRecordBytesBucket, metric.WithDescription("The total number of bytes sent in buckets"), metric.WithUnit("bytes")); err != nil {
+			c.Logger().Error(fmt.Sprintf("send bytes bucket error: %s", err.Error()))
+		} else {
+			sendBytesBucket.Record(context.Background(), int64(len(raw)))
+		}
 	}
 
 	c.Send(raw)

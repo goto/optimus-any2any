@@ -16,6 +16,7 @@ import (
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
 	opentelemetry "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -50,6 +51,11 @@ type ConcurrentLimiter interface {
 	ConcurrentQueueWait() error
 }
 
+// InstrumentationGetter is an interface that provides relevant OpenTelemetry instrumentation components.
+type InstrumentationGetter interface {
+	Meter() metric.Meter
+}
+
 // Common is an extension of the component.Core struct
 type Common struct {
 	Core            *component.Core
@@ -67,12 +73,12 @@ var _ ConcurrentLimiter = (*Common)(nil)
 var _ Retrier = (*Common)(nil)
 var _ DryRunabler = (*Common)(nil)
 var _ RecordHelper = (*Common)(nil)
+var _ InstrumentationGetter = (*Common)(nil)
 
 // NewCommon creates a new Common struct
 func NewCommon(c *component.Core) *Common {
 	return &Common{
 		Core:           c,
-		m:              opentelemetry.GetMeterProvider().Meter(c.Component()),
 		dryRun:         false,                  // default
 		dryRunPCs:      make(map[uintptr]bool), // default
 		retryMax:       1,                      // default
@@ -117,12 +123,34 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
-	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
+	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f, func() {
+		if retryCount, err := c.Meter().Int64Counter(otel.RetryCount, metric.WithDescription("The total number of retries")); err != nil {
+			c.Core.Logger().Error(fmt.Sprintf("retry count error: %s", err.Error()))
+		} else {
+			retryCount.Add(c.Core.Context(), 1)
+		}
+	})
 }
 
 // SetConcurrency sets the concurrency limit for concurrent tasks
 func (c *Common) SetConcurrency(concurrency int) {
 	c.concurrency = concurrency
+}
+
+// Meter returns the OpenTelemetry meter for this current instance
+func (c *Common) Meter() metric.Meter {
+	if c.m == nil {
+		// initialize OpenTelemetry meter
+		meterName := fmt.Sprintf("%s_%s", c.Core.Component(), c.Core.Name())
+		meter := opentelemetry.GetMeterProvider().Meter(meterName,
+			metric.WithInstrumentationVersion(otel.InstrumentationVersion),
+			metric.WithInstrumentationAttributes(
+				attribute.String("name", c.Core.Name()),
+			),
+		)
+		c.m = meter
+	}
+	return c.m
 }
 
 // DryRunable runs the given function in dry run mode
@@ -235,7 +263,7 @@ func RecordWithoutMetadata(record *model.Record, metadataPrefix string) *model.R
 
 // Retry retries the given function with the specified maximum number of attempts
 // TODO: refactor this function to use proper package for retry
-func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) error {
+func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error, hookFuncs ...func()) error {
 	var err error
 	sleepTime := int64(1)
 
@@ -243,6 +271,11 @@ func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) e
 		err = f()
 		if err == nil {
 			return nil
+		}
+
+		// if hook functions are provided, execute them on each retry
+		for _, hookFunc := range hookFuncs {
+			hookFunc()
 		}
 
 		l.Warn(fmt.Sprintf("retry: %d, error: %v", i, err))

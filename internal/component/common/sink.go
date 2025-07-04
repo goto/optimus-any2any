@@ -2,14 +2,17 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"log/slog"
 
 	"github.com/PaesslerAG/gval"
 	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -32,6 +35,7 @@ type Sink interface {
 	Retrier
 	DryRunabler
 	ConcurrentLimiter
+	InstrumentationGetter
 }
 
 // Reader is an interface that defines a method to read data inside a sink.
@@ -80,7 +84,39 @@ func (c *commonSink) Read() iter.Seq[[]byte] {
 
 // ReadRecord reads the data from the sink and unmarshals it into a model.Record.
 func (c *commonSink) ReadRecord() iter.Seq2[*model.Record, error] {
-	return ReadRecordFromOutlet(c)
+	return func(yield func(*model.Record, error) bool) {
+		for v := range c.Out() {
+			var record model.Record
+			if err := json.Unmarshal(v, &record); err != nil {
+				yield(nil, errors.WithStack(err))
+				break
+			}
+
+			// if record is not a specialized metadata record,
+			// we increment the record related metrics
+			if !c.IsSpecializedMetadataRecord(&record) {
+				if recvCount, err := c.Meter().Int64Counter(otel.SinkRecordCount, metric.WithDescription("The total number of records received")); err != nil {
+					c.Logger().Error(fmt.Sprintf("receive count error: %s", err.Error()))
+				} else {
+					recvCount.Add(c.Context(), 1)
+				}
+				if recvBytes, err := c.Meter().Int64Counter(otel.SinkRecordBytes, metric.WithDescription("The total number of bytes received"), metric.WithUnit("bytes")); err != nil {
+					c.Logger().Error(fmt.Sprintf("receive bytes error: %s", err.Error()))
+				} else {
+					recvBytes.Add(c.Context(), int64(len(v)))
+				}
+				if recvBytesBucket, err := c.Meter().Int64Histogram(otel.SinkRecordBytesBucket, metric.WithDescription("The total number of bytes received in buckets"), metric.WithUnit("bytes")); err != nil {
+					c.Logger().Error(fmt.Sprintf("receive bytes bucket error: %s", err.Error()))
+				} else {
+					recvBytesBucket.Record(c.Context(), int64(len(v)))
+				}
+			}
+
+			if !yield(&record, nil) {
+				break
+			}
+		}
+	}
 }
 
 // JSONPathSelector selects a JSON path from the data and returns the value as a byte slice.
