@@ -14,6 +14,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/googleanalytics"
 	"github.com/goto/optimus-any2any/ext/http"
 	"github.com/goto/optimus-any2any/ext/io"
+	"github.com/goto/optimus-any2any/ext/jq"
 	"github.com/goto/optimus-any2any/ext/kafka"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
@@ -50,6 +51,11 @@ const (
 	REDIS Type = "REDIS"
 	HTTP  Type = "HTTP"
 	GA    Type = "GA"
+)
+
+const (
+	JQ ProcessorType = "JQ"
+	PY ProcessorType = "PY"
 )
 
 // GetSource returns a source based on the given type.
@@ -220,6 +226,22 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return kafka.NewSink(commonSink, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
+}
+
+// GetConnector returns a connector based on the given environment variables.
+// It will return an error if the connector is unknown or not implemented.
+func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, cfg *config.Config, envs ...string) (*common.Connector, error) {
+	processor := cfg.ConnectorProcessor
+	switch ProcessorType(strings.ToUpper(processor)) {
+	case JQ:
+		jqCfg, err := config.ProcessorJQ(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return common.NewConnector(ctx, cancelFn, l, cfg.MetadataPrefix, jqCfg.BatchSize, jqCfg.BatchIndexColumn, strings.ToLower(string(processor)), jq.NewJQConnectorExecFunc(ctx, l, jqCfg.Query))
+	}
+
+	return nil, fmt.Errorf("connector: unknown processor type: %s", cfg.ConnectorProcessor)
 }
 
 // GetJQQuery returns a jq query based on the given environment variables.

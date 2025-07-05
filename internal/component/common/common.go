@@ -186,7 +186,12 @@ func (c *Common) RecordWithMetadata(record *model.Record) *model.Record {
 
 // IsSpecializedMetadataRecord checks if the record is specialized metadata record
 func (c *Common) IsSpecializedMetadataRecord(record *model.Record) bool {
-	return model.HasAnyPrefix(record, c.metadataPrefix)
+	return IsSpecializedMetadataRecord(record, c.metadataPrefix)
+}
+
+// IsSpecializedMetadataRecord checks if the record is specialized metadata record
+func IsSpecializedMetadataRecord(record *model.Record, metadataPrefix string) bool {
+	return model.HasAnyPrefix(record, metadataPrefix)
 }
 
 // RecordWithoutMetadata returns a new record without metadata prefix

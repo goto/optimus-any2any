@@ -2,37 +2,39 @@ package component
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
+// ConnectorFunc is a function type that defines the signature for connecting
+// a source (Outlet) to one or more sinks (Inlets).
+type ConnectorFunc func(o flow.Outlet, i ...flow.Inlet) error
+
+// ConnectorGetter is an interface that defines a method to get a ConnectorFunc.
+// It is similar with the Getter interface but specifically for ConnectorFunc.
+type ConnectorGetter Getter
+
 // Connector is a struct that useful for connecting source and multiple sinks.
 type Connector struct {
 	*Base
-	name  string
-	query string
-
-	metadataPrefix   string
-	batchSize        int
-	batchIndexColumn string
+	component     string
+	name          string
+	connectorFunc ConnectorFunc
 }
 
-// NewConnector creates a new Connector instance.
-func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, query string, metadataPrefix string, batchSize int, batchIndexColumn string) *Connector {
-	name := "passthrough"
-	if query != "" {
-		name = "jq"
-	}
-	l := logger.WithGroup("connector").With("name", name)
+var _ ConnectorGetter = (*Connector)(nil)
 
+// NewConnector creates a new Connector instance.
+func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, name string, connectorFunc ConnectorFunc) *Connector {
+	component := "connector"
+	l := logger.WithGroup(component).With("name", name)
 	c := &Connector{
-		Base:             NewBase(ctx, cancelFn, l),
-		name:             name,
-		query:            query,
-		metadataPrefix:   metadataPrefix,
-		batchSize:        batchSize,
-		batchIndexColumn: batchIndexColumn,
+		Base:          NewBase(ctx, cancelFn, l),
+		component:     component,
+		name:          name,
+		connectorFunc: connectorFunc,
 	}
 	return c
 }
@@ -41,10 +43,10 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 func (c *Connector) Connect() flow.ConnectMultiSink {
 	return func(o flow.Outlet, i ...flow.Inlet) {
 		c.RegisterProcess(func() error {
-			if c.query != "" {
-				return transformWithJQ(c.ctx, c.l, c.query, c.metadataPrefix, c.batchSize, c.batchIndexColumn, o, i...)
+			if c.connectorFunc == nil {
+				return fmt.Errorf("connector function is not set for %s", c.name)
 			}
-			return passthrough(c.l, o, i...)
+			return c.connectorFunc(o, i...)
 		})
 		c.postHookProcess = func() error {
 			c.l.Debug("close inlets")
@@ -60,11 +62,17 @@ func (c *Connector) Connect() flow.ConnectMultiSink {
 	}
 }
 
-func passthrough(_ *slog.Logger, outlet flow.Outlet, inlets ...flow.Inlet) error {
-	for v := range outlet.Out() {
-		for _, inlet := range inlets {
-			inlet.In(v)
-		}
-	}
-	return nil
+// Context returns the context of the Connector.
+func (c *Connector) Context() context.Context {
+	return c.Base.ctx
+}
+
+// Component returns the component name of the Connector.
+func (c *Connector) Component() string {
+	return c.component
+}
+
+// Name returns the name of the Connector.
+func (c *Connector) Name() string {
+	return c.name
 }

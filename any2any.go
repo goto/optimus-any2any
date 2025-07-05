@@ -13,7 +13,6 @@ import (
 	"github.com/goto/optimus-any2any/internal/component"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/logger"
-	pkgcomponent "github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
 	"github.com/pkg/errors"
@@ -76,17 +75,13 @@ func any2any(from string, to []string, noPipeline bool, envs []string) []error {
 			}
 			sinks = append(sinks, sink)
 		}
-		// get jq query for filtering / transforming data between source and sink
-		jqCfg, err := config.ProcessorJQ(envs...)
-		if err != nil {
-			return []error{errors.WithStack(err)}
-		}
-		jqQuery, err := component.GetJQQuery(l, jqCfg)
+		// processor type inference from config
+		connector, err := component.GetConnector(ctx, cancelCauseFn, l, cfg, envs...)
 		if err != nil {
 			return []error{errors.WithStack(err)}
 		}
 		// run with pipeline
-		p = pipeline.NewMultiSinkPipeline(l, source, pkgcomponent.NewConnector(ctx, cancelCauseFn, l, jqQuery, cfg.MetadataPrefix, jqCfg.BatchSize, jqCfg.BatchIndexColumn), sinks...)
+		p = pipeline.NewMultiSinkPipeline(l, source, connector, sinks...)
 	}
 	defer p.Close()
 
