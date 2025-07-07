@@ -144,8 +144,8 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 func (h *CommonWriteHandler) Sync() error {
 	// for logging purposes
 	for destinationURI := range h.counters {
-		if h.counters[destinationURI]%h.logBatchSize != 0 {
-			continue // skip logging if the batch size is not reached
+		if h.counters[destinationURI]%h.logBatchSize == 0 {
+			continue
 		}
 		if !h.compressionEnabled {
 			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI]%h.logBatchSize, MaskedURI(destinationURI)))
