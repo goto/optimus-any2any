@@ -25,10 +25,14 @@ type Connector struct {
 	*component.Connector
 	exec             ConnectorExecFunc
 	concurrentQueue  cq.ConcurrentQueue
-	m                metric.Meter
 	metadataPrefix   string
 	batchSize        int
 	batchIndexColumn string
+
+	// metrics related
+	m                    metric.Meter
+	connectorBytes       metric.Int64Counter
+	connectorBytesBucket metric.Int64Histogram
 }
 
 func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, concurrency int, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
@@ -42,9 +46,26 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		batchSize:        batchSize,
 		batchIndexColumn: batchIndexColumn,
 	}
-	c.Connector.SetConnectorFunc(c.process)
+	// initialize metrics related
 	c.m = otel.GetMeter(c.Component(), c.Name())
+	if err := c.initializeMetrics(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// set the connector function to process
+	c.Connector.SetConnectorFunc(c.process)
 	return c, nil
+}
+
+func (c *Connector) initializeMetrics() error {
+	var err error
+	if c.connectorBytes, err = c.m.Int64Counter(otel.ConnectorBytes, metric.WithDescription("The total number of bytes processed by the connector"), metric.WithUnit("bytes")); err != nil {
+		return errors.WithStack(err)
+	}
+	if c.connectorBytesBucket, err = c.m.Int64Histogram(otel.ConnectorBytesBucket, metric.WithDescription("The total number of bytes processed by the connector in buckets"), metric.WithUnit("bytes")); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // SetExecFunc sets the execution function for the Connector.
@@ -143,16 +164,8 @@ func (c *Connector) flush(r io.Reader, inlets ...flow.Inlet) error {
 		}
 
 		// record the number of bytes processed by the connector
-		if connectorBytes, err := c.m.Int64Counter(otel.ConnectorBytes, metric.WithDescription("The total number of bytes processed by the connector"), metric.WithUnit("bytes")); err != nil {
-			c.Logger().Error("connector bytes error", slog.String("error", err.Error()))
-		} else {
-			connectorBytes.Add(c.Context(), int64(len(raw)))
-		}
-		if connectorBytesBucket, err := c.m.Int64Histogram(otel.ConnectorBytesBucket, metric.WithDescription("The total number of bytes processed by the connector in buckets"), metric.WithUnit("bytes")); err != nil {
-			c.Logger().Error("connector bytes bucket error", slog.String("error", err.Error()))
-		} else {
-			connectorBytesBucket.Record(c.Context(), int64(len(raw)))
-		}
+		c.connectorBytes.Add(c.Context(), int64(len(raw)))
+		c.connectorBytesBucket.Record(c.Context(), int64(len(raw)))
 	}
 	return nil
 }
