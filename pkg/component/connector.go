@@ -2,49 +2,49 @@ package component
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 
+// ConnectorFunc is a function type that defines the signature for connecting
+// a source (Outlet) to one or more sinks (Inlets).
+type ConnectorFunc func(o flow.Outlet, i ...flow.Inlet) error
+
 // Connector is a struct that useful for connecting source and multiple sinks.
 type Connector struct {
 	*Base
-	name  string
-	query string
-
-	metadataPrefix   string
-	batchSize        int
-	batchIndexColumn string
+	component     string
+	name          string
+	connectorFunc ConnectorFunc
 }
 
 // NewConnector creates a new Connector instance.
-func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, query string, metadataPrefix string, batchSize int, batchIndexColumn string) *Connector {
-	name := "passthrough"
-	if query != "" {
-		name = "jq"
-	}
-	l := logger.WithGroup("connector").With("name", name)
-
+func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, name string) *Connector {
+	component := "connector"
+	l := logger.WithGroup(component).With("name", name)
 	c := &Connector{
-		Base:             NewBase(ctx, cancelFn, l),
-		name:             name,
-		query:            query,
-		metadataPrefix:   metadataPrefix,
-		batchSize:        batchSize,
-		batchIndexColumn: batchIndexColumn,
+		Base:      NewBase(ctx, cancelFn, l),
+		component: component,
+		name:      name,
 	}
 	return c
+}
+
+// SetConnectorFunc sets the connector function for the Connector.
+func (c *Connector) SetConnectorFunc(connectorFunc ConnectorFunc) {
+	c.connectorFunc = connectorFunc
 }
 
 // Connect is a method that connects the source and multiple sinks.
 func (c *Connector) Connect() flow.ConnectMultiSink {
 	return func(o flow.Outlet, i ...flow.Inlet) {
 		c.RegisterProcess(func() error {
-			if c.query != "" {
-				return transformWithJQ(c.ctx, c.l, c.query, c.metadataPrefix, c.batchSize, c.batchIndexColumn, o, i...)
+			if c.connectorFunc == nil {
+				return fmt.Errorf("connector function is not set for %s", c.name)
 			}
-			return passthrough(c.l, o, i...)
+			return c.connectorFunc(o, i...)
 		})
 		c.postHookProcess = func() error {
 			c.l.Debug("close inlets")
@@ -58,13 +58,4 @@ func (c *Connector) Connect() flow.ConnectMultiSink {
 			return nil
 		})
 	}
-}
-
-func passthrough(_ *slog.Logger, outlet flow.Outlet, inlets ...flow.Inlet) error {
-	for v := range outlet.Out() {
-		for _, inlet := range inlets {
-			inlet.In(v)
-		}
-	}
-	return nil
 }

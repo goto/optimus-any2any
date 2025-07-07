@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/goto/optimus-any2any/ext/direct"
@@ -14,6 +12,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/googleanalytics"
 	"github.com/goto/optimus-any2any/ext/http"
 	"github.com/goto/optimus-any2any/ext/io"
+	"github.com/goto/optimus-any2any/ext/jq"
 	"github.com/goto/optimus-any2any/ext/kafka"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
@@ -23,7 +22,6 @@ import (
 	"github.com/goto/optimus-any2any/ext/salesforce"
 	"github.com/goto/optimus-any2any/ext/sftp"
 	"github.com/goto/optimus-any2any/ext/smtp"
-	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -50,6 +48,11 @@ const (
 	REDIS Type = "REDIS"
 	HTTP  Type = "HTTP"
 	GA    Type = "GA"
+)
+
+const (
+	JQ ProcessorType = "JQ"
+	PY ProcessorType = "PY"
 )
 
 // GetSource returns a source based on the given type.
@@ -222,38 +225,43 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
 }
 
-// GetJQQuery returns a jq query based on the given environment variables.
-// jq query is used for JSON transformation, it acts as a filter and map for JSON data.
-func GetJQQuery(l *slog.Logger, jqCfg *config.ProcessorJQConfig) (string, error) {
-	if jqCfg.Query != "" {
-		return jqCfg.Query, nil
+// GetConnector returns a connector based on the given environment variables.
+// It will return an error if the connector is unknown or not implemented.
+func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, cfg *config.Config, envs ...string) (*common.Connector, error) {
+	processor := cfg.ConnectorProcessor
+	commonConnector, err := common.NewConnector(ctx, cancelFn, l, cfg.MetadataPrefix, cfg.ConnectorBatchSize, cfg.ConnectorBatchIndexColumn, strings.ToLower(string(processor)))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	var connectorExecFunc common.ConnectorExecFunc
+
+	// get connector exec function
+	switch ProcessorType(strings.ToUpper(processor)) {
+	case JQ:
+		jqCfg, err := config.ProcessorJQ(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		// TODO: remove it after v0.1.4
+		if jqCfg.BatchSize != 512 {
+			l.Warn("processor: JQ__BATCH_SIZE is deprecated, use CONNECTOR_BATCH_SIZE instead")
+			cfg.ConnectorBatchSize = jqCfg.BatchSize
+		}
+		query := jqCfg.QueryFilePath
+		if jqCfg.Query != "" {
+			query = jqCfg.Query
+		}
+		connectorExecFunc = jq.NewJQConnectorExecFunc(ctx, l, query)
+	default:
+		return nil, fmt.Errorf("connector: unknown processor type: %s", cfg.ConnectorProcessor)
 	}
 
-	query, err := os.ReadFile(jqCfg.QueryFilePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", nil
-		}
-		return "", errors.WithStack(err)
-	}
-	// TODO: refactor the package extcommon, since it's also being used
-	// in internal folder
-	tmpl, err := compiler.NewTemplate("connector_jq", string(query))
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	compiledQuery, err := compiler.Compile(tmpl, nil)
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	if _, err := exec.LookPath("jq"); err != nil {
-		l.Error("processor: jq not found")
-		return "", errors.WithStack(err)
-	}
-	l.Info(fmt.Sprintf("processor: jq query: %s", compiledQuery))
-	return compiledQuery, nil
+	// set the exec function for the common connector
+	commonConnector.SetExecFunc(connectorExecFunc)
+	return commonConnector, nil
 }
 
+// TODO: will be removed in the future
 func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink Type, cfg *config.Config, envs ...string) (flow.NoFlow, error) {
 	if source == OSS && sink == MC {
 		directCfg, err := config.OSS2MC(envs...)

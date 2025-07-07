@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"log/slog"
 
@@ -81,19 +80,7 @@ func (c *commonSink) Read() iter.Seq[[]byte] {
 
 // ReadRecord reads the data from the sink and unmarshals it into a model.Record.
 func (c *commonSink) ReadRecord() iter.Seq2[*model.Record, error] {
-	return func(yield func(*model.Record, error) bool) {
-		for v := range c.Common.Core.Out() {
-			var record model.Record
-			if err := json.Unmarshal(v, &record); err != nil {
-				c.Logger().Error(fmt.Sprintf("failed to unmarshal record: %s", err.Error()))
-				yield(nil, errors.WithStack(err))
-				break
-			}
-			if !yield(&record, nil) {
-				break
-			}
-		}
-	}
+	return ReadRecordFromOutlet(c)
 }
 
 // JSONPathSelector selects a JSON path from the data and returns the value as a byte slice.
@@ -131,4 +118,23 @@ func (c *commonSink) JSONPathSelector(data []byte, path string) ([]byte, error) 
 		return nil, errors.WithStack(err)
 	}
 	return raw, nil
+}
+
+// ReadRecordFromOutlet converts a flow.Outlet to an iter.Seq2 that yields model.Record.
+// It reads the data from the outlet, unmarshals it into a model.Record, and yields it.
+// If an error occurs during unmarshalling, it yields nil and the error.
+// TODO: refactor this
+func ReadRecordFromOutlet(outlet flow.Outlet) iter.Seq2[*model.Record, error] {
+	return func(yield func(*model.Record, error) bool) {
+		for v := range outlet.Out() {
+			var record model.Record
+			if err := json.Unmarshal(v, &record); err != nil {
+				yield(nil, errors.WithStack(err))
+				break
+			}
+			if !yield(&record, nil) {
+				break
+			}
+		}
+	}
 }
