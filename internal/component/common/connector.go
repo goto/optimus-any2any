@@ -20,21 +20,24 @@ type ConnectorExecFunc func(inputReader io.Reader) (io.Reader, error)
 // with some specialized data handling.
 type Connector struct {
 	*component.Connector
+	exec            ConnectorExecFunc
+	concurrentQueue *concurrentQueue
+
 	metadataPrefix   string
 	batchSize        int
 	batchIndexColumn string
-	exec             ConnectorExecFunc
 }
 
-func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
+func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, concurrency int, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
 	c := &Connector{
-		Connector:        component.NewConnector(ctx, cancelFn, logger, name),
-		metadataPrefix:   metadataPrefix,
-		batchSize:        batchSize,
-		batchIndexColumn: batchIndexColumn,
+		Connector: component.NewConnector(ctx, cancelFn, logger, name),
 		exec: func(inputReader io.Reader) (io.Reader, error) {
 			return inputReader, nil
 		},
+		concurrentQueue:  newConcurrentQueue(ctx, concurrency),
+		metadataPrefix:   metadataPrefix,
+		batchSize:        batchSize,
+		batchIndexColumn: batchIndexColumn,
 	}
 	c.Connector.SetConnectorFunc(c.process)
 	return c, nil
@@ -82,13 +85,18 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 
 		// when we reach batch size, process the batch
 		if recordCount%c.batchSize == 0 {
-			batchOutputReader, err := c.exec(&batchBuffer)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			if err := flush(batchOutputReader, inlets...); err != nil {
-				return errors.WithStack(err)
-			}
+			// copy the batch buffer to a new buffer to support concurrent processing
+			var batchBufferCopy bytes.Buffer
+			batchBufferCopy.Write(batchBuffer.Bytes())
+
+			// submit the batch processing to the concurrent queue
+			c.concurrentQueue.submit(func() error {
+				batchOutputReader, err := c.exec(&batchBuffer)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				return errors.WithStack(flush(batchOutputReader, inlets...))
+			})
 			// reset the buffer
 			batchBuffer = bytes.Buffer{}
 		}
@@ -104,7 +112,8 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			return errors.WithStack(err)
 		}
 	}
-	return nil
+	// wait for all queued functions to finish
+	return errors.WithStack(c.concurrentQueue.wait())
 }
 
 func flush(r io.Reader, inlets ...flow.Inlet) error {

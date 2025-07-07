@@ -229,7 +229,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 // It will return an error if the connector is unknown or not implemented.
 func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, cfg *config.Config, envs ...string) (*common.Connector, error) {
 	processor := cfg.ConnectorProcessor
-	commonConnector, err := common.NewConnector(ctx, cancelFn, l, cfg.MetadataPrefix, cfg.ConnectorBatchSize, cfg.ConnectorBatchIndexColumn, strings.ToLower(string(processor)))
+	commonConnector, err := common.NewConnector(ctx, cancelFn, l, cfg.ConnectorConcurrency, cfg.MetadataPrefix, cfg.ConnectorBatchSize, cfg.ConnectorBatchIndexColumn, strings.ToLower(string(processor)))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
