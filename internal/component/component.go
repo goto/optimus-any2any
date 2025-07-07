@@ -251,7 +251,11 @@ func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog
 		if jqCfg.Query != "" {
 			query = jqCfg.Query
 		}
-		connectorExecFunc = jq.NewJQConnectorExecFunc(ctx, l, query)
+		f, err := jq.NewJQConnectorExecFunc(ctx, l, query)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		connectorExecFunc = f
 	default:
 		return nil, fmt.Errorf("connector: unknown processor type: %s", cfg.ConnectorProcessor)
 	}

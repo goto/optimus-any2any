@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os/exec"
 
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/pkg/errors"
 )
@@ -16,21 +17,33 @@ import (
 // NewJQConnectorExecFunc creates a ConnectorExecFunc that executes a jq command
 // with the provided query on the inputReader. If the query is empty, it returns
 // the inputReader without any processing.
-func NewJQConnectorExecFunc(ctx context.Context, l *slog.Logger, query string) common.ConnectorExecFunc {
-	l.Info(fmt.Sprintf("creating jq connector exec func with query:\n%s", query))
+func NewJQConnectorExecFunc(ctx context.Context, l *slog.Logger, query string) (common.ConnectorExecFunc, error) {
+	tmpl, err := compiler.NewTemplate("connector_jq", string(query))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	compiledQuery, err := compiler.Compile(tmpl, nil)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if _, err := exec.LookPath("jq"); err != nil {
+		l.Error("processor: jq not found")
+		return nil, errors.WithStack(err)
+	}
+	l.Info(fmt.Sprintf("creating jq connector exec func with query:\n%s", compiledQuery))
 	return func(inputReader io.Reader) (io.Reader, error) {
-		if query == "" {
+		if compiledQuery == "" {
 			return inputReader, nil // no processing needed
 		}
 
 		// execute jq command with the provided query
-		outputReader, err := execJQ(ctx, l, query, inputReader)
+		outputReader, err := execJQ(ctx, l, compiledQuery, inputReader)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 
 		return outputReader, nil
-	}
+	}, nil
 }
 
 func execJQ(ctx context.Context, l *slog.Logger, query string, inputReader io.Reader) (io.Reader, error) {
