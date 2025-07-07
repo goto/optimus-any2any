@@ -91,7 +91,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 
 			// submit the batch processing to the concurrent queue
 			c.concurrentQueue.submit(func() error {
-				batchOutputReader, err := c.exec(&batchBuffer)
+				batchOutputReader, err := c.exec(&batchBufferCopy)
 				if err != nil {
 					return errors.WithStack(err)
 				}
