@@ -17,6 +17,7 @@ import (
 // with the provided query on the inputReader. If the query is empty, it returns
 // the inputReader without any processing.
 func NewJQConnectorExecFunc(ctx context.Context, l *slog.Logger, query string) common.ConnectorExecFunc {
+	l.Info(fmt.Sprintf("creating jq connector exec func with query:\n%s", query))
 	return func(inputReader io.Reader) (io.Reader, error) {
 		if query == "" {
 			return inputReader, nil // no processing needed

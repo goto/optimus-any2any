@@ -26,18 +26,21 @@ type Connector struct {
 	exec             ConnectorExecFunc
 }
 
-func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, metadataPrefix string, batchSize int, batchIndexColumn string, name string, execFunc ConnectorExecFunc) (*Connector, error) {
+func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
 	c := &Connector{
+		Connector:        component.NewConnector(ctx, cancelFn, logger, name),
 		metadataPrefix:   metadataPrefix,
 		batchSize:        batchSize,
 		batchIndexColumn: batchIndexColumn,
-		exec:             execFunc,
 	}
-	c.Connector = component.NewConnector(ctx, cancelFn, logger, name, c.process)
+	c.Connector.SetConnectorFunc(c.process)
 	return c, nil
 }
 
-// func (c *Connector) Connect
+// SetExecFunc sets the execution function for the Connector.
+func (c *Connector) SetExecFunc(execFunc ConnectorExecFunc) {
+	c.exec = execFunc
+}
 
 func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 	// create a buffer to hold the batch of records

@@ -12,10 +12,6 @@ import (
 // a source (Outlet) to one or more sinks (Inlets).
 type ConnectorFunc func(o flow.Outlet, i ...flow.Inlet) error
 
-// ConnectorGetter is an interface that defines a method to get a ConnectorFunc.
-// It is similar with the Getter interface but specifically for ConnectorFunc.
-type ConnectorGetter Getter
-
 // Connector is a struct that useful for connecting source and multiple sinks.
 type Connector struct {
 	*Base
@@ -24,19 +20,21 @@ type Connector struct {
 	connectorFunc ConnectorFunc
 }
 
-var _ ConnectorGetter = (*Connector)(nil)
-
 // NewConnector creates a new Connector instance.
-func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, name string, connectorFunc ConnectorFunc) *Connector {
+func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, name string) *Connector {
 	component := "connector"
 	l := logger.WithGroup(component).With("name", name)
 	c := &Connector{
-		Base:          NewBase(ctx, cancelFn, l),
-		component:     component,
-		name:          name,
-		connectorFunc: connectorFunc,
+		Base:      NewBase(ctx, cancelFn, l),
+		component: component,
+		name:      name,
 	}
 	return c
+}
+
+// SetConnectorFunc sets the connector function for the Connector.
+func (c *Connector) SetConnectorFunc(connectorFunc ConnectorFunc) {
+	c.connectorFunc = connectorFunc
 }
 
 // Connect is a method that connects the source and multiple sinks.
@@ -60,19 +58,4 @@ func (c *Connector) Connect() flow.ConnectMultiSink {
 			return nil
 		})
 	}
-}
-
-// Context returns the context of the Connector.
-func (c *Connector) Context() context.Context {
-	return c.Base.ctx
-}
-
-// Component returns the component name of the Connector.
-func (c *Connector) Component() string {
-	return c.component
-}
-
-// Name returns the name of the Connector.
-func (c *Connector) Name() string {
-	return c.name
 }
