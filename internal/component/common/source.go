@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync/atomic"
 
@@ -49,22 +48,60 @@ type CommonSource struct {
 	*component.CoreSource
 	*Common
 	recordCounter atomic.Int64
+
+	// metrics related
+	recordCount       metric.Int64Counter
+	recordBytes       metric.Int64Counter
+	recordBytesBucket metric.Int64Histogram
 }
 
 var _ Source = (*CommonSource)(nil)
 
 // NewCommonSource creates a new CommonSource.
-func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *CommonSource {
+func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) (*CommonSource, error) {
 	coreSource := component.NewCoreSource(ctx, cancelFn, l, name)
+	common, err := NewCommon(coreSource.Core)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	c := &CommonSource{
 		CoreSource:    coreSource,
-		Common:        NewCommon(coreSource.Core),
+		Common:        common,
 		recordCounter: atomic.Int64{},
 	}
 	for _, opt := range opts {
 		opt(c.Common)
 	}
-	return c
+	if err := c.initializeMetrics(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return c, nil
+}
+
+func (c *CommonSource) initializeMetrics() error {
+	var err error
+	c.recordCount, err = c.Meter().Int64Counter(otel.SourceRecordCount, metric.WithDescription("The total number of data sent"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.recordBytes, err = c.Meter().Int64Counter(otel.SourceRecordBytes, metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.recordBytesBucket, err = c.Meter().Int64Histogram(otel.SourceRecordBytesBucket, metric.WithDescription("The total number of bytes sent in buckets"), metric.WithUnit("bytes"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processLimits, err = c.Meter().Int64Counter(otel.SourceProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the source"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processCount, err = c.Meter().Int64Counter(otel.SourceProcessCount, metric.WithDescription("The total number of processes running for the source"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // Send sends the given data to the source.
@@ -97,21 +134,9 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	// if record is not a specialized metadata record,
 	// we increment the record related metrics
 	if !c.IsSpecializedMetadataRecord(record) {
-		if sendCount, err := c.Meter().Int64Counter(otel.SourceRecordCount, metric.WithDescription("The total number of data sent")); err != nil {
-			c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))
-		} else {
-			sendCount.Add(context.Background(), 1)
-		}
-		if sendBytes, err := c.Meter().Int64Counter(otel.SourceRecordBytes, metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes")); err != nil {
-			c.Logger().Error(fmt.Sprintf("send bytes error: %s", err.Error()))
-		} else {
-			sendBytes.Add(context.Background(), int64(len(raw)))
-		}
-		if sendBytesBucket, err := c.Meter().Int64Histogram(otel.SourceRecordBytesBucket, metric.WithDescription("The total number of bytes sent in buckets"), metric.WithUnit("bytes")); err != nil {
-			c.Logger().Error(fmt.Sprintf("send bytes bucket error: %s", err.Error()))
-		} else {
-			sendBytesBucket.Record(context.Background(), int64(len(raw)))
-		}
+		c.recordCount.Add(c.Context(), 1)
+		c.recordBytes.Add(c.Context(), int64(len(raw)))
+		c.recordBytesBucket.Record(c.Context(), int64(len(raw)))
 	}
 
 	c.Send(raw)

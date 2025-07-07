@@ -12,10 +12,12 @@ const (
 	RetryCount              = "optimus_plugin_retry_count"                // counter
 	ConnectorBytes          = "optimus_plugin_connector_bytes"            // counter
 	ConnectorBytesBucket    = "optimus_plugin_connector_bytes_bucket"     // histogram
-	SourceProcess           = "optimus_plugin_source_process"             // gauge
-	SinkProcess             = "optimus_plugin_sink_process"               // gauge
-	ConnectorProcess        = "optimus_plugin_connector_process"          // gauge
-	SourceProcessLimits     = "optimus_plugin_source_process_limits"      // gauge
-	SinkProcessLimits       = "optimus_plugin_sink_process_limits"        // gauge
-	ConnectorProcessLimits  = "optimus_plugin_connector_process_limits"   // gauge
+	SourceProcessCount      = "optimus_plugin_source_process_count"       // counter
+	SinkProcessCount        = "optimus_plugin_sink_process_count"         // counter
+	ConnectorProcessCount   = "optimus_plugin_connector_process_count"    // counter
+	ProcessLimits           = "optimus_plugin_process_limits"             // counter
+	ProcessCount            = "optimus_plugin_process_count"              // counter
+	SourceProcessLimits     = "optimus_plugin_source_process_limits"      // counter
+	SinkProcessLimits       = "optimus_plugin_sink_process_limits"        // counter
+	ConnectorProcessLimits  = "optimus_plugin_connector_process_limits"   // counter
 )

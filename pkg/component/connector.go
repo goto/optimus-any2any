@@ -48,6 +48,11 @@ func (c *Connector) Context() context.Context {
 	return c.ctx
 }
 
+// CancelFunc returns the cancel function of the Connector.
+func (c *Connector) CancelFunc() context.CancelCauseFunc {
+	return c.cancelFn
+}
+
 // Component returns the component name of the Connector.
 func (c *Connector) Component() string {
 	return c.component

@@ -57,7 +57,6 @@ type InstrumentationGetter interface {
 // Common is an extension of the component.Core struct
 type Common struct {
 	Core            *component.Core
-	m               metric.Meter
 	dryRun          bool
 	dryRunPCs       map[uintptr]bool
 	retryMax        int
@@ -65,6 +64,12 @@ type Common struct {
 	concurrency     int
 	concurrentQueue cq.ConcurrentQueue
 	metadataPrefix  string
+
+	// metrics related
+	m             metric.Meter
+	retryCount    metric.Int64Counter
+	processLimits metric.Int64Counter
+	processCount  metric.Int64Counter
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -74,9 +79,10 @@ var _ RecordHelper = (*Common)(nil)
 var _ InstrumentationGetter = (*Common)(nil)
 
 // NewCommon creates a new Common struct
-func NewCommon(c *component.Core) *Common {
-	return &Common{
+func NewCommon(c *component.Core) (*Common, error) {
+	common := &Common{
 		Core:           c,
+		m:              otel.GetMeter(c.Component(), c.Name()),
 		dryRun:         false,                  // default
 		dryRunPCs:      make(map[uintptr]bool), // default
 		retryMax:       1,                      // default
@@ -84,7 +90,27 @@ func NewCommon(c *component.Core) *Common {
 		concurrency:    4,                      // default
 		metadataPrefix: "__METADATA__",         // default
 	}
+	if err := common.initializeMetrics(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return common, nil
+}
 
+func (c *Common) initializeMetrics() error {
+	var err error
+	c.retryCount, err = c.Meter().Int64Counter(otel.RetryCount, metric.WithDescription("The total number of retries"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processLimits, err = c.Meter().Int64Counter(otel.ProcessLimits, metric.WithDescription("The total number of concurrent processes allowed"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processCount, err = c.Meter().Int64Counter(otel.ProcessCount, metric.WithDescription("The total number of processes running"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // SetOtelSDK sets up the OpenTelemetry SDK
@@ -122,11 +148,7 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
 	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f, func() {
-		if retryCount, err := c.Meter().Int64Counter(otel.RetryCount, metric.WithDescription("The total number of retries")); err != nil {
-			c.Core.Logger().Error(fmt.Sprintf("retry count error: %s", err.Error()))
-		} else {
-			retryCount.Add(c.Core.Context(), 1)
-		}
+		c.retryCount.Add(c.Core.Context(), 1)
 	})
 }
 
@@ -137,10 +159,6 @@ func (c *Common) SetConcurrency(concurrency int) {
 
 // Meter returns the OpenTelemetry meter for this current instance
 func (c *Common) Meter() metric.Meter {
-	if c.m == nil {
-		// initialize OpenTelemetry meter
-		c.m = otel.GetMeter(c.Core.Component(), c.Core.Name())
-	}
 	return c.m
 }
 
@@ -172,11 +190,15 @@ func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 func (c *Common) ConcurrentTasks(funcs []func() error) error {
 	// create a new concurrent queue with the specified concurrency limit
 	concurrentQueue := cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
+	c.processLimits.Add(c.Core.Context(), int64(c.concurrency))
+
 	for _, fn := range funcs {
 		if err := concurrentQueue.Submit(fn); err != nil {
 			return errors.WithStack(err)
 		}
+		c.processCount.Add(c.Core.Context(), 1)
 	}
+
 	// wait for all functions to finish
 	return errors.WithStack(concurrentQueue.Wait())
 }
@@ -186,12 +208,14 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 	if c.concurrentQueue == nil {
 		// initialize the concurrent queue if it is not already initialized
 		c.concurrentQueue = cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
+		c.processLimits.Add(c.Core.Context(), int64(c.concurrency))
 	}
 
 	// add the function to the queue
 	if err := c.concurrentQueue.Submit(fn); err != nil {
 		return errors.WithStack(err)
 	}
+	c.processCount.Add(c.Core.Context(), 1)
 	return nil
 }
 

@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"log/slog"
 
@@ -59,22 +58,60 @@ type commonSink struct {
 	*component.CoreSink
 	*Common
 	pathToEvaluator map[string]gval.Evaluable
+
+	// metrics related
+	recordCount       metric.Int64Counter
+	recordBytes       metric.Int64Counter
+	recordBytesBucket metric.Int64Histogram
 }
 
 var _ Sink = (*commonSink)(nil)
 
 // NewCommonSink creates a new CommonSink.
-func NewCommonSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *commonSink {
+func NewCommonSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) (*commonSink, error) {
 	coreSink := component.NewCoreSink(ctx, cancelFn, l, name)
+	common, err := NewCommon(coreSink.Core)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	c := &commonSink{
 		CoreSink:        coreSink,
-		Common:          NewCommon(coreSink.Core),
+		Common:          common,
 		pathToEvaluator: make(map[string]gval.Evaluable),
 	}
 	for _, opt := range opts {
 		opt(c.Common)
 	}
-	return c
+	if err := c.initializeMetrics(); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return c, nil
+}
+
+func (c *commonSink) initializeMetrics() error {
+	var err error
+	c.recordCount, err = c.Meter().Int64Counter(otel.SinkRecordCount, metric.WithDescription("The total number of records received"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.recordBytes, err = c.Meter().Int64Counter(otel.SinkRecordBytes, metric.WithDescription("The total number of bytes received"), metric.WithUnit("bytes"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.recordBytesBucket, err = c.Meter().Int64Histogram(otel.SinkRecordBytesBucket, metric.WithDescription("The total number of bytes received in buckets"), metric.WithUnit("bytes"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processLimits, err = c.Meter().Int64Counter(otel.SinkProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the sink"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processCount, err = c.Meter().Int64Counter(otel.SinkProcessCount, metric.WithDescription("The total number of processes running for the sink"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // Read reads the data from the sink.
@@ -95,21 +132,9 @@ func (c *commonSink) ReadRecord() iter.Seq2[*model.Record, error] {
 			// if record is not a specialized metadata record,
 			// we increment the record related metrics
 			if !c.IsSpecializedMetadataRecord(&record) {
-				if recvCount, err := c.Meter().Int64Counter(otel.SinkRecordCount, metric.WithDescription("The total number of records received")); err != nil {
-					c.Logger().Error(fmt.Sprintf("receive count error: %s", err.Error()))
-				} else {
-					recvCount.Add(c.Context(), 1)
-				}
-				if recvBytes, err := c.Meter().Int64Counter(otel.SinkRecordBytes, metric.WithDescription("The total number of bytes received"), metric.WithUnit("bytes")); err != nil {
-					c.Logger().Error(fmt.Sprintf("receive bytes error: %s", err.Error()))
-				} else {
-					recvBytes.Add(c.Context(), int64(len(v)))
-				}
-				if recvBytesBucket, err := c.Meter().Int64Histogram(otel.SinkRecordBytesBucket, metric.WithDescription("The total number of bytes received in buckets"), metric.WithUnit("bytes")); err != nil {
-					c.Logger().Error(fmt.Sprintf("receive bytes bucket error: %s", err.Error()))
-				} else {
-					recvBytesBucket.Record(c.Context(), int64(len(v)))
-				}
+				c.recordCount.Add(c.Context(), 1)
+				c.recordBytes.Add(c.Context(), int64(len(v)))
+				c.recordBytesBucket.Record(c.Context(), int64(len(v)))
 			}
 
 			if !yield(&record, nil) {
