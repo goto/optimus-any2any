@@ -32,6 +32,9 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		metadataPrefix:   metadataPrefix,
 		batchSize:        batchSize,
 		batchIndexColumn: batchIndexColumn,
+		exec: func(inputReader io.Reader) (io.Reader, error) {
+			return inputReader, nil
+		},
 	}
 	c.Connector.SetConnectorFunc(c.process)
 	return c, nil
