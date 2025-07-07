@@ -251,7 +251,7 @@ func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog
 		if jqCfg.Query != "" {
 			query = jqCfg.Query
 		}
-		f, err := jq.NewJQConnectorExecFunc(ctx, l, query)
+		f, err := jq.NewJQConnectorExecFunc(ctx, commonConnector.Logger(), query)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}

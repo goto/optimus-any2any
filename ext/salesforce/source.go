@@ -89,7 +89,7 @@ func (sf *SalesforceSource) process() error {
 		}
 
 		// fetch records from the next records URL concurrently
-		sf.ConcurrentQueue(func() error {
+		err := sf.ConcurrentQueue(func() error {
 			var result *simpleforce.QueryResult
 			err := sf.DryRunable(func() error {
 				result, err = sf.client.Query(sf.includeDeleted, url)
@@ -124,6 +124,9 @@ func (sf *SalesforceSource) process() error {
 			}
 			return nil
 		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	}
 
 	return errors.WithStack(sf.ConcurrentQueueWait()) // wait for all queued functions to finish

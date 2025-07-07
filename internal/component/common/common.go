@@ -46,7 +46,7 @@ type DryRunabler interface {
 // ConcurrentLimiter is an interface that defines a method to limit the number of concurrent tasks.
 type ConcurrentLimiter interface {
 	ConcurrentTasks([]func() error) error
-	ConcurrentQueue(func() error)
+	ConcurrentQueue(func() error) error
 	ConcurrentQueueWait() error
 }
 
@@ -154,21 +154,26 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 	// create a new concurrent queue with the specified concurrency limit
 	concurrentQueue := cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
 	for _, fn := range funcs {
-		concurrentQueue.Submit(fn)
+		if err := concurrentQueue.Submit(fn); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	// wait for all functions to finish
 	return errors.WithStack(concurrentQueue.Wait())
 }
 
 // ConcurrentQueue adds a function to the queue to be run concurrently
-func (c *Common) ConcurrentQueue(fn func() error) {
+func (c *Common) ConcurrentQueue(fn func() error) error {
 	if c.concurrentQueue == nil {
 		// initialize the concurrent queue if it is not already initialized
 		c.concurrentQueue = cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
 	}
 
 	// add the function to the queue
-	c.concurrentQueue.Submit(fn)
+	if err := c.concurrentQueue.Submit(fn); err != nil {
+		return errors.WithStack(err)
+	}
+	return nil
 }
 
 // ConcurrentQueueWait waits for all queued functions to finish
@@ -256,7 +261,9 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 	}
 	concurrentQueue := cq.NewConcurrentQueue(ctx, concurrencyLimit)
 	for _, fn := range funcs {
-		concurrentQueue.Submit(fn)
+		if err := concurrentQueue.Submit(fn); err != nil {
+			return errors.WithStack(err)
+		}
 	}
 	return errors.WithStack(concurrentQueue.Wait())
 }

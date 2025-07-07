@@ -90,13 +90,16 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			batchBufferCopy.Write(batchBuffer.Bytes())
 
 			// submit the batch processing to the concurrent queue
-			c.concurrentQueue.Submit(func() error {
+			err := c.concurrentQueue.Submit(func() error {
 				batchOutputReader, err := c.exec(&batchBufferCopy)
 				if err != nil {
 					return errors.WithStack(err)
 				}
 				return errors.WithStack(flush(batchOutputReader, inlets...))
 			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
 			// reset the buffer
 			batchBuffer = bytes.Buffer{}
 		}
