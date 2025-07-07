@@ -15,8 +15,6 @@ import (
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
-	opentelemetry "go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -141,14 +139,7 @@ func (c *Common) SetConcurrency(concurrency int) {
 func (c *Common) Meter() metric.Meter {
 	if c.m == nil {
 		// initialize OpenTelemetry meter
-		meterName := fmt.Sprintf("%s_%s", c.Core.Component(), c.Core.Name())
-		meter := opentelemetry.GetMeterProvider().Meter(meterName,
-			metric.WithInstrumentationVersion(otel.InstrumentationVersion),
-			metric.WithInstrumentationAttributes(
-				attribute.String("name", c.Core.Name()),
-			),
-		)
-		c.m = meter
+		c.m = otel.GetMeter(c.Core.Component(), c.Core.Name())
 	}
 	return c.m
 }

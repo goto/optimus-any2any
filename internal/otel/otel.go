@@ -2,6 +2,7 @@ package otel
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -9,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	m "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
@@ -45,4 +47,15 @@ func SetupOTelSDK(ctx context.Context, collectorGRPCEndpoint string, attributes 
 	return func() error {
 		return meterProvider.Shutdown(context.Background())
 	}, nil
+}
+
+func GetMeter(component, name string) m.Meter {
+	meterName := fmt.Sprintf("%s_%s", component, name)
+	meter := otel.GetMeterProvider().Meter(meterName,
+		m.WithInstrumentationVersion(InstrumentationVersion),
+		m.WithInstrumentationAttributes(
+			attribute.String("name", name),
+		),
+	)
+	return meter
 }

@@ -9,9 +9,11 @@ import (
 
 	"github.com/goccy/go-json"
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
+	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type ConnectorExecFunc func(inputReader io.Reader) (io.Reader, error)
@@ -23,6 +25,7 @@ type Connector struct {
 	*component.Connector
 	exec             ConnectorExecFunc
 	concurrentQueue  cq.ConcurrentQueue
+	m                metric.Meter
 	metadataPrefix   string
 	batchSize        int
 	batchIndexColumn string
@@ -40,6 +43,7 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		batchIndexColumn: batchIndexColumn,
 	}
 	c.Connector.SetConnectorFunc(c.process)
+	c.m = otel.GetMeter(c.Component(), c.Name())
 	return c, nil
 }
 
@@ -67,7 +71,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 				return errors.WithStack(err)
 			}
 			// send specialized metadata records directly to inlets
-			flush(bytes.NewReader(raw), inlets...)
+			c.flush(bytes.NewReader(raw), inlets...)
 			continue
 		}
 
@@ -95,7 +99,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 				if err != nil {
 					return errors.WithStack(err)
 				}
-				return errors.WithStack(flush(batchOutputReader, inlets...))
+				return errors.WithStack(c.flush(batchOutputReader, inlets...))
 			})
 			if err != nil {
 				return errors.WithStack(err)
@@ -111,7 +115,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if err := flush(batchOutputReader, inlets...); err != nil {
+		if err := c.flush(batchOutputReader, inlets...); err != nil {
 			return errors.WithStack(err)
 		}
 	}
@@ -119,7 +123,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 	return errors.WithStack(c.concurrentQueue.Wait())
 }
 
-func flush(r io.Reader, inlets ...flow.Inlet) error {
+func (c *Connector) flush(r io.Reader, inlets ...flow.Inlet) error {
 	// split the input by newlines and send each record to all inlets
 	reader := bufio.NewReader(r)
 	for {
@@ -136,6 +140,18 @@ func flush(r io.Reader, inlets ...flow.Inlet) error {
 		}
 		if err != nil {
 			return errors.WithStack(err)
+		}
+
+		// record the number of bytes processed by the connector
+		if connectorBytes, err := c.m.Int64Counter(otel.ConnectorBytes, metric.WithDescription("The total number of bytes processed by the connector"), metric.WithUnit("bytes")); err != nil {
+			c.Logger().Error("connector bytes error", slog.String("error", err.Error()))
+		} else {
+			connectorBytes.Add(c.Context(), int64(len(raw)))
+		}
+		if connectorBytesBucket, err := c.m.Int64Histogram(otel.ConnectorBytesBucket, metric.WithDescription("The total number of bytes processed by the connector in buckets"), metric.WithUnit("bytes")); err != nil {
+			c.Logger().Error("connector bytes bucket error", slog.String("error", err.Error()))
+		} else {
+			connectorBytesBucket.Record(c.Context(), int64(len(raw)))
 		}
 	}
 	return nil
