@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
+	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
@@ -59,7 +59,7 @@ type Common struct {
 	retryMax        int
 	retryBackoffMs  int64
 	concurrency     int
-	concurrentQueue *concurrentQueue
+	concurrentQueue cq.ConcurrentQueue
 	metadataPrefix  string
 }
 
@@ -151,17 +151,24 @@ func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 
 // ConcurrentTasks runs the given functions concurrently with a limit
 func (c *Common) ConcurrentTasks(funcs []func() error) error {
-	return ConcurrentTask(c.Core.Context(), c.concurrency, funcs)
+	// create a new concurrent queue with the specified concurrency limit
+	concurrentQueue := cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
+	for _, fn := range funcs {
+		concurrentQueue.Submit(fn)
+	}
+	// wait for all functions to finish
+	return errors.WithStack(concurrentQueue.Wait())
 }
 
 // ConcurrentQueue adds a function to the queue to be run concurrently
 func (c *Common) ConcurrentQueue(fn func() error) {
 	if c.concurrentQueue == nil {
-		c.concurrentQueue = newConcurrentQueue(c.Core.Context(), c.concurrency)
+		// initialize the concurrent queue if it is not already initialized
+		c.concurrentQueue = cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
 	}
 
 	// add the function to the queue
-	c.concurrentQueue.submit(fn)
+	c.concurrentQueue.Submit(fn)
 }
 
 // ConcurrentQueueWait waits for all queued functions to finish
@@ -171,7 +178,7 @@ func (c *Common) ConcurrentQueueWait() error {
 	}
 
 	// wait for all queued functions to finish
-	return c.concurrentQueue.wait()
+	return c.concurrentQueue.Wait()
 }
 
 // RecordWithMetadata returns a new record without metadata prefix
@@ -247,73 +254,9 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 	if len(funcs) == 0 {
 		return nil // nothing to run
 	}
-
-	cq := newConcurrentQueue(ctx, concurrencyLimit)
+	concurrentQueue := cq.NewConcurrentQueue(ctx, concurrencyLimit)
 	for _, fn := range funcs {
-		cq.submit(fn)
+		concurrentQueue.Submit(fn)
 	}
-	return cq.wait()
-}
-
-// concurrentQueue is a simple concurrent queue that allows adding functions to be run concurrently
-// It uses a semaphore to limit the number of concurrent tasks and a wait group to wait for all tasks to finish.
-type concurrentQueue struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	sem    chan struct{}
-	wg     sync.WaitGroup
-	errCh  chan error
-}
-
-func newConcurrentQueue(ctx context.Context, concurrencyLimit int) *concurrentQueue {
-	ctx, cancel := context.WithCancel(ctx)
-	return &concurrentQueue{
-		ctx:    ctx,
-		cancel: cancel,
-		sem:    make(chan struct{}, concurrencyLimit),
-		errCh:  make(chan error, 1),
-	}
-}
-
-func (cq *concurrentQueue) submit(fn func() error) {
-	select {
-	case cq.sem <- struct{}{}:
-		cq.wg.Add(1)
-		go func() {
-			defer func() {
-				<-cq.sem
-				cq.wg.Done()
-			}()
-
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				if err := fn(); err != nil {
-					select {
-					case cq.errCh <- err:
-						cq.cancel() // cancel all other tasks
-					default:
-					}
-				}
-			}()
-
-			select {
-			case <-done:
-			case <-cq.ctx.Done():
-				return
-			}
-		}()
-	case <-cq.ctx.Done():
-		return
-	}
-}
-
-func (cq *concurrentQueue) wait() error {
-	cq.wg.Wait()
-	select {
-	case err := <-cq.errCh:
-		return errors.WithStack(err)
-	default:
-		return nil
-	}
+	return errors.WithStack(concurrentQueue.Wait())
 }

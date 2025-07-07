@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/goccy/go-json"
+	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -20,9 +21,8 @@ type ConnectorExecFunc func(inputReader io.Reader) (io.Reader, error)
 // with some specialized data handling.
 type Connector struct {
 	*component.Connector
-	exec            ConnectorExecFunc
-	concurrentQueue *concurrentQueue
-
+	exec             ConnectorExecFunc
+	concurrentQueue  cq.ConcurrentQueue
 	metadataPrefix   string
 	batchSize        int
 	batchIndexColumn string
@@ -34,7 +34,7 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		exec: func(inputReader io.Reader) (io.Reader, error) {
 			return inputReader, nil
 		},
-		concurrentQueue:  newConcurrentQueue(ctx, concurrency),
+		concurrentQueue:  cq.NewConcurrentQueueWithCancel(ctx, cancelFn, concurrency),
 		metadataPrefix:   metadataPrefix,
 		batchSize:        batchSize,
 		batchIndexColumn: batchIndexColumn,
@@ -90,7 +90,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			batchBufferCopy.Write(batchBuffer.Bytes())
 
 			// submit the batch processing to the concurrent queue
-			c.concurrentQueue.submit(func() error {
+			c.concurrentQueue.Submit(func() error {
 				batchOutputReader, err := c.exec(&batchBufferCopy)
 				if err != nil {
 					return errors.WithStack(err)
@@ -113,7 +113,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 		}
 	}
 	// wait for all queued functions to finish
-	return errors.WithStack(c.concurrentQueue.wait())
+	return errors.WithStack(c.concurrentQueue.Wait())
 }
 
 func flush(r io.Reader, inlets ...flow.Inlet) error {

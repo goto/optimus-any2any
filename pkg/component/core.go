@@ -22,6 +22,7 @@ type Setter interface {
 // properties like logger, component type and name.
 type Getter interface {
 	Context() context.Context
+	CancelFunc() context.CancelCauseFunc
 	Logger() *slog.Logger
 	Component() string
 	Name() string
@@ -97,6 +98,11 @@ func (c *Core) Name() string {
 // Context returns the context of the core component.
 func (c *Core) Context() context.Context {
 	return c.ctx
+}
+
+// CancelFunc returns the cancel function of the core component.
+func (c *Core) CancelFunc() context.CancelCauseFunc {
+	return c.cancelFn
 }
 
 func (c *Core) newBackend() backend {
