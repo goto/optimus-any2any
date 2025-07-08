@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -16,6 +17,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -67,10 +69,11 @@ type Common struct {
 	metadataPrefix  string
 
 	// metrics related
-	m                metric.Meter
-	retryCount       metric.Int64Counter
-	concurrentLimits atomic.Int64
-	concurrentCount  atomic.Int64
+	m                 metric.Meter
+	retryCount        metric.Int64Counter
+	processDurationMs metric.Int64Histogram
+	concurrentLimits  atomic.Int64
+	concurrentCount   atomic.Int64
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -100,6 +103,10 @@ func NewCommon(c *component.Core) (*Common, error) {
 func (c *Common) initializeMetrics() error {
 	var err error
 	c.retryCount, err = c.Meter().Int64Counter(otel.Retry, metric.WithDescription("The total number of retries"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	c.processDurationMs, err = c.Meter().Int64Histogram(otel.ProcessDurationMs, metric.WithDescription("The duration of the process in milliseconds"), metric.WithUnit("ms"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -194,13 +201,22 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 	}()
 
 	for _, fn := range funcs {
-		if err := concurrentQueue.Submit(fn, func() error {
-			c.concurrentCount.Add(-1)
-			return nil
+		funcName := getFuncName(fn)
+		if err := concurrentQueue.Submit(func() error {
+			// capture the start time for processing duration
+			startTime := time.Now()
+			c.concurrentCount.Add(1)
+			defer func() {
+				c.concurrentCount.Add(-1)
+				c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+					attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+				))
+			}()
+			return errors.WithStack(fn())
 		}); err != nil {
 			return errors.WithStack(err)
 		}
-		c.concurrentCount.Add(1)
+
 	}
 
 	// wait for all queued functions to finish
@@ -216,13 +232,21 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 	}
 
 	// add the function to the queue
-	if err := c.concurrentQueue.Submit(fn, func() error {
-		c.concurrentCount.Add(-1)
-		return nil
+	funcName := getFuncName(fn)
+	if err := c.concurrentQueue.Submit(func() error {
+		// capture the start time for processing duration
+		startTime := time.Now()
+		c.concurrentCount.Add(1)
+		defer func() {
+			c.concurrentCount.Add(-1)
+			c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+				attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+			))
+		}()
+		return errors.WithStack(fn())
 	}); err != nil {
 		return errors.WithStack(err)
 	}
-	c.concurrentCount.Add(1)
 	return nil
 }
 
@@ -324,4 +348,10 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 		}
 	}
 	return errors.WithStack(concurrentQueue.Wait())
+}
+
+func getFuncName(fn interface{}) string {
+	pc := reflect.ValueOf(fn).Pointer()
+	fileName, line := runtime.FuncForPC(pc).FileLine(pc)
+	return fmt.Sprintf("%s:%d", filepath.Base(fileName), line)
 }

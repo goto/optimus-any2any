@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"sync/atomic"
+	"time"
 
 	"github.com/goccy/go-json"
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
@@ -14,6 +15,7 @@ import (
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -35,6 +37,7 @@ type Connector struct {
 	m                    metric.Meter
 	connectorBytes       metric.Int64Counter
 	connectorBytesBucket metric.Int64Histogram
+	processDurationMs    metric.Int64Histogram
 	concurrentLimits     atomic.Int64
 	concurrentCount      atomic.Int64
 }
@@ -73,6 +76,9 @@ func (c *Connector) initializeMetrics() error {
 		return errors.WithStack(err)
 	}
 	if c.connectorBytesBucket, err = c.m.Int64Histogram(otel.ConnectorBytesBucket, metric.WithDescription("The total number of bytes processed by the connector in buckets"), metric.WithUnit("bytes")); err != nil {
+		return errors.WithStack(err)
+	}
+	if c.processDurationMs, err = c.m.Int64Histogram(otel.ConnectorProcessDurationMs, metric.WithDescription("The duration of the connector process in milliseconds"), metric.WithUnit("milliseconds")); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -141,22 +147,33 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			var batchBufferCopy bytes.Buffer
 			batchBufferCopy.Write(batchBuffer.Bytes())
 
-			// submit the batch processing to the concurrent queue
-			err := c.concurrentQueue.Submit(func() error {
+			// prepare the function to execute the batch
+			fn := func() error {
 				batchOutputReader, err := c.exec(&batchBufferCopy)
 				if err != nil {
 					return errors.WithStack(err)
 				}
 				return errors.WithStack(c.flush(batchOutputReader, inlets...))
-			}, func() error {
-				c.concurrentCount.Add(-1)
-				return nil
+			}
+
+			// submit the batch processing to the concurrent queue
+			funcName := getFuncName(fn)
+			err := c.concurrentQueue.Submit(func() error {
+				// increment the concurrent count and record the duration
+				c.concurrentCount.Add(1)
+				startTime := time.Now()
+				defer func() {
+					c.concurrentCount.Add(-1)
+					c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+						attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+					))
+				}()
+
+				return errors.WithStack(fn())
 			})
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			// increment the concurrent count
-			c.concurrentCount.Add(1)
 
 			// reset the buffer
 			batchBuffer = bytes.Buffer{}
