@@ -83,7 +83,7 @@ func (c *Connector) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	processCount, err := c.m.Int64ObservableGauge(otel.ConnectorProcessCount, metric.WithDescription("The total number of processes running for the sink"))
+	processCount, err := c.m.Int64ObservableGauge(otel.ConnectorProcess, metric.WithDescription("The total number of processes running for the sink"))
 	if err != nil {
 		return errors.WithStack(err)
 	}

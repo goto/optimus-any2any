@@ -99,7 +99,7 @@ func NewCommon(c *component.Core) (*Common, error) {
 
 func (c *Common) initializeMetrics() error {
 	var err error
-	c.retryCount, err = c.Meter().Int64Counter(otel.RetryCount, metric.WithDescription("The total number of retries"))
+	c.retryCount, err = c.Meter().Int64Counter(otel.Retry, metric.WithDescription("The total number of retries"))
 	if err != nil {
 		return errors.WithStack(err)
 	}

@@ -86,7 +86,7 @@ func (c *CommonSource) initializeMetrics() error {
 	}
 
 	// non-observable metrics
-	c.recordCount, err = c.Meter().Int64Counter(otel.SourceRecordCount, metric.WithDescription("The total number of data sent"))
+	c.recordCount, err = c.Meter().Int64Counter(otel.SourceRecord, metric.WithDescription("The total number of data sent"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -104,7 +104,7 @@ func (c *CommonSource) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	processCount, err := c.Meter().Int64ObservableGauge(otel.SourceProcessCount, metric.WithDescription("The total number of processes running for the source"))
+	processCount, err := c.Meter().Int64ObservableGauge(otel.SourceProcess, metric.WithDescription("The total number of processes running for the source"))
 	if err != nil {
 		return errors.WithStack(err)
 	}

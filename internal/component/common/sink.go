@@ -96,7 +96,7 @@ func (c *commonSink) initializeMetrics() error {
 	}
 
 	// non-observable metrics
-	c.recordCount, err = c.Meter().Int64Counter(otel.SinkRecordCount, metric.WithDescription("The total number of records received"))
+	c.recordCount, err = c.Meter().Int64Counter(otel.SinkRecord, metric.WithDescription("The total number of records received"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -114,7 +114,7 @@ func (c *commonSink) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	processCount, err := c.Meter().Int64ObservableGauge(otel.SinkProcessCount, metric.WithDescription("The total number of processes running for the sink"))
+	processCount, err := c.Meter().Int64ObservableGauge(otel.SinkProcess, metric.WithDescription("The total number of processes running for the sink"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
