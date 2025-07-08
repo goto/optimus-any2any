@@ -108,6 +108,10 @@ func (c *commonSink) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	c.processDurationMs, err = c.Meter().Int64Histogram(otel.SinkProcessDuration, metric.WithDescription("The duration of the sink process in milliseconds"), metric.WithUnit("ms"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	// observable metrics
 	processLimits, err := c.Meter().Int64ObservableGauge(otel.SinkProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the sink"))

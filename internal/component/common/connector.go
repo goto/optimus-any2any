@@ -78,7 +78,7 @@ func (c *Connector) initializeMetrics() error {
 	if c.connectorBytesBucket, err = c.m.Int64Histogram(otel.ConnectorBytesBucket, metric.WithDescription("The total number of bytes processed by the connector in buckets"), metric.WithUnit("bytes")); err != nil {
 		return errors.WithStack(err)
 	}
-	if c.processDurationMs, err = c.m.Int64Histogram(otel.ConnectorProcessDurationMs, metric.WithDescription("The duration of the connector process in milliseconds"), metric.WithUnit("milliseconds")); err != nil {
+	if c.processDurationMs, err = c.m.Int64Histogram(otel.ConnectorProcessDuration, metric.WithDescription("The duration of the connector process in milliseconds"), metric.WithUnit("milliseconds")); err != nil {
 		return errors.WithStack(err)
 	}
 

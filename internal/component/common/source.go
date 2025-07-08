@@ -98,6 +98,10 @@ func (c *CommonSource) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	c.processDurationMs, err = c.Meter().Int64Histogram(otel.SourceProcessDuration, metric.WithDescription("The duration of the source process in milliseconds"), metric.WithUnit("ms"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	// observable metrics
 	processLimits, err := c.Meter().Int64ObservableGauge(otel.SourceProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the source"))

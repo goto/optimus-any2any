@@ -106,7 +106,7 @@ func (c *Common) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.processDurationMs, err = c.Meter().Int64Histogram(otel.ProcessDurationMs, metric.WithDescription("The duration of the process in milliseconds"), metric.WithUnit("ms"))
+	c.processDurationMs, err = c.Meter().Int64Histogram(otel.ProcessDuration, metric.WithDescription("The duration of the process in milliseconds"), metric.WithUnit("ms"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
