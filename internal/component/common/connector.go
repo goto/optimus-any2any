@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"sync/atomic"
 
 	"github.com/goccy/go-json"
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
@@ -24,6 +25,7 @@ type ConnectorExecFunc func(inputReader io.Reader) (io.Reader, error)
 type Connector struct {
 	*component.Connector
 	exec             ConnectorExecFunc
+	concurrency      int
 	concurrentQueue  cq.ConcurrentQueue
 	metadataPrefix   string
 	batchSize        int
@@ -33,6 +35,8 @@ type Connector struct {
 	m                    metric.Meter
 	connectorBytes       metric.Int64Counter
 	connectorBytesBucket metric.Int64Histogram
+	concurrentLimits     atomic.Int64
+	concurrentCount      atomic.Int64
 }
 
 func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, concurrency int, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
@@ -41,7 +45,7 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		exec: func(inputReader io.Reader) (io.Reader, error) {
 			return inputReader, nil
 		},
-		concurrentQueue:  cq.NewConcurrentQueueWithCancel(ctx, cancelFn, concurrency),
+		concurrency:      concurrency,
 		metadataPrefix:   metadataPrefix,
 		batchSize:        batchSize,
 		batchIndexColumn: batchIndexColumn,
@@ -52,6 +56,10 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		return nil, errors.WithStack(err)
 	}
 
+	// initialize concurrent queue
+	c.concurrentQueue = cq.NewConcurrentQueueWithCancel(ctx, cancelFn, concurrency)
+	c.concurrentLimits.Add(int64(concurrency))
+
 	// set the connector function to process
 	c.Connector.SetConnectorFunc(c.process)
 	return c, nil
@@ -59,13 +67,32 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 
 func (c *Connector) initializeMetrics() error {
 	var err error
+
+	// non-observable metrics
 	if c.connectorBytes, err = c.m.Int64Counter(otel.ConnectorBytes, metric.WithDescription("The total number of bytes processed by the connector"), metric.WithUnit("bytes")); err != nil {
 		return errors.WithStack(err)
 	}
 	if c.connectorBytesBucket, err = c.m.Int64Histogram(otel.ConnectorBytesBucket, metric.WithDescription("The total number of bytes processed by the connector in buckets"), metric.WithUnit("bytes")); err != nil {
 		return errors.WithStack(err)
 	}
-	return nil
+
+	// observable metrics
+	c.concurrentLimits = atomic.Int64{}
+	c.concurrentCount = atomic.Int64{}
+	processLimits, err := c.m.Int64ObservableGauge(otel.ConnectorProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the sink"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	processCount, err := c.m.Int64ObservableGauge(otel.ConnectorProcessCount, metric.WithDescription("The total number of processes running for the sink"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	_, err = c.m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
+		o.ObserveInt64(processCount, c.concurrentCount.Load())
+		return nil
+	})
+	return errors.WithStack(err)
 }
 
 // SetExecFunc sets the execution function for the Connector.
@@ -121,10 +148,16 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 					return errors.WithStack(err)
 				}
 				return errors.WithStack(c.flush(batchOutputReader, inlets...))
+			}, func() error {
+				c.concurrentCount.Add(-1)
+				return nil
 			})
 			if err != nil {
 				return errors.WithStack(err)
 			}
+			// increment the concurrent count
+			c.concurrentCount.Add(1)
+
 			// reset the buffer
 			batchBuffer = bytes.Buffer{}
 		}
@@ -140,7 +173,10 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			return errors.WithStack(err)
 		}
 	}
-	// wait for all queued functions to finish
+	// wait for all queued functions to finish and release concurrent limits
+	defer func() {
+		c.concurrentLimits.Add(-int64(c.concurrency))
+	}()
 	return errors.WithStack(c.concurrentQueue.Wait())
 }
 

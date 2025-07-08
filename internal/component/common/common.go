@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
@@ -66,10 +67,10 @@ type Common struct {
 	metadataPrefix  string
 
 	// metrics related
-	m             metric.Meter
-	retryCount    metric.Int64Counter
-	processLimits metric.Int64Counter
-	processCount  metric.Int64Counter
+	m                metric.Meter
+	retryCount       metric.Int64Counter
+	concurrentLimits atomic.Int64
+	concurrentCount  atomic.Int64
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -102,14 +103,8 @@ func (c *Common) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.processLimits, err = c.Meter().Int64Counter(otel.ProcessLimits, metric.WithDescription("The total number of concurrent processes allowed"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	c.processCount, err = c.Meter().Int64Counter(otel.ProcessCount, metric.WithDescription("The total number of processes running"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	c.concurrentLimits = atomic.Int64{}
+	c.concurrentCount = atomic.Int64{}
 	return nil
 }
 
@@ -190,16 +185,22 @@ func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 func (c *Common) ConcurrentTasks(funcs []func() error) error {
 	// create a new concurrent queue with the specified concurrency limit
 	concurrentQueue := cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
-	c.processLimits.Add(c.Core.Context(), int64(c.concurrency))
+	c.concurrentLimits.Add(int64(c.concurrency))
+	defer func() {
+		c.concurrentLimits.Add(-int64(c.concurrency))
+	}()
 
 	for _, fn := range funcs {
-		if err := concurrentQueue.Submit(fn); err != nil {
+		if err := concurrentQueue.Submit(fn, func() error {
+			c.concurrentCount.Add(-1)
+			return nil
+		}); err != nil {
 			return errors.WithStack(err)
 		}
-		c.processCount.Add(c.Core.Context(), 1)
+		c.concurrentCount.Add(1)
 	}
 
-	// wait for all functions to finish
+	// wait for all queued functions to finish
 	return errors.WithStack(concurrentQueue.Wait())
 }
 
@@ -208,14 +209,17 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 	if c.concurrentQueue == nil {
 		// initialize the concurrent queue if it is not already initialized
 		c.concurrentQueue = cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
-		c.processLimits.Add(c.Core.Context(), int64(c.concurrency))
+		c.concurrentLimits.Add(int64(c.concurrency))
 	}
 
 	// add the function to the queue
-	if err := c.concurrentQueue.Submit(fn); err != nil {
+	if err := c.concurrentQueue.Submit(fn, func() error {
+		c.concurrentCount.Add(-1)
+		return nil
+	}); err != nil {
 		return errors.WithStack(err)
 	}
-	c.processCount.Add(c.Core.Context(), 1)
+	c.concurrentCount.Add(1)
 	return nil
 }
 
@@ -225,7 +229,10 @@ func (c *Common) ConcurrentQueueWait() error {
 		return nil // no functions to wait for
 	}
 
-	// wait for all queued functions to finish
+	// wait for all queued functions to finish and release concurrent limits
+	defer func() {
+		c.concurrentLimits.Add(-int64(c.concurrency))
+	}()
 	return c.concurrentQueue.Wait()
 }
 

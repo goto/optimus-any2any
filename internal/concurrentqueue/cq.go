@@ -10,7 +10,7 @@ import (
 // ConcurrentQueue is an interface that defines a simple concurrent queue
 // that allows adding functions to be run concurrently.
 type ConcurrentQueue interface {
-	Submit(fn func() error) error
+	Submit(fn func() error, callbackFn ...func() error) error
 	Wait() error
 }
 
@@ -41,7 +41,7 @@ func NewConcurrentQueue(ctx context.Context, concurrencyLimit int) ConcurrentQue
 }
 
 // Submit adds a function to the queue to be executed concurrently.
-func (cq *concurrentQueue) Submit(fn func() error) error {
+func (cq *concurrentQueue) Submit(fn func() error, callbackFn ...func() error) error {
 	select {
 	case cq.sem <- struct{}{}:
 		cq.wg.Add(1)
@@ -56,6 +56,16 @@ func (cq *concurrentQueue) Submit(fn func() error) error {
 				case cq.errCh <- err:
 					cq.cancel(errors.WithStack(err))
 				default:
+				}
+			}
+
+			for _, cb := range callbackFn {
+				if err := cb(); err != nil {
+					select {
+					case cq.errCh <- err:
+						cq.cancel(errors.WithStack(err))
+					default:
+					}
 				}
 			}
 		}()

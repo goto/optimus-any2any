@@ -90,7 +90,12 @@ func NewCommonSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slo
 }
 
 func (c *commonSink) initializeMetrics() error {
-	var err error
+	err := c.Common.initializeMetrics()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// non-observable metrics
 	c.recordCount, err = c.Meter().Int64Counter(otel.SinkRecordCount, metric.WithDescription("The total number of records received"))
 	if err != nil {
 		return errors.WithStack(err)
@@ -103,15 +108,22 @@ func (c *commonSink) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.processLimits, err = c.Meter().Int64Counter(otel.SinkProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the sink"))
+
+	// observable metrics
+	processLimits, err := c.Meter().Int64ObservableGauge(otel.SinkProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the sink"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.processCount, err = c.Meter().Int64Counter(otel.SinkProcessCount, metric.WithDescription("The total number of processes running for the sink"))
+	processCount, err := c.Meter().Int64ObservableGauge(otel.SinkProcessCount, metric.WithDescription("The total number of processes running for the sink"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return nil
+	_, err = c.Meter().RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
+		o.ObserveInt64(processCount, c.concurrentCount.Load())
+		return nil
+	})
+	return errors.WithStack(err)
 }
 
 // Read reads the data from the sink.

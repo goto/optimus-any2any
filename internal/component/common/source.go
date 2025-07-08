@@ -80,7 +80,12 @@ func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *s
 }
 
 func (c *CommonSource) initializeMetrics() error {
-	var err error
+	err := c.Common.initializeMetrics()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	// non-observable metrics
 	c.recordCount, err = c.Meter().Int64Counter(otel.SourceRecordCount, metric.WithDescription("The total number of data sent"))
 	if err != nil {
 		return errors.WithStack(err)
@@ -93,15 +98,22 @@ func (c *CommonSource) initializeMetrics() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.processLimits, err = c.Meter().Int64Counter(otel.SourceProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the source"))
+
+	// observable metrics
+	processLimits, err := c.Meter().Int64ObservableGauge(otel.SourceProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the source"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	c.processCount, err = c.Meter().Int64Counter(otel.SourceProcessCount, metric.WithDescription("The total number of processes running for the source"))
+	processCount, err := c.Meter().Int64ObservableGauge(otel.SourceProcessCount, metric.WithDescription("The total number of processes running for the source"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	return nil
+	_, err = c.Meter().RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
+		o.ObserveInt64(processCount, c.concurrentCount.Load())
+		return nil
+	})
+	return errors.WithStack(err)
 }
 
 // Send sends the given data to the source.
