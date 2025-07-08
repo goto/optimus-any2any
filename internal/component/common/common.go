@@ -111,10 +111,13 @@ func (c *Common) initializeMetrics() error {
 // SetOtelSDK sets up the OpenTelemetry SDK
 func (c *Common) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
 	c.Core.Logger().Debug(fmt.Sprintf("set otel sdk: %s", otelCollectorGRPCEndpoint))
+	c.Core.Logger().Debug(fmt.Sprintf("instrumentation version: %s", otel.InstrumentationVersion))
+
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
 		c.Core.Logger().Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
 	}
+
 	c.Core.AddCleanFunc(func() error {
 		if err := shutdownFunc(); err != nil {
 			c.Core.Logger().Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))

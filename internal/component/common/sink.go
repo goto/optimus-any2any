@@ -122,7 +122,7 @@ func (c *commonSink) initializeMetrics() error {
 		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
 		o.ObserveInt64(processCount, c.concurrentCount.Load())
 		return nil
-	})
+	}, processLimits, processCount)
 	return errors.WithStack(err)
 }
 

@@ -49,6 +49,7 @@ func SetupOTelSDK(ctx context.Context, collectorGRPCEndpoint string, attributes 
 	}, nil
 }
 
+// GetMeter returns a meter with the specified component and name.
 func GetMeter(component, name string) m.Meter {
 	meterName := fmt.Sprintf("%s_%s", component, name)
 	meter := otel.GetMeterProvider().Meter(meterName,
