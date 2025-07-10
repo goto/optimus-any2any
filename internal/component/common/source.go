@@ -10,7 +10,6 @@ import (
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/metric"
 )
 
 // Source is a complete interface that defines source component.
@@ -47,11 +46,6 @@ type CommonSource struct {
 	*component.CoreSource
 	*Common
 	recordCounter atomic.Int64
-
-	// metrics related
-	recordCount       metric.Int64Counter
-	recordBytes       metric.Int64Counter
-	recordBytesBucket metric.Int64Histogram
 }
 
 var _ Source = (*CommonSource)(nil)

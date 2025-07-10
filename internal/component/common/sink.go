@@ -8,7 +8,6 @@ import (
 	"github.com/PaesslerAG/gval"
 	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/component"
@@ -57,11 +56,6 @@ type commonSink struct {
 	*component.CoreSink
 	*Common
 	pathToEvaluator map[string]gval.Evaluable
-
-	// metrics related
-	recordCount       metric.Int64Counter
-	recordBytes       metric.Int64Counter
-	recordBytesBucket metric.Int64Histogram
 }
 
 var _ Sink = (*commonSink)(nil)
