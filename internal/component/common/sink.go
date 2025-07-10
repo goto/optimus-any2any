@@ -8,7 +8,6 @@ import (
 	"github.com/PaesslerAG/gval"
 	"github.com/PaesslerAG/jsonpath"
 	"github.com/goccy/go-json"
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/component"
@@ -98,9 +97,9 @@ func (c *commonSink) ReadRecord() iter.Seq2[*model.Record, error] {
 			// if record is not a specialized metadata record,
 			// we increment the record related metrics
 			if !c.IsSpecializedMetadataRecord(&record) {
-				c.recordCount.Add(c.Context(), 1, metric.WithAttributes(c.attrFunc()...))
-				c.recordBytes.Add(c.Context(), int64(len(v)), metric.WithAttributes(c.attrFunc()...))
-				c.recordBytesBucket.Record(c.Context(), int64(len(v)), metric.WithAttributes(c.attrFunc()...))
+				c.recordCount.Add(c.Context(), 1)
+				c.recordBytes.Add(c.Context(), int64(len(v)))
+				c.recordBytesBucket.Record(c.Context(), int64(len(v)))
 			}
 
 			if !yield(&record, nil) {

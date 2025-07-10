@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
@@ -69,15 +68,7 @@ type Common struct {
 	metadataPrefix  string
 
 	// metrics related
-	m                 metric.Meter
-	recordCount       metric.Int64Counter
-	recordBytes       metric.Int64Counter
-	recordBytesBucket metric.Int64Histogram
-	concurrentLimits  atomic.Int64
-	concurrentCount   atomic.Int64
-	processDurationMs metric.Int64Histogram
-	retryCount        metric.Int64Counter
-	attrFunc          func(...attribute.KeyValue) []attribute.KeyValue
+	*commonmetric
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -90,68 +81,23 @@ var _ InstrumentationGetter = (*Common)(nil)
 func NewCommon(c *component.Core) (*Common, error) {
 	common := &Common{
 		Core:           c,
-		m:              otel.GetMeter(c.Component(), c.Name()),
 		dryRun:         false,                  // default
 		dryRunPCs:      make(map[uintptr]bool), // default
 		retryMax:       1,                      // default
 		retryBackoffMs: 1000,                   // default
 		concurrency:    4,                      // default
 		metadataPrefix: "__METADATA__",         // default
+		commonmetric:   &commonmetric{},
 	}
-	// initialize attrFunc to append component and name attributes
-	common.attrFunc = func(kv ...attribute.KeyValue) []attribute.KeyValue {
-		return append(otel.GetAttributes(c.Component(), c.Name()), kv...)
-	}
-	if err := common.initializeMetrics(); err != nil {
+	if err := common.commonmetric.initializeMetrics(common.Core); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return common, nil
 }
 
-func (c *Common) initializeMetrics() error {
-	var err error
-
-	// non-observable metrics
-	if c.recordCount, err = c.m.Int64Counter(otel.Record, metric.WithDescription("The total number of records processed"), metric.WithUnit("1")); err != nil {
-		return errors.WithStack(err)
-	}
-	if c.recordBytes, err = c.m.Int64Counter(otel.RecordBytes, metric.WithDescription("The total number of bytes processed"), metric.WithUnit("bytes")); err != nil {
-		return errors.WithStack(err)
-	}
-	if c.recordBytesBucket, err = c.m.Int64Histogram(otel.RecordBytesBucket, metric.WithDescription("The total number of bytes processed in buckets"), metric.WithUnit("bytes")); err != nil {
-		return errors.WithStack(err)
-	}
-	if c.processDurationMs, err = c.m.Int64Histogram(otel.ProcessDuration, metric.WithDescription("The duration of the process in milliseconds"), metric.WithUnit("ms")); err != nil {
-		return errors.WithStack(err)
-	}
-	if c.retryCount, err = c.m.Int64Counter(otel.Retry, metric.WithDescription("The total number of retries performed"), metric.WithUnit("1")); err != nil {
-		return errors.WithStack(err)
-	}
-
-	// observable metrics
-	c.concurrentLimits = atomic.Int64{}
-	c.concurrentCount = atomic.Int64{}
-	processLimits, err := c.m.Int64ObservableGauge(otel.ProcessLimits, metric.WithDescription("The current concurrency limit"), metric.WithUnit("1"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	processCount, err := c.m.Int64ObservableGauge(otel.Process, metric.WithDescription("The current number of processes running"), metric.WithUnit("1"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	// register the callback to observe the current concurrency limits and count
-	_, err = c.m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
-		o.ObserveInt64(processCount, c.concurrentCount.Load())
-		return nil
-	}, processLimits, processCount)
-	return nil
-}
-
 // SetOtelSDK sets up the OpenTelemetry SDK
 func (c *Common) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
 	c.Core.Logger().Debug(fmt.Sprintf("set otel sdk: %s", otelCollectorGRPCEndpoint))
-	c.Core.Logger().Info(fmt.Sprintf("instrumentation version: %s", otel.InstrumentationVersion))
 
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
@@ -186,7 +132,7 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
 	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f, func() {
-		c.retryCount.Add(c.Core.Context(), 1, metric.WithAttributes(c.attrFunc()...))
+		c.retryCount.Add(c.Core.Context(), 1)
 	})
 }
 
@@ -242,7 +188,7 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 			defer func() {
 				c.concurrentCount.Add(-1)
 				c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-					c.attrFunc(attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)})...,
+					attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
 				))
 			}()
 			return errors.WithStack(fn())
@@ -273,7 +219,7 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 		defer func() {
 			c.concurrentCount.Add(-1)
 			c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-				c.attrFunc(attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)})...,
+				attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
 			))
 		}()
 		return errors.WithStack(fn())
