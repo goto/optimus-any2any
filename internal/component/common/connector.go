@@ -42,6 +42,7 @@ type Connector struct {
 	concurrentCount   atomic.Int64
 	processDurationMs metric.Int64Histogram
 	retryCount        metric.Int64Counter
+	attrFunc          func(...attribute.KeyValue) []attribute.KeyValue
 }
 
 func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, concurrency int, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
@@ -59,6 +60,9 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 	c.m = otel.GetMeter(c.Component(), c.Name())
 	if err := c.initializeMetrics(); err != nil {
 		return nil, errors.WithStack(err)
+	}
+	c.attrFunc = func(kv ...attribute.KeyValue) []attribute.KeyValue {
+		return append(otel.GetAttributes(c.Component(), c.Name()), kv...)
 	}
 
 	// initialize concurrent queue
@@ -93,18 +97,18 @@ func (c *Connector) initializeMetrics() error {
 	// observable metrics
 	c.concurrentLimits = atomic.Int64{}
 	c.concurrentCount = atomic.Int64{}
-	processLimits, err := c.m.Int64ObservableGauge(otel.ProcessLimits, metric.WithDescription("The current concurrency limit"), metric.WithUnit("1"))
+	processLimits, err := c.m.Int64ObservableGauge(otel.ProcessLimits, metric.WithDescription("The current concurrency limit"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	processCount, err := c.m.Int64ObservableGauge(otel.Process, metric.WithDescription("The current number of processes running"), metric.WithUnit("1"))
+	processCount, err := c.m.Int64ObservableGauge(otel.Process, metric.WithDescription("The current number of processes running"))
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	// register the callback to observe the current concurrency limits and count
 	_, err = c.m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
-		o.ObserveInt64(processCount, c.concurrentCount.Load())
+		o.ObserveInt64(processLimits, c.concurrentLimits.Load(), metric.WithAttributes(c.attrFunc()...))
+		o.ObserveInt64(processCount, c.concurrentCount.Load(), metric.WithAttributes(c.attrFunc()...))
 		return nil
 	}, processLimits, processCount)
 	return nil
@@ -167,7 +171,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 					return errors.WithStack(err)
 				}
 				// record the number of records processed
-				c.recordCount.Add(c.Context(), int64(currentRecordCount))
+				c.recordCount.Add(c.Context(), int64(currentRecordCount), metric.WithAttributes(c.attrFunc()...))
 				return nil
 			}
 
@@ -180,7 +184,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 				defer func() {
 					c.concurrentCount.Add(-1)
 					c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-						attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+						c.attrFunc(attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)})...,
 					))
 				}()
 
@@ -232,8 +236,8 @@ func (c *Connector) flush(r io.Reader, inlets ...flow.Inlet) error {
 		}
 
 		// record the number of bytes processed by the connector
-		c.recordBytes.Add(c.Context(), int64(len(raw)))
-		c.recordBytesBucket.Record(c.Context(), int64(len(raw)))
+		c.recordBytes.Add(c.Context(), int64(len(raw)), metric.WithAttributes(c.attrFunc()...))
+		c.recordBytesBucket.Record(c.Context(), int64(len(raw)), metric.WithAttributes(c.attrFunc()...))
 	}
 	return nil
 }

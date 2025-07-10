@@ -15,6 +15,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
+var (
+	_attributes = []attribute.KeyValue{}
+)
+
 // SetupOTelSDK sets up the OpenTelemetry SDK.
 func SetupOTelSDK(ctx context.Context, collectorGRPCEndpoint string, attributes map[string]string) (shutdown func() error, err error) {
 	metricExporter, err := otlpmetricgrpc.New(ctx,
@@ -29,6 +33,7 @@ func SetupOTelSDK(ctx context.Context, collectorGRPCEndpoint string, attributes 
 	for k, v := range attributes {
 		attr = append(attr, attribute.String(k, v))
 	}
+	_attributes = attr
 
 	// for now, we only need metric provider
 	meterProvider := metric.NewMeterProvider(
@@ -52,12 +57,10 @@ func SetupOTelSDK(ctx context.Context, collectorGRPCEndpoint string, attributes 
 // GetMeter returns a meter with the specified component and name.
 func GetMeter(component, name string) m.Meter {
 	meterName := fmt.Sprintf("%s_%s", component, name)
-	meter := otel.GetMeterProvider().Meter(meterName,
-		m.WithInstrumentationVersion(InstrumentationVersion),
-		m.WithInstrumentationAttributes(
-			attribute.String("component", component),
-			attribute.String("name", name),
-		),
-	)
-	return meter
+	return otel.GetMeterProvider().Meter(meterName)
+}
+
+// GetAttributes returns the attributes set for OpenTelemetry metrics.
+func GetAttributes(component, name string) []attribute.KeyValue {
+	return append(_attributes, attribute.String("component", component), attribute.String("name", name))
 }

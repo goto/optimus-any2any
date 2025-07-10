@@ -77,6 +77,7 @@ type Common struct {
 	concurrentCount   atomic.Int64
 	processDurationMs metric.Int64Histogram
 	retryCount        metric.Int64Counter
+	attrFunc          func(...attribute.KeyValue) []attribute.KeyValue
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -96,6 +97,10 @@ func NewCommon(c *component.Core) (*Common, error) {
 		retryBackoffMs: 1000,                   // default
 		concurrency:    4,                      // default
 		metadataPrefix: "__METADATA__",         // default
+	}
+	// initialize attrFunc to append component and name attributes
+	common.attrFunc = func(kv ...attribute.KeyValue) []attribute.KeyValue {
+		return append(otel.GetAttributes(c.Component(), c.Name()), kv...)
 	}
 	if err := common.initializeMetrics(); err != nil {
 		return nil, errors.WithStack(err)
@@ -181,7 +186,7 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
 	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f, func() {
-		c.retryCount.Add(c.Core.Context(), 1)
+		c.retryCount.Add(c.Core.Context(), 1, metric.WithAttributes(c.attrFunc()...))
 	})
 }
 
@@ -237,7 +242,7 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 			defer func() {
 				c.concurrentCount.Add(-1)
 				c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-					attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+					c.attrFunc(attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)})...,
 				))
 			}()
 			return errors.WithStack(fn())
@@ -268,7 +273,7 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 		defer func() {
 			c.concurrentCount.Add(-1)
 			c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-				attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+				c.attrFunc(attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)})...,
 			))
 		}()
 		return errors.WithStack(fn())

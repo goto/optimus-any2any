@@ -10,6 +10,7 @@ import (
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Source is a complete interface that defines source component.
@@ -99,9 +100,9 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	// if record is not a specialized metadata record,
 	// we increment the record related metrics
 	if !c.IsSpecializedMetadataRecord(record) {
-		c.recordCount.Add(c.Context(), 1)
-		c.recordBytes.Add(c.Context(), int64(len(raw)))
-		c.recordBytesBucket.Record(c.Context(), int64(len(raw)))
+		c.recordCount.Add(c.Context(), 1, metric.WithAttributes(c.attrFunc()...))
+		c.recordBytes.Add(c.Context(), int64(len(raw)), metric.WithAttributes(c.attrFunc()...))
+		c.recordBytesBucket.Record(c.Context(), int64(len(raw)), metric.WithAttributes(c.attrFunc()...))
 	}
 
 	c.Send(raw)
