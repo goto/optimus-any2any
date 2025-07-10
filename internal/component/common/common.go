@@ -70,10 +70,13 @@ type Common struct {
 
 	// metrics related
 	m                 metric.Meter
-	retryCount        metric.Int64Counter
-	processDurationMs metric.Int64Histogram
+	recordCount       metric.Int64Counter
+	recordBytes       metric.Int64Counter
+	recordBytesBucket metric.Int64Histogram
 	concurrentLimits  atomic.Int64
 	concurrentCount   atomic.Int64
+	processDurationMs metric.Int64Histogram
+	retryCount        metric.Int64Counter
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
@@ -102,16 +105,41 @@ func NewCommon(c *component.Core) (*Common, error) {
 
 func (c *Common) initializeMetrics() error {
 	var err error
-	c.retryCount, err = c.Meter().Int64Counter(otel.Retry, metric.WithDescription("The total number of retries"))
-	if err != nil {
+
+	// non-observable metrics
+	if c.recordCount, err = c.m.Int64Counter(otel.Record, metric.WithDescription("The total number of records processed"), metric.WithUnit("1")); err != nil {
 		return errors.WithStack(err)
 	}
-	c.processDurationMs, err = c.Meter().Int64Histogram(otel.ProcessDuration, metric.WithDescription("The duration of the process in milliseconds"), metric.WithUnit("ms"))
-	if err != nil {
+	if c.recordBytes, err = c.m.Int64Counter(otel.RecordBytes, metric.WithDescription("The total number of bytes processed"), metric.WithUnit("bytes")); err != nil {
 		return errors.WithStack(err)
 	}
+	if c.recordBytesBucket, err = c.m.Int64Histogram(otel.RecordBytesBucket, metric.WithDescription("The total number of bytes processed in buckets"), metric.WithUnit("bytes")); err != nil {
+		return errors.WithStack(err)
+	}
+	if c.processDurationMs, err = c.m.Int64Histogram(otel.ProcessDuration, metric.WithDescription("The duration of the process in milliseconds"), metric.WithUnit("ms")); err != nil {
+		return errors.WithStack(err)
+	}
+	if c.retryCount, err = c.m.Int64Counter(otel.Retry, metric.WithDescription("The total number of retries performed"), metric.WithUnit("1")); err != nil {
+		return errors.WithStack(err)
+	}
+
+	// observable metrics
 	c.concurrentLimits = atomic.Int64{}
 	c.concurrentCount = atomic.Int64{}
+	processLimits, err := c.m.Int64ObservableGauge(otel.ProcessLimits, metric.WithDescription("The current concurrency limit"), metric.WithUnit("1"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	processCount, err := c.m.Int64ObservableGauge(otel.Process, metric.WithDescription("The current number of processes running"), metric.WithUnit("1"))
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	// register the callback to observe the current concurrency limits and count
+	_, err = c.m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
+		o.ObserveInt64(processCount, c.concurrentCount.Load())
+		return nil
+	}, processLimits, processCount)
 	return nil
 }
 
@@ -350,7 +378,7 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 	return errors.WithStack(concurrentQueue.Wait())
 }
 
-func getFuncName(fn interface{}) string {
+func getFuncName(fn any) string {
 	pc := reflect.ValueOf(fn).Pointer()
 	fileName, line := runtime.FuncForPC(pc).FileLine(pc)
 	return fmt.Sprintf("%s:%d", filepath.Base(fileName), line)

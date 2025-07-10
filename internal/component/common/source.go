@@ -7,7 +7,6 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/model"
-	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -73,51 +72,7 @@ func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *s
 	for _, opt := range opts {
 		opt(c.Common)
 	}
-	if err := c.initializeMetrics(); err != nil {
-		return nil, errors.WithStack(err)
-	}
 	return c, nil
-}
-
-func (c *CommonSource) initializeMetrics() error {
-	err := c.Common.initializeMetrics()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// non-observable metrics
-	c.recordCount, err = c.Meter().Int64Counter(otel.SourceRecord, metric.WithDescription("The total number of data sent"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	c.recordBytes, err = c.Meter().Int64Counter(otel.SourceRecordBytes, metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	c.recordBytesBucket, err = c.Meter().Int64Histogram(otel.SourceRecordBytesBucket, metric.WithDescription("The total number of bytes sent in buckets"), metric.WithUnit("bytes"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	c.processDurationMs, err = c.Meter().Int64Histogram(otel.SourceProcessDuration, metric.WithDescription("The duration of the source process in milliseconds"), metric.WithUnit("ms"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	// observable metrics
-	processLimits, err := c.Meter().Int64ObservableGauge(otel.SourceProcessLimits, metric.WithDescription("The total number of concurrent processes allowed for the source"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	processCount, err := c.Meter().Int64ObservableGauge(otel.SourceProcess, metric.WithDescription("The total number of processes running for the source"))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	_, err = c.Meter().RegisterCallback(func(_ context.Context, o metric.Observer) error {
-		o.ObserveInt64(processLimits, c.concurrentLimits.Load())
-		o.ObserveInt64(processCount, c.concurrentCount.Load())
-		return nil
-	}, processLimits, processCount)
-	return errors.WithStack(err)
 }
 
 // Send sends the given data to the source.

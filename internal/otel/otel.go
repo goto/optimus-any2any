@@ -55,6 +55,7 @@ func GetMeter(component, name string) m.Meter {
 	meter := otel.GetMeterProvider().Meter(meterName,
 		m.WithInstrumentationVersion(InstrumentationVersion),
 		m.WithInstrumentationAttributes(
+			attribute.String("component", component),
 			attribute.String("name", name),
 		),
 	)
