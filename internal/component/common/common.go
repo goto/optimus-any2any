@@ -332,5 +332,9 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 func getCallerLoc() string {
 	pc, file, line, _ := runtime.Caller(2)
 	fn := runtime.FuncForPC(pc)
-	return fmt.Sprintf("%s:%d:%s", filepath.Base(file), line, fn.Name())
+	// trim to just the method signature
+	fullFunc := fn.Name()
+	funcName := fullFunc[strings.LastIndex(fullFunc, "/")+1:]
+
+	return fmt.Sprintf("%s:%s:%d", funcName, filepath.Base(file), line)
 }
