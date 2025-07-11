@@ -32,6 +32,7 @@ type Sink interface {
 	Retrier
 	DryRunabler
 	ConcurrentLimiter
+	InstrumentationGetter
 }
 
 // Reader is an interface that defines a method to read data inside a sink.
@@ -60,17 +61,22 @@ type commonSink struct {
 var _ Sink = (*commonSink)(nil)
 
 // NewCommonSink creates a new CommonSink.
-func NewCommonSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *commonSink {
+func NewCommonSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) (*commonSink, error) {
 	coreSink := component.NewCoreSink(ctx, cancelFn, l, name)
+	common, err := NewCommon(coreSink.Core)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	c := &commonSink{
 		CoreSink:        coreSink,
-		Common:          NewCommon(coreSink.Core),
+		Common:          common,
 		pathToEvaluator: make(map[string]gval.Evaluable),
 	}
 	for _, opt := range opts {
 		opt(c.Common)
 	}
-	return c
+	return c, nil
 }
 
 // Read reads the data from the sink.
@@ -80,7 +86,27 @@ func (c *commonSink) Read() iter.Seq[[]byte] {
 
 // ReadRecord reads the data from the sink and unmarshals it into a model.Record.
 func (c *commonSink) ReadRecord() iter.Seq2[*model.Record, error] {
-	return ReadRecordFromOutlet(c)
+	return func(yield func(*model.Record, error) bool) {
+		for v := range c.Out() {
+			var record model.Record
+			if err := json.Unmarshal(v, &record); err != nil {
+				yield(nil, errors.WithStack(err))
+				break
+			}
+
+			// if record is not a specialized metadata record,
+			// we increment the record related metrics
+			if !c.IsSpecializedMetadataRecord(&record) {
+				c.recordCount.Add(c.Context(), 1, c.attributesOpt)
+				c.recordBytes.Add(c.Context(), int64(len(v)), c.attributesOpt)
+				c.recordBytesBucket.Record(c.Context(), int64(len(v)), c.attributesOpt)
+			}
+
+			if !yield(&record, nil) {
+				break
+			}
+		}
+	}
 }
 
 // JSONPathSelector selects a JSON path from the data and returns the value as a byte slice.

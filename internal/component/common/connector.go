@@ -6,12 +6,15 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/goccy/go-json"
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type ConnectorExecFunc func(inputReader io.Reader) (io.Reader, error)
@@ -22,10 +25,14 @@ type ConnectorExecFunc func(inputReader io.Reader) (io.Reader, error)
 type Connector struct {
 	*component.Connector
 	exec             ConnectorExecFunc
+	concurrency      int
 	concurrentQueue  cq.ConcurrentQueue
 	metadataPrefix   string
 	batchSize        int
 	batchIndexColumn string
+
+	// metrics related
+	*commonmetric
 }
 
 func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger *slog.Logger, concurrency int, metadataPrefix string, batchSize int, batchIndexColumn string, name string) (*Connector, error) {
@@ -34,11 +41,20 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		exec: func(inputReader io.Reader) (io.Reader, error) {
 			return inputReader, nil
 		},
-		concurrentQueue:  cq.NewConcurrentQueueWithCancel(ctx, cancelFn, concurrency),
+		concurrency:      concurrency,
 		metadataPrefix:   metadataPrefix,
 		batchSize:        batchSize,
 		batchIndexColumn: batchIndexColumn,
+		commonmetric:     &commonmetric{},
 	}
+	// initialize metrics related
+	c.commonmetric.initializeMetrics(c.Connector)
+
+	// initialize concurrent queue
+	c.concurrentQueue = cq.NewConcurrentQueueWithCancel(ctx, cancelFn, concurrency)
+	c.concurrentLimits.Add(int64(concurrency))
+
+	// set the connector function to process
 	c.Connector.SetConnectorFunc(c.process)
 	return c, nil
 }
@@ -67,7 +83,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 				return errors.WithStack(err)
 			}
 			// send specialized metadata records directly to inlets
-			flush(bytes.NewReader(raw), inlets...)
+			c.flush(bytes.NewReader(raw), inlets...)
 			continue
 		}
 
@@ -89,17 +105,40 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			var batchBufferCopy bytes.Buffer
 			batchBufferCopy.Write(batchBuffer.Bytes())
 
-			// submit the batch processing to the concurrent queue
-			err := c.concurrentQueue.Submit(func() error {
+			// prepare the function to execute the batch
+			currentRecordCount := recordCount
+			fn := func() error {
 				batchOutputReader, err := c.exec(&batchBufferCopy)
 				if err != nil {
 					return errors.WithStack(err)
 				}
-				return errors.WithStack(flush(batchOutputReader, inlets...))
+				if err := c.flush(batchOutputReader, inlets...); err != nil {
+					return errors.WithStack(err)
+				}
+				// record the number of records processed
+				c.recordCount.Add(c.Context(), int64(currentRecordCount), c.attributesOpt)
+				return nil
+			}
+
+			// submit the batch processing to the concurrent queue
+			callerLoc := getCallerLoc()
+			err := c.concurrentQueue.Submit(func() error {
+				// increment the concurrent count and record the duration
+				c.concurrentCount.Add(1)
+				startTime := time.Now()
+				defer func() {
+					c.concurrentCount.Add(-1)
+					c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+						attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
+					), c.attributesOpt)
+				}()
+
+				return errors.WithStack(fn())
 			})
 			if err != nil {
 				return errors.WithStack(err)
 			}
+
 			// reset the buffer
 			batchBuffer = bytes.Buffer{}
 		}
@@ -111,15 +150,18 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if err := flush(batchOutputReader, inlets...); err != nil {
+		if err := c.flush(batchOutputReader, inlets...); err != nil {
 			return errors.WithStack(err)
 		}
 	}
-	// wait for all queued functions to finish
+	// wait for all queued functions to finish and release concurrent limits
+	defer func() {
+		c.concurrentLimits.Add(-int64(c.concurrency))
+	}()
 	return errors.WithStack(c.concurrentQueue.Wait())
 }
 
-func flush(r io.Reader, inlets ...flow.Inlet) error {
+func (c *Connector) flush(r io.Reader, inlets ...flow.Inlet) error {
 	// split the input by newlines and send each record to all inlets
 	reader := bufio.NewReader(r)
 	for {
@@ -137,6 +179,10 @@ func flush(r io.Reader, inlets ...flow.Inlet) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+
+		// record the number of bytes processed by the connector
+		c.recordBytes.Add(c.Context(), int64(len(raw)), c.attributesOpt)
+		c.recordBytesBucket.Record(c.Context(), int64(len(raw)), c.attributesOpt)
 	}
 	return nil
 }

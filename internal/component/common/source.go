@@ -2,7 +2,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync/atomic"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/metric"
 )
 
 // Source is a complete interface that defines source component.
@@ -30,6 +28,7 @@ type Source interface {
 	Retrier
 	DryRunabler
 	ConcurrentLimiter
+	InstrumentationGetter
 }
 
 // Sender is an interface that defines a method to send data to a source.
@@ -52,17 +51,22 @@ type CommonSource struct {
 var _ Source = (*CommonSource)(nil)
 
 // NewCommonSource creates a new CommonSource.
-func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) *CommonSource {
+func NewCommonSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, name string, opts ...Option) (*CommonSource, error) {
 	coreSource := component.NewCoreSource(ctx, cancelFn, l, name)
+	common, err := NewCommon(coreSource.Core)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
 	c := &CommonSource{
 		CoreSource:    coreSource,
-		Common:        NewCommon(coreSource.Core),
+		Common:        common,
 		recordCounter: atomic.Int64{},
 	}
 	for _, opt := range opts {
 		opt(c.Common)
 	}
-	return c
+	return c, nil
 }
 
 // Send sends the given data to the source.
@@ -95,16 +99,9 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	// if record is not a specialized metadata record,
 	// we increment the record related metrics
 	if !c.IsSpecializedMetadataRecord(record) {
-		sendCount, err := c.m.Int64Counter("send_count", metric.WithDescription("The total number of data sent"))
-		if err != nil {
-			c.Logger().Error(fmt.Sprintf("send count error: %s", err.Error()))
-		}
-		sendBytes, err := c.m.Int64Counter("send_bytes", metric.WithDescription("The total number of bytes sent"), metric.WithUnit("bytes"))
-		if err != nil {
-			c.Logger().Error(fmt.Sprintf("send bytes error: %s", err.Error()))
-		}
-		sendCount.Add(context.Background(), 1)
-		sendBytes.Add(context.Background(), int64(len(raw)))
+		c.recordCount.Add(c.Context(), 1, c.attributesOpt)
+		c.recordBytes.Add(c.Context(), int64(len(raw)), c.attributesOpt)
+		c.recordBytesBucket.Record(c.Context(), int64(len(raw)), c.attributesOpt)
 	}
 
 	c.Send(raw)

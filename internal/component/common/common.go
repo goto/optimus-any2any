@@ -15,7 +15,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
-	opentelemetry "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -50,10 +50,14 @@ type ConcurrentLimiter interface {
 	ConcurrentQueueWait() error
 }
 
+// InstrumentationGetter is an interface that provides relevant OpenTelemetry instrumentation components.
+type InstrumentationGetter interface {
+	Meter() metric.Meter
+}
+
 // Common is an extension of the component.Core struct
 type Common struct {
 	Core            *component.Core
-	m               metric.Meter
 	dryRun          bool
 	dryRunPCs       map[uintptr]bool
 	retryMax        int
@@ -61,35 +65,44 @@ type Common struct {
 	concurrency     int
 	concurrentQueue cq.ConcurrentQueue
 	metadataPrefix  string
+
+	// metrics related
+	*commonmetric
 }
 
 var _ ConcurrentLimiter = (*Common)(nil)
 var _ Retrier = (*Common)(nil)
 var _ DryRunabler = (*Common)(nil)
 var _ RecordHelper = (*Common)(nil)
+var _ InstrumentationGetter = (*Common)(nil)
 
 // NewCommon creates a new Common struct
-func NewCommon(c *component.Core) *Common {
-	return &Common{
+func NewCommon(c *component.Core) (*Common, error) {
+	common := &Common{
 		Core:           c,
-		m:              opentelemetry.GetMeterProvider().Meter(c.Component()),
 		dryRun:         false,                  // default
 		dryRunPCs:      make(map[uintptr]bool), // default
 		retryMax:       1,                      // default
 		retryBackoffMs: 1000,                   // default
 		concurrency:    4,                      // default
 		metadataPrefix: "__METADATA__",         // default
+		commonmetric:   &commonmetric{},
 	}
-
+	if err := common.commonmetric.initializeMetrics(common.Core); err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return common, nil
 }
 
 // SetOtelSDK sets up the OpenTelemetry SDK
 func (c *Common) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint string, otelAttributes map[string]string) {
 	c.Core.Logger().Debug(fmt.Sprintf("set otel sdk: %s", otelCollectorGRPCEndpoint))
+
 	shutdownFunc, err := otel.SetupOTelSDK(ctx, otelCollectorGRPCEndpoint, otelAttributes)
 	if err != nil {
 		c.Core.Logger().Error(fmt.Sprintf("set otel sdk error: %s", err.Error()))
 	}
+
 	c.Core.AddCleanFunc(func() error {
 		if err := shutdownFunc(); err != nil {
 			c.Core.Logger().Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
@@ -117,12 +130,19 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
-	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f)
+	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f, func() {
+		c.retryCount.Add(c.Core.Context(), 1, c.attributesOpt)
+	})
 }
 
 // SetConcurrency sets the concurrency limit for concurrent tasks
 func (c *Common) SetConcurrency(concurrency int) {
 	c.concurrency = concurrency
+}
+
+// Meter returns the OpenTelemetry meter for this current instance
+func (c *Common) Meter() metric.Meter {
+	return c.m
 }
 
 // DryRunable runs the given function in dry run mode
@@ -153,12 +173,32 @@ func (c *Common) DryRunable(f func() error, dryRunFuncs ...func() error) error {
 func (c *Common) ConcurrentTasks(funcs []func() error) error {
 	// create a new concurrent queue with the specified concurrency limit
 	concurrentQueue := cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
+	c.concurrentLimits.Add(int64(c.concurrency))
+	defer func() {
+		c.concurrentLimits.Add(-int64(c.concurrency))
+	}()
+
+	// add the function to the queue
+	callerLoc := getCallerLoc()
 	for _, fn := range funcs {
-		if err := concurrentQueue.Submit(fn); err != nil {
+		if err := concurrentQueue.Submit(func() error {
+			// capture the start time for processing duration
+			startTime := time.Now()
+			c.concurrentCount.Add(1)
+			defer func() {
+				c.concurrentCount.Add(-1)
+				c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+					attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
+				), c.attributesOpt)
+			}()
+			return errors.WithStack(fn())
+		}); err != nil {
 			return errors.WithStack(err)
 		}
+
 	}
-	// wait for all functions to finish
+
+	// wait for all queued functions to finish
 	return errors.WithStack(concurrentQueue.Wait())
 }
 
@@ -167,10 +207,23 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 	if c.concurrentQueue == nil {
 		// initialize the concurrent queue if it is not already initialized
 		c.concurrentQueue = cq.NewConcurrentQueueWithCancel(c.Core.Context(), c.Core.CancelFunc(), c.concurrency)
+		c.concurrentLimits.Add(int64(c.concurrency))
 	}
 
 	// add the function to the queue
-	if err := c.concurrentQueue.Submit(fn); err != nil {
+	callerLoc := getCallerLoc()
+	if err := c.concurrentQueue.Submit(func() error {
+		// capture the start time for processing duration
+		startTime := time.Now()
+		c.concurrentCount.Add(1)
+		defer func() {
+			c.concurrentCount.Add(-1)
+			c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+				attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
+			), c.attributesOpt)
+		}()
+		return errors.WithStack(fn())
+	}); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
@@ -182,7 +235,10 @@ func (c *Common) ConcurrentQueueWait() error {
 		return nil // no functions to wait for
 	}
 
-	// wait for all queued functions to finish
+	// wait for all queued functions to finish and release concurrent limits
+	defer func() {
+		c.concurrentLimits.Add(-int64(c.concurrency))
+	}()
 	return c.concurrentQueue.Wait()
 }
 
@@ -235,7 +291,7 @@ func RecordWithoutMetadata(record *model.Record, metadataPrefix string) *model.R
 
 // Retry retries the given function with the specified maximum number of attempts
 // TODO: refactor this function to use proper package for retry
-func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) error {
+func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error, hookFuncs ...func()) error {
 	var err error
 	sleepTime := int64(1)
 
@@ -243,6 +299,11 @@ func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error) e
 		err = f()
 		if err == nil {
 			return nil
+		}
+
+		// if hook functions are provided, execute them on each retry
+		for _, hookFunc := range hookFuncs {
+			hookFunc()
 		}
 
 		l.Warn(fmt.Sprintf("retry: %d, error: %v", i, err))
@@ -266,4 +327,14 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 		}
 	}
 	return errors.WithStack(concurrentQueue.Wait())
+}
+
+func getCallerLoc() string {
+	pc, file, line, _ := runtime.Caller(2)
+	fn := runtime.FuncForPC(pc)
+	// trim to just the method signature
+	fullFunc := fn.Name()
+	funcName := fullFunc[strings.LastIndex(fullFunc, "/")+1:]
+
+	return fmt.Sprintf("%s:%s:%d", funcName, filepath.Base(file), line)
 }

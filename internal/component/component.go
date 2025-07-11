@@ -62,7 +62,10 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 	opts := getOpts(ctx, cfg)
 	opts = append(opts, common.SetupConcurrency(cfg.SourceConcurrency))
 	// create commonSource
-	commonSource := common.NewCommonSource(ctx, cancelFn, l, strings.ToLower(string(source)), opts...)
+	commonSource, err := common.NewCommonSource(ctx, cancelFn, l, strings.ToLower(string(source)), opts...)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	// create source based on type
 	switch source {
@@ -120,7 +123,10 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 	opts := getOpts(ctx, cfg)
 	opts = append(opts, common.SetupConcurrency(cfg.SinkConcurrency))
 	// create commonSink
-	commonSink := common.NewCommonSink(ctx, cancelFn, l, strings.ToLower(string(sink)), opts...)
+	commonSink, err := common.NewCommonSink(ctx, cancelFn, l, strings.ToLower(string(sink)), opts...)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 
 	// create sink based on type
 	switch sink {
