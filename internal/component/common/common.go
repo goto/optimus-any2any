@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -179,8 +178,9 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 		c.concurrentLimits.Add(-int64(c.concurrency))
 	}()
 
+	// add the function to the queue
+	callerLoc := getCallerLoc()
 	for _, fn := range funcs {
-		funcName := getFuncName(fn)
 		if err := concurrentQueue.Submit(func() error {
 			// capture the start time for processing duration
 			startTime := time.Now()
@@ -188,7 +188,7 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 			defer func() {
 				c.concurrentCount.Add(-1)
 				c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-					attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+					attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
 				))
 			}()
 			return errors.WithStack(fn())
@@ -211,7 +211,7 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 	}
 
 	// add the function to the queue
-	funcName := getFuncName(fn)
+	callerLoc := getCallerLoc()
 	if err := c.concurrentQueue.Submit(func() error {
 		// capture the start time for processing duration
 		startTime := time.Now()
@@ -219,7 +219,7 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 		defer func() {
 			c.concurrentCount.Add(-1)
 			c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-				attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+				attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
 			))
 		}()
 		return errors.WithStack(fn())
@@ -329,8 +329,8 @@ func ConcurrentTask(ctx context.Context, concurrencyLimit int, funcs []func() er
 	return errors.WithStack(concurrentQueue.Wait())
 }
 
-func getFuncName(fn any) string {
-	pc := reflect.ValueOf(fn).Pointer()
-	fileName, line := runtime.FuncForPC(pc).FileLine(pc)
-	return fmt.Sprintf("%s:%d", filepath.Base(fileName), line)
+func getCallerLoc() string {
+	pc, file, line, _ := runtime.Caller(2)
+	fn := runtime.FuncForPC(pc)
+	return fmt.Sprintf("%s:%d:%s", filepath.Base(file), line, fn.Name())
 }

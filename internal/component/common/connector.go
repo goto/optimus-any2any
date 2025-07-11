@@ -121,7 +121,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 			}
 
 			// submit the batch processing to the concurrent queue
-			funcName := getFuncName(fn)
+			callerLoc := getCallerLoc()
 			err := c.concurrentQueue.Submit(func() error {
 				// increment the concurrent count and record the duration
 				c.concurrentCount.Add(1)
@@ -129,7 +129,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 				defer func() {
 					c.concurrentCount.Add(-1)
 					c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-						attribute.KeyValue{Key: "function", Value: attribute.StringValue(funcName)},
+						attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
 					))
 				}()
 
