@@ -97,9 +97,9 @@ func (c *commonSink) ReadRecord() iter.Seq2[*model.Record, error] {
 			// if record is not a specialized metadata record,
 			// we increment the record related metrics
 			if !c.IsSpecializedMetadataRecord(&record) {
-				c.recordCount.Add(c.Context(), 1)
-				c.recordBytes.Add(c.Context(), int64(len(v)))
-				c.recordBytesBucket.Record(c.Context(), int64(len(v)))
+				c.recordCount.Add(c.Context(), 1, c.attributesOpt)
+				c.recordBytes.Add(c.Context(), int64(len(v)), c.attributesOpt)
+				c.recordBytesBucket.Record(c.Context(), int64(len(v)), c.attributesOpt)
 			}
 
 			if !yield(&record, nil) {

@@ -131,7 +131,7 @@ func (c *Common) SetMetadataPrefix(metadataPrefix string) {
 // Retry retries the given function with the configured retry parameters
 func (c *Common) Retry(f func() error) error {
 	return Retry(c.Core.Logger(), c.retryMax, c.retryBackoffMs, f, func() {
-		c.retryCount.Add(c.Core.Context(), 1)
+		c.retryCount.Add(c.Core.Context(), 1, c.attributesOpt)
 	})
 }
 
@@ -189,7 +189,7 @@ func (c *Common) ConcurrentTasks(funcs []func() error) error {
 				c.concurrentCount.Add(-1)
 				c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
 					attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
-				))
+				), c.attributesOpt)
 			}()
 			return errors.WithStack(fn())
 		}); err != nil {
@@ -220,7 +220,7 @@ func (c *Common) ConcurrentQueue(fn func() error) error {
 			c.concurrentCount.Add(-1)
 			c.processDurationMs.Record(c.Core.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
 				attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
-			))
+			), c.attributesOpt)
 		}()
 		return errors.WithStack(fn())
 	}); err != nil {

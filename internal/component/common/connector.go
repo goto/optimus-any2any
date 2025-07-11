@@ -116,7 +116,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 					return errors.WithStack(err)
 				}
 				// record the number of records processed
-				c.recordCount.Add(c.Context(), int64(currentRecordCount))
+				c.recordCount.Add(c.Context(), int64(currentRecordCount), c.attributesOpt)
 				return nil
 			}
 
@@ -130,7 +130,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 					c.concurrentCount.Add(-1)
 					c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
 						attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
-					))
+					), c.attributesOpt)
 				}()
 
 				return errors.WithStack(fn())
@@ -181,8 +181,8 @@ func (c *Connector) flush(r io.Reader, inlets ...flow.Inlet) error {
 		}
 
 		// record the number of bytes processed by the connector
-		c.recordBytes.Add(c.Context(), int64(len(raw)))
-		c.recordBytesBucket.Record(c.Context(), int64(len(raw)))
+		c.recordBytes.Add(c.Context(), int64(len(raw)), c.attributesOpt)
+		c.recordBytesBucket.Record(c.Context(), int64(len(raw)), c.attributesOpt)
 	}
 	return nil
 }

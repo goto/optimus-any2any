@@ -8,11 +8,14 @@ import (
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
 type commonmetric struct {
-	m                 metric.Meter
+	m             metric.Meter
+	attributesOpt metric.MeasurementOption
+
 	recordCount       metric.Int64Counter
 	recordBytes       metric.Int64Counter
 	recordBytesBucket metric.Int64Histogram
@@ -24,6 +27,7 @@ type commonmetric struct {
 
 func (cm *commonmetric) initializeMetrics(c component.Getter) error {
 	cm.m = otel.GetMeter(c.Component(), c.Name())
+	cm.attributesOpt = metric.WithAttributes(attribute.KeyValue{Key: "name", Value: attribute.StringValue(c.Name())})
 
 	var err error
 
@@ -57,8 +61,8 @@ func (cm *commonmetric) initializeMetrics(c component.Getter) error {
 	}
 	// register the callback to observe the current concurrency limits and count
 	_, err = cm.m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
-		o.ObserveInt64(processLimits, cm.concurrentLimits.Load())
-		o.ObserveInt64(processCount, cm.concurrentCount.Load())
+		o.ObserveInt64(processLimits, cm.concurrentLimits.Load(), cm.attributesOpt)
+		o.ObserveInt64(processCount, cm.concurrentCount.Load(), cm.attributesOpt)
 		return nil
 	}, processLimits, processCount)
 	if err != nil {
