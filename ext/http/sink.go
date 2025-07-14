@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	xauth "github.com/goto/optimus-any2any/internal/auth"
+	xclientcredentials "github.com/goto/optimus-any2any/internal/auth/clientcredentials"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -53,6 +54,7 @@ func NewSink(commonSink common.Sink,
 	body, bodyContent string,
 	batchSize int,
 	connectionTLSCert, connectionTLSCACert, connectionTLSKey string,
+	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
 	opts ...common.Option) (*HTTPSink, error) {
 
 	// prepare template
@@ -83,6 +85,18 @@ func NewSink(commonSink common.Sink,
 		}
 		client.Transport = &http.Transport{
 			TLSClientConfig: tlsconfig,
+		}
+	}
+
+	// experimental, TODO: refactor this to a proper provider interface
+	if clientCredentialsProvider != "" && clientCredentialsClientID != "" && clientCredentialsClientSecret != "" && clientCredentialsTokenURL != "" {
+		commonSink.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
+		switch strings.ToLower(clientCredentialsProvider) {
+		case "bca":
+			bcaProvider := xclientcredentials.NewBCAProvider(clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+			client = bcaProvider.Client(commonSink.Context())
+		default:
+			return nil, errors.New(fmt.Sprintf("unsupported client credentials provider: %s", clientCredentialsProvider))
 		}
 	}
 
