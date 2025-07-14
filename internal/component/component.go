@@ -220,7 +220,10 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return http.NewSink(commonSink,
 			sinkCfg.Method, sinkCfg.Endpoint, sinkCfg.Headers, sinkCfg.HeadersFile,
 			sinkCfg.Body, sinkCfg.BodyFilePath, sinkCfg.BatchSize,
-			sinkCfg.ConnectionTLSCert, sinkCfg.ConnectionTLSCACert, sinkCfg.ConnectionTLSKey, opts...)
+			sinkCfg.ConnectionTLSCert, sinkCfg.ConnectionTLSCACert, sinkCfg.ConnectionTLSKey,
+			sinkCfg.ClientCredentialsProvider, sinkCfg.ClientCredentialsClientID,
+			sinkCfg.ClientCredentialsClientSecret, sinkCfg.ClientCredentialsTokenURL,
+			opts...)
 	case KAFKA:
 		sinkCfg, err := config.SinkKafka(envs...)
 		if err != nil {
