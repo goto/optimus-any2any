@@ -112,6 +112,12 @@ It applies when sink and source are in the same environment. For example, transf
 | | GA__CONNECTION_TLS_CERT | Google Analytics TLS certificate. (optional) |
 | | GA__CONNECTION_TLS_CACERT | Google Analytics TLS CA certificate. (optional) |
 | | GA__CONNECTION_TLS_KEY | Google Analytics TLS key. (optional) |
+| HTTP | HTTP__ENDPOINT | HTTP endpoint to fetch the data. |
+| | HTTP__HEADERS_FILE_PATH | Path to the HTTP headers file. |
+| | HTTP__CLIENT_CREDENTIALS_PROVIDER | (experimental) HTTP client credentials provider, availability: BCA. (default: "") (optional) |
+| | HTTP__CLIENT_CREDENTIALS_CLIENT_ID | (experimental) HTTP client credentials client ID. (default: "") (optional) |
+| | HTTP__CLIENT_CREDENTIALS_CLIENT_SECRET | (experimental) HTTP client credentials client secret. (default: "") (optional) |
+| | HTTP__CLIENT_CREDENTIALS_TOKEN_URL | (experimental) HTTP client credentials token URL. (default: "") (optional) |
 
 ## Supported Sinks
 
