@@ -23,10 +23,11 @@ builds:
     goarch:
       - amd64
       - arm64
+      - arm
+      - 386
 
 dockers:
   - goos: linux
-    goarch: amd64
     ids:
       - any2any
     dockerfile: Dockerfile
