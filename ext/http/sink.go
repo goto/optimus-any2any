@@ -92,9 +92,9 @@ func NewSink(commonSink common.Sink,
 	if clientCredentialsProvider != "" && clientCredentialsClientID != "" && clientCredentialsClientSecret != "" && clientCredentialsTokenURL != "" {
 		commonSink.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
 		switch strings.ToLower(clientCredentialsProvider) {
-		case "bca":
-			bcaProvider := xclientcredentials.NewBCAProvider(clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
-			client = bcaProvider.Client(commonSink.Context())
+		case xclientcredentials.CustomProviderA:
+			ccProvider := xclientcredentials.NewProviderA(clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+			client = ccProvider.Client(commonSink.Context())
 		default:
 			return nil, errors.New(fmt.Sprintf("unsupported client credentials provider: %s", clientCredentialsProvider))
 		}

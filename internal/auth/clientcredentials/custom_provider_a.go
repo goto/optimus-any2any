@@ -1,7 +1,6 @@
 package clientcredentials
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,52 +14,39 @@ import (
 	"golang.org/x/oauth2/clientcredentials"
 )
 
-// BCAProvider is a clientcredentials.Config specific for BCA OAuth2 client credentials flow.
-type BCAProvider struct {
-	clientcredentials.Config
-	expiresAt   time.Time // Time when the token expires
-	accessToken string    // Cached access token
+// ProviderA is a clientcredentials.Config specific for OAuth2 client credentials flow for Provider A.
+type ProviderA struct {
+	BaseProvider
 }
 
-// Ensure BCAConfig implements the oauth2.TokenSource interface.
-var _ oauth2.TokenSource = (*BCAProvider)(nil)
+// Ensure ProviderA implements the oauth2.TokenSource interface.
+var _ oauth2.TokenSource = (*ProviderA)(nil)
 
-// BCATokenResponse represents the response structure for BCA OAuth2 token endpoint.
-type BCATokenResponse struct {
+// ProviderAResponse is the expected response structure from Provider A's token endpoint.
+type ProviderATokenResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 	ExpiresIn   string `json:"expires_in"`
 	Scope       string `json:"scope,omitempty"`
 }
 
-// NewBCAProvider creates a new Config for satisfy BCA OAuth2 client credentials flow.
-func NewBCAProvider(clientID, clientSecret, tokenURL string) *BCAProvider {
-	return &BCAProvider{
-		Config: clientcredentials.Config{
-			ClientID:     clientID,
-			ClientSecret: clientSecret,
-			TokenURL:     tokenURL,
+func NewProviderA(clientID, clientSecret, tokenURL string) *ProviderA {
+	return &ProviderA{
+		BaseProvider: BaseProvider{
+			Config: clientcredentials.Config{
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+				TokenURL:     tokenURL,
+			},
 		},
-		expiresAt:   time.Time{}, // Initialize to zero time
-		accessToken: "",          // Initialize to empty string
 	}
 }
 
-// Client returns an HTTP client using the provided token.
-// The token will auto-refresh as necessary.
-func (c *BCAProvider) Client(ctx context.Context) *http.Client {
-	return oauth2.NewClient(ctx, c)
-}
-
 // Token retrieves an OAuth2 token using the client credentials flow.
-func (c *BCAProvider) Token() (*oauth2.Token, error) {
+func (c *ProviderA) Token() (*oauth2.Token, error) {
 	if c.accessToken != "" && time.Now().Before(c.expiresAt) {
 		// Return cached token if it is still valid
-		return &oauth2.Token{
-			AccessToken: c.accessToken,
-			TokenType:   "Bearer",
-			Expiry:      c.expiresAt,
-		}, nil
+		return c.BaseProvider.Token()
 	}
 
 	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", c.ClientID, c.ClientSecret)))
@@ -93,7 +79,7 @@ func (c *BCAProvider) Token() (*oauth2.Token, error) {
 		return nil, fmt.Errorf("failed to get token: %s, response: %s", resp.Status, body)
 	}
 
-	var token BCATokenResponse
+	var token ProviderATokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
@@ -104,10 +90,7 @@ func (c *BCAProvider) Token() (*oauth2.Token, error) {
 		return nil, fmt.Errorf("failed to parse expires_in: %w", err)
 	}
 	c.expiresAt = time.Now().Add(expiresIn)
+	c.tokenType = "Bearer"
 
-	return &oauth2.Token{
-		AccessToken: c.accessToken,
-		TokenType:   "Bearer",
-		Expiry:      c.expiresAt,
-	}, nil
+	return c.BaseProvider.Token()
 }
