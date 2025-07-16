@@ -11,7 +11,6 @@ import (
 	"text/template"
 
 	xauth "github.com/goto/optimus-any2any/internal/auth"
-	xclientcredentials "github.com/goto/optimus-any2any/internal/auth/clientcredentials"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -88,16 +87,14 @@ func NewSink(commonSink common.Sink,
 		}
 	}
 
-	// experimental, TODO: refactor this to a proper provider interface
-	if clientCredentialsProvider != "" && clientCredentialsClientID != "" && clientCredentialsClientSecret != "" && clientCredentialsTokenURL != "" {
-		commonSink.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
-		switch strings.ToLower(clientCredentialsProvider) {
-		case xclientcredentials.CustomProviderA:
-			ccProvider := xclientcredentials.NewProviderA(clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
-			client = ccProvider.Client(commonSink.Context())
-		default:
-			return nil, errors.New(fmt.Sprintf("unsupported client credentials provider: %s", clientCredentialsProvider))
+	// experimental
+	if isUsingOAuth2(clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL) {
+		c, err := newClientWithOAuth2(commonSink.Context(), clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+		if err != nil {
+			return nil, errors.WithStack(err)
 		}
+		client = c
+		commonSink.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
 	}
 
 	s := &HTTPSink{

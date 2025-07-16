@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/goccy/go-json"
-	xclientcredentials "github.com/goto/optimus-any2any/internal/auth/clientcredentials"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -49,16 +48,14 @@ func NewSource(commonSource common.Source, endpoint string, headerContent string
 
 	client := http.DefaultClient
 
-	// experimental, TODO: refactor this to a proper provider interface
-	if clientCredentialsProvider != "" && clientCredentialsClientID != "" && clientCredentialsClientSecret != "" && clientCredentialsTokenURL != "" {
-		commonSource.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
-		switch strings.ToLower(clientCredentialsProvider) {
-		case xclientcredentials.CustomProviderA:
-			ccProvider := xclientcredentials.NewProviderA(clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
-			client = ccProvider.Client(commonSource.Context())
-		default:
-			return nil, errors.New(fmt.Sprintf("unsupported client credentials provider: %s", clientCredentialsProvider))
+	// experimental
+	if isUsingOAuth2(clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL) {
+		c, err := newClientWithOAuth2(commonSource.Context(), clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+		if err != nil {
+			return nil, errors.WithStack(err)
 		}
+		client = c
+		commonSource.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
 	}
 
 	hs := &HTTPSource{
