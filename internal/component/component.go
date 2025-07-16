@@ -111,6 +111,16 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			sourceCfg.ServiceAccount, sourceCfg.ConnectionTLSCert, sourceCfg.ConnectionTLSCACert, sourceCfg.ConnectionTLSKey,
 			sourceCfg.PropertyID, sourceCfg.StartDate, sourceCfg.EndDate, sourceCfg.Dimensions, sourceCfg.Metrics, sourceCfg.BatchSize,
 		)
+	case HTTP:
+		sourceCfg, err := config.SourceHTTP(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return http.NewSource(commonSource,
+			sourceCfg.Endpoint, sourceCfg.HeadersFilePath,
+			sourceCfg.ClientCredentialsProvider, sourceCfg.ClientCredentialsClientID,
+			sourceCfg.ClientCredentialsClientSecret, sourceCfg.ClientCredentialsTokenURL,
+			opts...)
 	case IO:
 	}
 	return nil, fmt.Errorf("source: unknown source: %s", source)
