@@ -185,7 +185,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | HTTP__BODY | HTTP body for the request. |
 | | HTTP__BODY_FILE_PATH | HTTP body loaded from file. |
 | | HTTP__BATCH_SIZE | Batch size for the HTTP request. |
-| | HTTP__CLIENT_CREDENTIALS_PROVIDER | (experimental) HTTP client credentials provider, availability: BCA. (default: "") (optional) |
+| | HTTP__CLIENT_CREDENTIALS_PROVIDER | (experimental) HTTP client credentials provider, availability: custom_provider_a. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_CLIENT_ID | (experimental) HTTP client credentials client ID. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_CLIENT_SECRET | (experimental) HTTP client credentials client secret. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_TOKEN_URL | (experimental) HTTP client credentials token URL. (default: "") (optional) |
