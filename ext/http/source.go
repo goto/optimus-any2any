@@ -50,7 +50,7 @@ func NewSource(commonSource common.Source, endpoint string, headerContent string
 
 	// experimental
 	if isUsingOAuth2(clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL) {
-		c, err := newClientWithOAuth2(commonSource.Context(), clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+		c, err := newClientWithOAuth2(commonSource.Context(), commonSource.Logger(), clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}

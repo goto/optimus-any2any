@@ -89,7 +89,7 @@ func NewSink(commonSink common.Sink,
 
 	// experimental
 	if isUsingOAuth2(clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL) {
-		c, err := newClientWithOAuth2(commonSink.Context(), clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+		c, err := newClientWithOAuth2(commonSink.Context(), commonSink.Logger(), clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
