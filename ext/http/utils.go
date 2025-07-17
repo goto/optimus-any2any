@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -14,10 +15,10 @@ func isUsingOAuth2(clientCredentialsProvider, clientCredentialsClientID, clientC
 	return clientCredentialsProvider != "" && clientCredentialsClientID != "" && clientCredentialsClientSecret != "" && clientCredentialsTokenURL != ""
 }
 
-func newClientWithOAuth2(ctx context.Context, clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string) (*http.Client, error) {
+func newClientWithOAuth2(ctx context.Context, l *slog.Logger, clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string) (*http.Client, error) {
 	switch strings.ToLower(clientCredentialsProvider) {
 	case xclientcredentials.CustomProviderA:
-		ccProvider := xclientcredentials.NewProviderA(clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
+		ccProvider := xclientcredentials.NewProviderA(l, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL)
 		return ccProvider.Client(ctx), nil
 	default:
 		return nil, errors.New(fmt.Sprintf("unsupported client credentials provider: %s", clientCredentialsProvider))

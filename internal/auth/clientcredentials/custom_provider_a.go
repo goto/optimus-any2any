@@ -1,10 +1,12 @@
 package clientcredentials
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -16,7 +18,10 @@ import (
 
 // ProviderA is a clientcredentials.Config specific for OAuth2 client credentials flow for Provider A.
 type ProviderA struct {
-	BaseProvider
+	clientcredentials.Config
+	l           *slog.Logger
+	token       *oauth2.Token      // Cached token for reuse
+	tokenSource oauth2.TokenSource // Token source for OAuth2
 }
 
 // Ensure ProviderA implements the oauth2.TokenSource interface.
@@ -30,24 +35,28 @@ type ProviderATokenResponse struct {
 	Scope       string `json:"scope,omitempty"`
 }
 
-func NewProviderA(clientID, clientSecret, tokenURL string) *ProviderA {
-	return &ProviderA{
-		BaseProvider: BaseProvider{
-			Config: clientcredentials.Config{
-				ClientID:     clientID,
-				ClientSecret: clientSecret,
-				TokenURL:     tokenURL,
-			},
+func NewProviderA(l *slog.Logger, clientID, clientSecret, tokenURL string) *ProviderA {
+	c := &ProviderA{
+		Config: clientcredentials.Config{
+			ClientID:     clientID,
+			ClientSecret: clientSecret,
+			TokenURL:     tokenURL,
 		},
+		l:     l,
+		token: nil,
 	}
+	c.tokenSource = oauth2.ReuseTokenSource(c.token, c)
+	return c
+}
+
+// Token retrieves an OAuth2 token using the client credentials flow.
+func (c *ProviderA) Client(ctx context.Context) *http.Client {
+	return oauth2.NewClient(ctx, c.tokenSource)
 }
 
 // Token retrieves an OAuth2 token using the client credentials flow.
 func (c *ProviderA) Token() (*oauth2.Token, error) {
-	if c.accessToken != "" && time.Now().Before(c.expiresAt) {
-		// Return cached token if it is still valid
-		return c.BaseProvider.Token()
-	}
+	c.l.Info("requesting OAuth2 token using client credentials flow")
 
 	auth := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", c.ClientID, c.ClientSecret)))
 	values := url.Values{}
@@ -84,13 +93,15 @@ func (c *ProviderA) Token() (*oauth2.Token, error) {
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
-	c.accessToken = token.AccessToken
 	expiresIn, err := time.ParseDuration(token.ExpiresIn + "s")
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse expires_in: %w", err)
 	}
-	c.expiresAt = time.Now().Add(expiresIn)
-	c.tokenType = "Bearer"
 
-	return c.BaseProvider.Token()
+	return &oauth2.Token{
+		AccessToken: token.AccessToken,
+		TokenType:   "Bearer",
+		Expiry:      time.Now().Add(expiresIn),
+		ExpiresIn:   int64(expiresIn.Seconds()),
+	}, nil
 }
