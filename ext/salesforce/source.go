@@ -72,20 +72,27 @@ func (sf *SalesforceSource) process() error {
 
 	// prepare to handle pagination
 	totalRecords := result.TotalSize
-	splittedURL := strings.Split(result.NextRecordsURL, "-")
-	batchSize, err := strconv.Atoi(splittedURL[len(splittedURL)-1])
-	if err != nil {
-		sf.Logger().Error(fmt.Sprintf("failed to parse batch size from next records URL: %s", err.Error()))
-		return errors.WithStack(err)
+
+	var splittedURL []string
+	var urlTemplate string
+	batchSize := totalRecords // no pagination, use total records as batch size
+
+	if result.NextRecordsURL != "" {
+		splittedURL = strings.Split(result.NextRecordsURL, "-")
+		batchSize, err = strconv.Atoi(splittedURL[len(splittedURL)-1])
+		if err != nil {
+			sf.Logger().Error(fmt.Sprintf("failed to parse batch size from next records URL: %s", err.Error()))
+			return errors.WithStack(err)
+		}
+		urlTemplate = strings.Join(splittedURL[:len(splittedURL)-1], "-") + "-%d"
+		sf.Logger().Info(fmt.Sprintf("total records: %d, batch size: %d, url template: %s", totalRecords, batchSize, urlTemplate))
 	}
-	urlTemplate := strings.Join(splittedURL[:len(splittedURL)-1], "-") + "-%d"
-	sf.Logger().Info(fmt.Sprintf("total records: %d, batch size: %d, url template: %s", totalRecords, batchSize, urlTemplate))
 
 	// fetch records in batches
 	for i := 0; i < result.TotalSize; i += batchSize {
-		url := fmt.Sprintf(urlTemplate, i)
-		if i == 0 {
-			url = sf.soqlQuery // use the initial SOQL query for the first batch
+		url := sf.soqlQuery // use the initial SOQL query for the first batch
+		if i > 0 {
+			url = fmt.Sprintf(urlTemplate, i)
 		}
 
 		// fetch records from the next records URL concurrently
