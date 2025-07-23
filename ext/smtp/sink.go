@@ -160,7 +160,7 @@ func NewSink(commonSink common.Sink,
 		s.ossclient = ossclient
 		// create new oss write handler
 		s.newHandlers = func() (fs.WriteHandler, error) {
-			return osssink.NewOSSHandler(commonSink.Context(), commonSink.Logger(), ossclient, false,
+			return osssink.NewOSSHandler(commonSink.Context(), commonSink.Logger(), ossclient, true,
 				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 				fs.WithWriteCompression(compressionType),
 				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
