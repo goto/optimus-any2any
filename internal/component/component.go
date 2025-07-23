@@ -186,6 +186,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return sftp.NewSink(commonSink,
 			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 			sinkCfg.DestinationURI,
+			sinkCfg.EnableOverwrite, sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.JSONPathSelector,
 			opts...)
@@ -205,6 +206,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		return smtp.NewSink(commonSink,
 			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
 			sinkCfg.BodyFilePath, sinkCfg.BodyNoRecordFilePath, sinkCfg.AttachmentFilename, storageCfg,
+			sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			opts...)
 	case PSQL:

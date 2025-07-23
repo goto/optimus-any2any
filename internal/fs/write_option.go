@@ -76,11 +76,11 @@ func WithWriteCompressionPassword(password string) WriteOption {
 		if password == "" {
 			return nil // No compression password
 		}
-		if w.compressionType != "zip" {
-			return errors.New("compression password is only supported for zip compression")
+		if w.compressionType == "zip" || w.compressionAutoDetect {
+			w.compressionPassword = password
+			return nil
 		}
-		w.compressionPassword = password
-		return nil
+		return errors.New("compression password is only supported for zip compression")
 	}
 }
 
