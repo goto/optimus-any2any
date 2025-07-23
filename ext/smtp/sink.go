@@ -15,6 +15,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fs"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
@@ -86,6 +87,7 @@ type SMTPSink struct {
 func NewSink(commonSink common.Sink,
 	connectionDSN string, from, to, subject, bodyFilePath, bodyNoRecordFilePath, attachment string,
 	storageConfig StorageConfig,
+	skipHeader bool,
 	compressionType string, compressionPassword string,
 	opts ...common.Option) (*SMTPSink, error) {
 
@@ -160,6 +162,10 @@ func NewSink(commonSink common.Sink,
 		s.newHandlers = func() (fs.WriteHandler, error) {
 			return osssink.NewOSSHandler(commonSink.Context(), commonSink.Logger(), ossclient, true,
 				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+				fs.WithWriteCompression(compressionType),
+				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
+				fs.WithWriteCompressionPassword(compressionPassword),
+				fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
 			)
 		}
 	} else {
@@ -167,6 +173,10 @@ func NewSink(commonSink common.Sink,
 		s.newHandlers = func() (fs.WriteHandler, error) {
 			return file.NewFileHandler(commonSink.Context(), commonSink.Logger(),
 				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+				fs.WithWriteCompression(compressionType),
+				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
+				fs.WithWriteCompressionPassword(compressionPassword),
+				fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
 			)
 		}
 	}

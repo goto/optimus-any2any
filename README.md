@@ -160,6 +160,8 @@ It applies when sink and source are in the same environment. For example, transf
 | | SFTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
 | | SFTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | SFTP__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
+| | SFTP__ENABLE_OVERWRITE | Flag to overwrite the file based on destination uri path. (default: false) |
+| | SFTP__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | SMTP | SMTP__CONNECTION_DSN | SMTP connection dsn, format `smtp://user[:password]@host[:port]`, if port is not specified, default port `587` will be used. user and password should be url encoded. |
 | | SMTP__FROM | SMTP from email address. |
 | | SMTP__TO | SMTP to, cc, and bcc email address, format: `to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...]` |
@@ -173,6 +175,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__STORAGE_CREDENTIALS | If storage mode is set to other than attachment, this credential will be used to authenticate to the bucket |
 | | SMTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
 | | SMTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
+| | SMTP__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |

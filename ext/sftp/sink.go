@@ -35,6 +35,7 @@ var _ flow.Sink = (*SFTPSink)(nil)
 func NewSink(commonSink common.Sink,
 	privateKey, hostFingerprint string,
 	destinationURI string,
+	enableOverwrite bool, skipHeader bool,
 	compressionType string, compressionPassword string,
 	jsonPathSelector string,
 	opts ...common.Option) (*SFTPSink, error) {
@@ -49,11 +50,12 @@ func NewSink(commonSink common.Sink,
 	handlers, err := NewSFTPHandler(commonSink.Context(), commonSink.Logger(),
 		u.Host, u.User.Username(), password,
 		privateKey, hostFingerprint,
-		true, // TODO: make this configurable
+		enableOverwrite,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 		fs.WithWriteCompression(compressionType),
+		fs.WithWriteCompressionStaticDestinationURI(destinationURI),
 		fs.WithWriteCompressionPassword(compressionPassword),
-		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(false)), // TODO: make this configurable
+		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)

@@ -294,6 +294,10 @@ func (h *CommonWriteHandler) compressPerType(compressionType string, compression
 	}
 	h.logger.Info(fmt.Sprintf("compressing %d files with compression type: %s", len(destinationPaths), compressionType))
 
+	if h.compressionPassword != "" && compressionType != "zip" {
+		h.logger.Warn(fmt.Sprintf("compression password is only supported for zip compression, ignoring for %s", compressionType))
+	}
+
 	// compress based on the compression type
 	var archivedPaths []string
 	switch compressionType {

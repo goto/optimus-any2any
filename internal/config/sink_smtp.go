@@ -15,6 +15,7 @@ type SinkSMTPConfig struct {
 	StorageCredentials    string `env:"SMTP__STORAGE_CREDENTIALS"`
 	CompressionPassword   string `env:"SMTP__COMPRESSION_PASSWORD"`
 	CompressionType       string `env:"SMTP__COMPRESSION_TYPE"`
+	SkipHeader            bool   `env:"SMTP__SKIP_HEADER" default:"false"`
 }
 
 // SinkSMTP parses the environment variables and returns the sink smtp configuration.
