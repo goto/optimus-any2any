@@ -77,7 +77,8 @@ func (sf *SalesforceSource) process() error {
 	var urlTemplate string
 	batchSize := totalRecords // no pagination, use total records as batch size
 
-	if result.NextRecordsURL != "" {
+	if result.NextRecordsURL != "" && totalRecords > 0 {
+		sf.Logger().Info(fmt.Sprintf("pagination detected, next records URL: %s", result.NextRecordsURL))
 		splittedURL = strings.Split(result.NextRecordsURL, "-")
 		batchSize, err = strconv.Atoi(splittedURL[len(splittedURL)-1])
 		if err != nil {
