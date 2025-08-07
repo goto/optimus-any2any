@@ -222,21 +222,28 @@ func (mc *MaxcomputeSource) Process() error {
 						return err
 					}
 
-					// merge with pre-record
-					for k := range preRecordWithPrefixCopy.AllFromFront() {
-						if _, ok := record.Get(k); !ok {
-							record.Set(k, preRecordWithPrefixCopy.GetOrDefault(k, nil))
+					recordCopy := record.Copy()
+					err = mc.ConcurrentQueue(func() error {
+						// merge with pre-record
+						for k := range preRecordWithPrefixCopy.AllFromFront() {
+							if _, ok := recordCopy.Get(k); !ok {
+								recordCopy.Set(k, preRecordWithPrefixCopy.GetOrDefault(k, nil))
+							}
 						}
-					}
-					// add filename column
-					record.Set(mc.filenameColumn, filenameCopy)
+						// add filename column
+						recordCopy.Set(mc.filenameColumn, filenameCopy)
 
-					if err := mc.SendRecord(record); err != nil {
-						mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
+						if err := mc.SendRecord(recordCopy); err != nil {
+							mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
+							return errors.WithStack(err)
+						}
+						return nil
+					})
+					if err != nil {
 						return errors.WithStack(err)
 					}
 				}
-				return nil
+				return errors.WithStack(mc.ConcurrentQueueWait()) // wait for all queued functions to finish
 			})
 		}
 	}
