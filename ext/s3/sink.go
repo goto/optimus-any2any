@@ -8,6 +8,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/goccy/go-json"
+	"github.com/pkg/errors"
+
 	xaws "github.com/goto/optimus-any2any/internal/auth/aws"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -15,7 +17,6 @@ import (
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/pkg/errors"
 )
 
 type S3Sink struct {
@@ -38,7 +39,7 @@ func NewSink(commonSink common.Sink,
 	batchSize int, enableOverwrite bool, skipHeader bool,
 	maxTempFileRecordNumber int,
 	compressionType string, compressionPassword string,
-	jsonPathSelector string,
+	jsonPathSelector string, endpointUrl string,
 	opts ...common.Option) (*S3Sink, error) {
 
 	// parse credentials
@@ -57,7 +58,7 @@ func NewSink(commonSink common.Sink,
 	}
 
 	// create S3 client uploader
-	client, err := NewS3Client(commonSink.Context(), region, provider)
+	client, err := NewS3Client(commonSink.Context(), region, provider, endpointUrl)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
