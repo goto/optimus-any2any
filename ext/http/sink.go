@@ -154,10 +154,7 @@ func (s *HTTPSink) process() error {
 		// flush if batch size is reached
 		// batch size is 1 means no batching
 		if len(hh.records) >= s.batchSize {
-			err := s.Retry(func() error {
-				return s.flush(m, hh.records)
-			})
-			if err != nil {
+			if err := s.flush(m, hh.records); err != nil {
 				s.Logger().Error(fmt.Sprintf("failed to send data to %s; %s", m.endpoint, err.Error()))
 				return errors.WithStack(err)
 			}
@@ -184,10 +181,7 @@ func (s *HTTPSink) process() error {
 			continue
 		}
 
-		err := s.Retry(func() error {
-			return s.flush(hh.httpMetadata, hh.records)
-		})
-		if err != nil {
+		if err := s.flush(hh.httpMetadata, hh.records); err != nil {
 			s.Logger().Error(fmt.Sprintf("failed to send data to %s; %s", hh.httpMetadata.endpoint, err.Error()))
 			return errors.WithStack(err)
 		}
@@ -230,35 +224,36 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 	}
 
 	err = s.ConcurrentQueue(func() error {
-		return s.DryRunable(func() error {
-			resp, err := s.client.Do(req.WithContext(s.Context()))
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-				bodyBytes, err := io.ReadAll(resp.Body)
-				s.Logger().Debug(fmt.Sprintf("http request: %+v", req))
+		return s.Retry(func() error {
+			return s.DryRunable(func() error {
+				resp, err := s.client.Do(req.WithContext(s.Context()))
 				if err != nil {
-					s.Logger().Error(fmt.Sprintf("failed to read response body from %s; err: %s", m.endpoint, err.Error()))
-				} else {
-					s.Logger().Error(fmt.Sprintf("failed to send data to %s; status code: %d, body: %s", m.endpoint, resp.StatusCode, string(bodyBytes)))
+					return errors.WithStack(err)
 				}
-				return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-			}
+				defer resp.Body.Close()
 
-			if s.batchSize > 1 {
-				s.Logger().Info(fmt.Sprintf("successfully sent %d records in batch to %s", recordCount, m.endpoint))
-			}
-			return nil
-		}, func() error {
-			// in dry run mode, we don't need to send the request
-			// we just need to check the endpoint connectivity
-			return xnet.ConnCheck(m.endpoint)
+				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+					bodyBytes, err := io.ReadAll(resp.Body)
+					s.Logger().Debug(fmt.Sprintf("http request: %+v", req))
+					if err != nil {
+						s.Logger().Error(fmt.Sprintf("failed to read response body from %s; err: %s", m.endpoint, err.Error()))
+					} else {
+						s.Logger().Error(fmt.Sprintf("failed to send data to %s; status code: %d, body: %s", m.endpoint, resp.StatusCode, string(bodyBytes)))
+					}
+					return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+				}
+
+				if s.batchSize > 1 {
+					s.Logger().Info(fmt.Sprintf("successfully sent %d records in batch to %s", recordCount, m.endpoint))
+				}
+				return nil
+			}, func() error {
+				// in dry run mode, we don't need to send the request
+				// we just need to check the endpoint connectivity
+				return xnet.ConnCheck(m.endpoint)
+			})
 		})
 	})
-
 	return errors.WithStack(err)
 }
 
