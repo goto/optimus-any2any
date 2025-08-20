@@ -133,6 +133,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__BATCH_SIZE_IN_MB | Batch size for the file upload. (default: 64) |
 | | MC__ALLOW_SCHEMA_MISMATCH | Allow schema mismatch. (default: false) |
 | | MC__EXECUTION_PROJECT | Project ID for the query execution. |
+| | MC__TUNNEL_QUOTA | Tunnel Quota use for Data Transmition Service ([Use an exclusive resource group for Data Transmission Service](https://www.alibabacloud.com/help/en/maxcompute/user-guide/purchase-and-use-exclusive-resource-groups-for-dts?spm=a2c63.p38356.help-menu-27797.d_2_7_2_1.78684182Zm24Kc#9d2e54ca3c55i)). |
 | IO | - | - |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__DESTINATION_URI | The destination path in a OSS bucket to put the result files. Format `oss://bucket/path/to/file.extension` |

@@ -10,6 +10,7 @@ type SinkMCConfig struct {
 	BatchSizeInMB       int    `env:"MC__BATCH_SIZE_IN_MB" envDefault:"64"`
 	ExecutionProject    string `env:"MC__EXECUTION_PROJECT"`
 	AllowSchemaMismatch bool   `env:"MC__ALLOW_SCHEMA_MISMATCH" envDefault:"false"`
+	TunnelQuota         string `env:"MC__TUNNEL_QUOTA"`
 }
 
 // SinkMC parses the environment variables and returns the sink maxcompute configuration.

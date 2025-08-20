@@ -145,7 +145,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return maxcompute.NewSink(commonSink, sinkCfg.Credentials, sinkCfg.ExecutionProject, sinkCfg.DestinationTableID, sinkCfg.LoadMethod, sinkCfg.UploadMode, sinkCfg.BatchSizeInMB, sinkCfg.Concurrency, sinkCfg.AllowSchemaMismatch, opts...)
+		return maxcompute.NewSink(commonSink, sinkCfg, opts...)
 	case FILE:
 		sinkCfg, err := config.SinkFile(envs...)
 		if err != nil {

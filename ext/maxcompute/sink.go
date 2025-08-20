@@ -9,6 +9,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -34,20 +35,21 @@ type MaxcomputeSink struct {
 var _ flow.Sink = (*MaxcomputeSink)(nil)
 
 // NewSink creates a new MaxcomputeSink
-func NewSink(commonSink common.Sink, creds string, executionProject string, tableID string, loadMethod string, uploadMode string, batchSizeInMB int, concurrency int, allowSchemaMismatch bool, opts ...common.Option) (*MaxcomputeSink, error) {
+func NewSink(commonSink common.Sink, config *config.SinkMCConfig, opts ...common.Option) (*MaxcomputeSink, error) {
 	// create client for maxcompute
-	client, err := NewClient(creds)
+	client, err := NewClient(config.Credentials)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if executionProject != "" {
-		client.SetDefaultProjectName(executionProject)
+	if config.ExecutionProject != "" {
+		client.SetDefaultProjectName(config.ExecutionProject)
 	}
 	commonSink.Logger().Info(fmt.Sprintf("client created, execution project: %s", client.DefaultProject().Name()))
 
+	tableID := config.DestinationTableID
 	tableIDDestination := tableID
 	// stream to temporary table if load method is replace
-	if loadMethod == LOAD_METHOD_REPLACE {
+	if config.LoadMethod == LOAD_METHOD_REPLACE {
 		tableID = fmt.Sprintf("%s_temp_%d", strings.ReplaceAll(tableID, "`", ""), time.Now().Unix())
 		commonSink.Logger().Info(fmt.Sprintf("load method is replace, creating temporary table: %s", tableID))
 		if err := createTempTable(commonSink.Logger(), client.Odps, tableID, tableIDDestination, 1); err != nil {
@@ -61,6 +63,10 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 		return nil, errors.WithStack(err)
 	}
 
+	if config.TunnelQuota != "" {
+		t.SetQuotaName(config.TunnelQuota)
+	}
+
 	client.StreamWriter = func(tableID string) (*mcStreamRecordSender, error) {
 		destination, err := getTable(commonSink.Logger(), client.Odps, tableID)
 		if err != nil {
@@ -68,12 +74,12 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 		}
 		session, err := t.CreateStreamUploadSession(destination.ProjectName(), destination.Name(),
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
-			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
+			tunnel.SessionCfg.WithAllowSchemaMismatch(config.AllowSchemaMismatch),
 		)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		recordSender, err := newStreamRecordSender(commonSink.Logger(), session, batchSizeInMB)
+		recordSender, err := newStreamRecordSender(commonSink.Logger(), session, config.BatchSizeInMB)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -88,21 +94,21 @@ func NewSink(commonSink common.Sink, creds string, executionProject string, tabl
 		}
 		session, err := t.CreateUploadSession(destination.ProjectName(), destination.Name(),
 			tunnel.SessionCfg.WithSchemaName(destination.SchemaName()),
-			tunnel.SessionCfg.WithAllowSchemaMismatch(allowSchemaMismatch),
+			tunnel.SessionCfg.WithAllowSchemaMismatch(config.AllowSchemaMismatch),
 		)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return newBatchRecordSender(commonSink.Logger(), session, batchSizeInMB, concurrency)
+		return newBatchRecordSender(commonSink.Logger(), session, config.BatchSizeInMB, config.Concurrency)
 	}
 
 	mc := &MaxcomputeSink{
 		Sink:               commonSink,
 		Client:             client,
-		loadMethod:         loadMethod,
+		loadMethod:         config.LoadMethod,
 		tableIDTransition:  tableID,
 		tableIDDestination: tableIDDestination,
-		uploadMode:         uploadMode,
+		uploadMode:         config.UploadMode,
 	}
 
 	// add clean func
