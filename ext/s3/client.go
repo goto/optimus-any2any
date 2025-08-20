@@ -9,8 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/pkg/errors"
+
+	xio "github.com/goto/optimus-any2any/internal/io"
 )
 
 // S3Client handles streaming data to S3
@@ -20,11 +21,24 @@ type S3Client struct {
 }
 
 // NewS3Client creates a new uploader with the provided authentication
-func NewS3Client(ctx context.Context, region string, credProvider aws.CredentialsProvider) (*S3Client, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
+func NewS3Client(ctx context.Context, region string, credProvider aws.CredentialsProvider, endpointUrl string) (*S3Client, error) {
+	configOpts := []func(*config.LoadOptions) error{
 		config.WithCredentialsProvider(credProvider),
 		config.WithRegion(region),
-	)
+	}
+
+	if endpointUrl != "" {
+		configOpts = append(configOpts, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+				return aws.Endpoint{
+					URL:           endpointUrl,
+					SigningRegion: region,
+				}, nil
+			})))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, configOpts...)
+
 	if err != nil {
 		err = fmt.Errorf("failed to load AWS configuration: %w", err)
 		return nil, errors.WithStack(err)
