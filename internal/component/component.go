@@ -208,6 +208,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.BodyFilePath, sinkCfg.BodyNoRecordFilePath, sinkCfg.AttachmentFilename, storageCfg,
 			sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
+			sinkCfg.ConnectionTimeoutSeconds,
 			opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)

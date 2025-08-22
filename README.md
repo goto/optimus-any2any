@@ -177,6 +177,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
 | | SMTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | SMTP__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+| | SMTP__CONNECTION_TIMEOUT_SECONDS | SMTP connection timeout in seconds. (default: 120s - 2 minutes) |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |
