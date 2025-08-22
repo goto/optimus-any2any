@@ -88,11 +88,11 @@ func NewSink(commonSink common.Sink,
 	connectionDSN string, from, to, subject, bodyFilePath, bodyNoRecordFilePath, attachment string,
 	storageConfig StorageConfig,
 	skipHeader bool,
-	compressionType string, compressionPassword string,
+	compressionType string, compressionPassword string, connectionTimeout int,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create SMTP client
-	client, err := NewSMTPClient(commonSink.Context(), connectionDSN)
+	client, err := NewSMTPClient(commonSink.Context(), connectionDSN, connectionTimeout)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

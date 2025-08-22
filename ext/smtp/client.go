@@ -7,9 +7,15 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/wneessen/go-mail"
+)
+
+const (
+	// default connection timeout set to 2 minutes
+	defaultConnTimeout = 120 * time.Second
 )
 
 // SMTPClient is a wrapper around gomail.SendCloser
@@ -19,7 +25,7 @@ type SMTPClient struct {
 }
 
 // NewSMTPClient creates a new SMTPClient
-func NewSMTPClient(ctx context.Context, connectionDSN string) (*SMTPClient, error) {
+func NewSMTPClient(ctx context.Context, connectionDSN string, connectionTimeout int) (*SMTPClient, error) {
 	dsn, err := url.Parse(connectionDSN)
 	if err != nil {
 		err = fmt.Errorf("error parsing connection dsn")
@@ -43,7 +49,13 @@ func NewSMTPClient(ctx context.Context, connectionDSN string) (*SMTPClient, erro
 		port = p
 	}
 
+	connectionTimeoutDuration := defaultConnTimeout
+	if connectionTimeout > 0 {
+		connectionTimeoutDuration = time.Duration(connectionTimeout) * time.Second
+	}
+
 	client, err := mail.NewClient(host,
+		mail.WithTimeout(connectionTimeoutDuration),
 		mail.WithTLSPortPolicy(mail.TLSMandatory),
 		mail.WithSMTPAuth(mail.SMTPAuthPlain),
 		mail.WithUsername(username),
