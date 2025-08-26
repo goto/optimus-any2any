@@ -9,6 +9,7 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -32,17 +33,10 @@ type SFTPSink struct {
 var _ flow.Sink = (*SFTPSink)(nil)
 
 // NewSink creates a new SFTPSink.
-func NewSink(commonSink common.Sink,
-	privateKey, hostFingerprint string,
-	destinationURI string,
-	enableOverwrite bool, skipHeader bool,
-	compressionType string, compressionPassword string,
-	jsonPathSelector string,
-	delimiter rune,
-	opts ...common.Option) (*SFTPSink, error) {
+func NewSink(commonSink common.Sink, sinkCfg *config.SinkSFTPConfig, opts ...common.Option) (*SFTPSink, error) {
 
 	// prepare handlers
-	u, err := url.Parse(destinationURI)
+	u, err := url.Parse(sinkCfg.DestinationURI)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -50,22 +44,22 @@ func NewSink(commonSink common.Sink,
 	password, _ := u.User.Password()
 	handlers, err := NewSFTPHandler(commonSink.Context(), commonSink.Logger(),
 		u.Host, u.User.Username(), password,
-		privateKey, hostFingerprint,
-		enableOverwrite,
+		sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
+		sinkCfg.EnableOverwrite,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
-		fs.WithWriteCompression(compressionType),
-		fs.WithWriteCompressionStaticDestinationURI(destinationURI),
-		fs.WithWriteCompressionPassword(compressionPassword),
+		fs.WithWriteCompression(sinkCfg.CompressionType),
+		fs.WithWriteCompressionStaticDestinationURI(sinkCfg.DestinationURI),
+		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
 		fs.WithWriteChunkOptions(
-			xio.WithCSVSkipHeader(skipHeader),
-			xio.WithCSVDelimiter(delimiter),
+			xio.WithCSVSkipHeader(sinkCfg.SkipHeader),
+			xio.WithCSVDelimiter(sinkCfg.CSVDelimiter),
 		),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
-	t, err := compiler.NewTemplate("sink_sftp_destination_uri", destinationURI)
+	t, err := compiler.NewTemplate("sink_sftp_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
@@ -75,7 +69,7 @@ func NewSink(commonSink common.Sink,
 		destinationURITemplate: t,
 		handlers:               handlers,
 		// jsonPath selector
-		jsonPathSelector: jsonPathSelector,
+		jsonPathSelector: sinkCfg.JSONPathSelector,
 	}
 
 	// add clean func

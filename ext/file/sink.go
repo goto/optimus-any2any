@@ -8,6 +8,7 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -26,13 +27,9 @@ type FileSink struct {
 
 var _ flow.Sink = (*FileSink)(nil)
 
-func NewSink(commonSink common.Sink, destinationURI string,
-	compressionType string, compressionPassword string,
-	jsonPathSelector string,
-	delimiter rune,
-	opts ...common.Option) (*FileSink, error) {
+func NewSink(commonSink common.Sink, sinkCfg *config.SinkFileConfig, opts ...common.Option) (*FileSink, error) {
 	// parse destinationURI as template
-	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
+	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
@@ -40,10 +37,10 @@ func NewSink(commonSink common.Sink, destinationURI string,
 	// prepare handlers
 	handlers, err := NewFileHandler(commonSink.Context(), commonSink.Logger(),
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
-		fs.WithWriteCompression(compressionType),
-		fs.WithWriteCompressionPassword(compressionPassword),
+		fs.WithWriteCompression(sinkCfg.CompressionType),
+		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
 		fs.WithWriteChunkOptions(
-			xio.WithCSVDelimiter(delimiter),
+			xio.WithCSVDelimiter(sinkCfg.CSVDelimiter),
 		),
 	)
 	if err != nil {
@@ -55,7 +52,7 @@ func NewSink(commonSink common.Sink, destinationURI string,
 		Sink:                   commonSink,
 		destinationURITemplate: tmpl,
 		handlers:               handlers,
-		jsonPathSelector:       jsonPathSelector,
+		jsonPathSelector:       sinkCfg.JSONPathSelector,
 	}
 
 	// add clean func

@@ -11,6 +11,7 @@ import (
 	xaws "github.com/goto/optimus-any2any/internal/auth/aws"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -32,25 +33,17 @@ type S3Sink struct {
 var _ flow.Sink = (*S3Sink)(nil)
 
 // NewS3Sink creates a new S3 sink instance
-func NewSink(commonSink common.Sink,
-	rawCreds string, clientCredsProvider string,
-	region string, destinationURI string,
-	batchSize int, enableOverwrite bool, skipHeader bool,
-	maxTempFileRecordNumber int,
-	compressionType string, compressionPassword string,
-	jsonPathSelector string,
-	delimiter rune,
-	opts ...common.Option) (*S3Sink, error) {
+func NewSink(commonSink common.Sink, sinkCfg *config.SinkS3Config, opts ...common.Option) (*S3Sink, error) {
 
 	// parse credentials
-	creds, err := parseCredentials(rawCreds)
+	creds, err := parseCredentials(sinkCfg.Credentials)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// get provider
 	var provider aws.CredentialsProvider
-	switch strings.ToLower(clientCredsProvider) {
+	switch strings.ToLower(sinkCfg.Provider) {
 	case string(xaws.TikTokProviderType):
 		provider = xaws.NewTikTokProvider(creds.AWSAccessKeyID, creds.AWSSecretAccessKey, xaws.S3ResourceType)
 	default:
@@ -58,26 +51,26 @@ func NewSink(commonSink common.Sink,
 	}
 
 	// create S3 client uploader
-	client, err := NewS3Client(commonSink.Context(), region, provider)
+	client, err := NewS3Client(commonSink.Context(), sinkCfg.Region, provider)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// parse destinationURI as template
-	tmpl, err := compiler.NewTemplate("sink_s3_destination_uri", destinationURI)
+	tmpl, err := compiler.NewTemplate("sink_s3_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
 	// prepare handlers
 	handlers, err := NewS3Handler(commonSink.Context(), commonSink.Logger(),
-		client, enableOverwrite,
+		client, sinkCfg.EnableOverwrite,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
-		fs.WithWriteCompression(compressionType),
-		fs.WithWriteCompressionPassword(compressionPassword),
+		fs.WithWriteCompression(sinkCfg.CompressionType),
+		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
 		fs.WithWriteChunkOptions(
-			xio.WithCSVSkipHeader(skipHeader),
-			xio.WithCSVDelimiter(delimiter),
+			xio.WithCSVSkipHeader(sinkCfg.SkipHeader),
+			xio.WithCSVDelimiter(sinkCfg.CSVDelimiter),
 		),
 	)
 	if err != nil {
@@ -86,8 +79,8 @@ func NewSink(commonSink common.Sink,
 
 	// parse batch step template // TODO: deprecate this, we keep this for backward compatibility
 	var batchStepTmpl *template.Template
-	if batchSize > 0 {
-		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", batchSize, batchSize))
+	if sinkCfg.BatchSize > 0 {
+		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", sinkCfg.BatchSize, sinkCfg.BatchSize))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse batch step template: %w", err)
 		}
@@ -99,7 +92,7 @@ func NewSink(commonSink common.Sink,
 		handlers:               handlers,
 		batchStepTemplate:      batchStepTmpl,
 		// jsonPath selector
-		jsonPathSelector: jsonPathSelector,
+		jsonPathSelector: sinkCfg.JSONPathSelector,
 	}
 
 	// add clean func

@@ -151,11 +151,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSink(commonSink,
-			sinkCfg.DestinationURI, sinkCfg.CompressionType,
-			sinkCfg.CompressionPassword, sinkCfg.JSONPathSelector,
-			sinkCfg.CSVDelimiter,
-			opts...)
+		return file.NewSink(commonSink, sinkCfg, opts...)
 	case IO:
 		return io.NewSink(commonSink), nil
 	case OSS:
@@ -163,61 +159,26 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSink(commonSink, sinkCfg.Credentials,
-			sinkCfg.DestinationURI,
-			sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
-			sinkCfg.SkipHeader,
-			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
-			sinkCfg.ConnectionTimeoutSeconds, sinkCfg.ReadWriteTimeoutSeconds,
-			sinkCfg.JSONPathSelector,
-			sinkCfg.CSVDelimiter,
-			opts...)
+		return oss.NewSink(commonSink, sinkCfg, opts...)
 	case S3:
 		sinkCfg, err := config.SinkS3(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return s3.NewSink(commonSink, sinkCfg.Credentials, sinkCfg.Provider, sinkCfg.Region,
-			sinkCfg.DestinationURI, sinkCfg.BatchSize, sinkCfg.EnableOverwrite,
-			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber,
-			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
-			sinkCfg.JSONPathSelector,
-			sinkCfg.CSVDelimiter,
-			opts...)
+		return s3.NewSink(commonSink, sinkCfg, opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return sftp.NewSink(commonSink,
-			sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
-			sinkCfg.DestinationURI,
-			sinkCfg.EnableOverwrite, sinkCfg.SkipHeader,
-			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
-			sinkCfg.JSONPathSelector,
-			sinkCfg.CSVDelimiter,
-			opts...)
+		return sftp.NewSink(commonSink, sinkCfg, opts...)
 	case SMTP:
 		sinkCfg, err := config.SinkSMTP(envs...)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 
-		storageCfg := smtp.StorageConfig{
-			Mode:           strings.ToLower(sinkCfg.StorageMode),
-			DestinationDir: sinkCfg.StorageDestinationDir,
-			Credentials:    sinkCfg.StorageCredentials,
-			LinkExpiration: sinkCfg.StorageLinkExpiration,
-		}
-
-		return smtp.NewSink(commonSink,
-			sinkCfg.ConnectionDSN, sinkCfg.From, sinkCfg.To, sinkCfg.Subject,
-			sinkCfg.BodyFilePath, sinkCfg.BodyNoRecordFilePath, sinkCfg.AttachmentFilename, storageCfg,
-			sinkCfg.SkipHeader,
-			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
-			sinkCfg.ConnectionTimeoutSeconds,
-			sinkCfg.CSVDelimiter,
-			opts...)
+		return smtp.NewSink(commonSink, sinkCfg, opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)
 		if err != nil {
