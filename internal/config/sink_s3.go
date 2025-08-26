@@ -12,6 +12,7 @@ type SinkS3Config struct {
 	CompressionType         string `env:"S3__COMPRESSION_TYPE"`
 	CompressionPassword     string `env:"S3__COMPRESSION_PASSWORD"`
 	JSONPathSelector        string `env:"S3__JSONPATH_SELECTOR"`
+	CSVDelimiter            rune   `env:"S3__CSV_DELIMITER" envDefault:","`
 }
 
 func SinkS3(envs ...string) (*SinkS3Config, error) {

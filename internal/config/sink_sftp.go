@@ -10,6 +10,7 @@ type SinkSFTPConfig struct {
 	JSONPathSelector    string `env:"SFTP__JSONPATH_SELECTOR"`
 	EnableOverwrite     bool   `env:"SFTP__ENABLE_OVERWRITE" default:"false"`
 	SkipHeader          bool   `env:"SFTP__SKIP_HEADER" default:"false"`
+	CSVDelimiter        rune   `env:"SFTP__CSV_DELIMITER" envDefault:","`
 }
 
 // SinkSFTP parses the environment variables and returns the SinkSFTPConfig.

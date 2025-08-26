@@ -9,6 +9,7 @@ import (
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fs"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -27,7 +28,9 @@ var _ flow.Sink = (*FileSink)(nil)
 
 func NewSink(commonSink common.Sink, destinationURI string,
 	compressionType string, compressionPassword string,
-	jsonPathSelector string, opts ...common.Option) (*FileSink, error) {
+	jsonPathSelector string,
+	delimiter rune,
+	opts ...common.Option) (*FileSink, error) {
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", destinationURI)
 	if err != nil {
@@ -39,6 +42,9 @@ func NewSink(commonSink common.Sink, destinationURI string,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 		fs.WithWriteCompression(compressionType),
 		fs.WithWriteCompressionPassword(compressionPassword),
+		fs.WithWriteChunkOptions(
+			xio.WithCSVDelimiter(delimiter),
+		),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)

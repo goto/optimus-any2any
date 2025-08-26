@@ -39,6 +39,7 @@ func NewSink(commonSink common.Sink,
 	maxTempFileRecordNumber int,
 	compressionType string, compressionPassword string,
 	jsonPathSelector string,
+	delimiter rune,
 	opts ...common.Option) (*S3Sink, error) {
 
 	// parse credentials
@@ -74,7 +75,10 @@ func NewSink(commonSink common.Sink,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
 		fs.WithWriteCompression(compressionType),
 		fs.WithWriteCompressionPassword(compressionPassword),
-		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+		fs.WithWriteChunkOptions(
+			xio.WithCSVSkipHeader(skipHeader),
+			xio.WithCSVDelimiter(delimiter),
+		),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)

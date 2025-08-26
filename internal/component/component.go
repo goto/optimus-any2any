@@ -151,7 +151,11 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSink(commonSink, sinkCfg.DestinationURI, sinkCfg.CompressionType, sinkCfg.CompressionPassword, sinkCfg.JSONPathSelector, opts...)
+		return file.NewSink(commonSink,
+			sinkCfg.DestinationURI, sinkCfg.CompressionType,
+			sinkCfg.CompressionPassword, sinkCfg.JSONPathSelector,
+			sinkCfg.CSVDelimiter,
+			opts...)
 	case IO:
 		return io.NewSink(commonSink), nil
 	case OSS:
@@ -166,6 +170,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.ConnectionTimeoutSeconds, sinkCfg.ReadWriteTimeoutSeconds,
 			sinkCfg.JSONPathSelector,
+			sinkCfg.CSVDelimiter,
 			opts...)
 	case S3:
 		sinkCfg, err := config.SinkS3(envs...)
@@ -177,6 +182,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.SkipHeader, sinkCfg.MaxTempFileRecordNumber,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.JSONPathSelector,
+			sinkCfg.CSVDelimiter,
 			opts...)
 	case SFTP:
 		sinkCfg, err := config.SinkSFTP(envs...)
@@ -189,6 +195,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.EnableOverwrite, sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.JSONPathSelector,
+			sinkCfg.CSVDelimiter,
 			opts...)
 	case SMTP:
 		sinkCfg, err := config.SinkSMTP(envs...)
@@ -209,6 +216,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 			sinkCfg.SkipHeader,
 			sinkCfg.CompressionType, sinkCfg.CompressionPassword,
 			sinkCfg.ConnectionTimeoutSeconds,
+			sinkCfg.CSVDelimiter,
 			opts...)
 	case PSQL:
 		sinkCfg, err := config.SinkPG(envs...)

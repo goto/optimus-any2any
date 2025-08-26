@@ -36,6 +36,7 @@ func NewSink(commonSink common.Sink,
 	compressionType string, compressionPassword string,
 	connectionTimeout, readWriteTimeout int,
 	jsonPathSelector string,
+	delimiter rune,
 	opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
@@ -69,7 +70,10 @@ func NewSink(commonSink common.Sink,
 		fs.WithWriteCompression(compressionType),
 		fs.WithWriteCompressionStaticDestinationURI(destinationURI),
 		fs.WithWriteCompressionPassword(compressionPassword),
-		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+		fs.WithWriteChunkOptions(
+			xio.WithCSVSkipHeader(skipHeader),
+			xio.WithCSVDelimiter(delimiter),
+		),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)

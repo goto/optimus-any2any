@@ -89,6 +89,7 @@ func NewSink(commonSink common.Sink,
 	storageConfig StorageConfig,
 	skipHeader bool,
 	compressionType string, compressionPassword string, connectionTimeout int,
+	delimiter rune,
 	opts ...common.Option) (*SMTPSink, error) {
 
 	// create SMTP client
@@ -165,7 +166,10 @@ func NewSink(commonSink common.Sink,
 				fs.WithWriteCompression(compressionType),
 				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
 				fs.WithWriteCompressionPassword(compressionPassword),
-				fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+				fs.WithWriteChunkOptions(
+					xio.WithCSVSkipHeader(skipHeader),
+					xio.WithCSVDelimiter(delimiter),
+				),
 			)
 		}
 	} else {
@@ -176,7 +180,10 @@ func NewSink(commonSink common.Sink,
 				fs.WithWriteCompression(compressionType),
 				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
 				fs.WithWriteCompressionPassword(compressionPassword),
-				fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+				fs.WithWriteChunkOptions(
+					xio.WithCSVSkipHeader(skipHeader),
+					xio.WithCSVDelimiter(delimiter),
+				),
 			)
 		}
 	}
