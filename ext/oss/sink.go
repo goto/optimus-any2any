@@ -9,6 +9,7 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -30,33 +31,27 @@ type OSSSink struct {
 var _ flow.Sink = (*OSSSink)(nil)
 
 // NewSink creates a new OSSSink
-func NewSink(commonSink common.Sink,
-	creds, destinationURI string,
-	batchSize int, enableOverwrite bool, skipHeader bool,
-	compressionType string, compressionPassword string,
-	connectionTimeout, readWriteTimeout int,
-	jsonPathSelector string,
-	opts ...common.Option) (*OSSSink, error) {
+func NewSink(commonSink common.Sink, sinkCfg *config.SinkOSSConfig, opts ...common.Option) (*OSSSink, error) {
 
 	// create OSS client
-	client, err := NewOSSClient(commonSink.Context(), creds, OSSClientConfig{
-		ConnectionTimeoutSeconds: connectionTimeout, // TODO: refactor connection related configs
-		ReadWriteTimeoutSeconds:  readWriteTimeout,
+	client, err := NewOSSClient(commonSink.Context(), sinkCfg.Credentials, OSSClientConfig{
+		ConnectionTimeoutSeconds: sinkCfg.ConnectionTimeoutSeconds, // TODO: refactor connection related configs
+		ReadWriteTimeoutSeconds:  sinkCfg.ReadWriteTimeoutSeconds,
 	})
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// parse destinationURI as template
-	tmpl, err := compiler.NewTemplate("sink_oss_destination_uri", destinationURI)
+	tmpl, err := compiler.NewTemplate("sink_oss_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
 	}
 
 	// parse batch step template // TODO: deprecate this, we keep this for backward compatibility
 	var batchStepTmpl *template.Template
-	if batchSize > 0 {
-		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", batchSize, batchSize))
+	if sinkCfg.BatchSize > 0 {
+		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", sinkCfg.BatchSize, sinkCfg.BatchSize))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse batch step template: %w", err)
 		}
@@ -64,12 +59,15 @@ func NewSink(commonSink common.Sink,
 
 	// prepare handlers
 	handlers, err := NewOSSHandler(commonSink.Context(), commonSink.Logger(),
-		client, enableOverwrite,
+		client, sinkCfg.EnableOverwrite,
 		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
-		fs.WithWriteCompression(compressionType),
-		fs.WithWriteCompressionStaticDestinationURI(destinationURI),
-		fs.WithWriteCompressionPassword(compressionPassword),
-		fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+		fs.WithWriteCompression(sinkCfg.CompressionType),
+		fs.WithWriteCompressionStaticDestinationURI(sinkCfg.DestinationURI),
+		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
+		fs.WithWriteChunkOptions(
+			xio.WithCSVSkipHeader(sinkCfg.SkipHeader),
+			xio.WithCSVDelimiter(sinkCfg.CSVDelimiter),
+		),
 	)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -81,7 +79,7 @@ func NewSink(commonSink common.Sink,
 		handlers:               handlers,
 		batchStepTemplate:      batchStepTmpl,
 		// jsonPath selector
-		jsonPathSelector: jsonPathSelector,
+		jsonPathSelector: sinkCfg.JSONPathSelector,
 	}
 
 	// add clean func

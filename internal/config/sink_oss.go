@@ -11,6 +11,7 @@ type SinkOSSConfig struct {
 	ConnectionTimeoutSeconds int    `env:"OSS__CONNECTION_TIMEOUT_SECONDS" envDefault:"30"`
 	ReadWriteTimeoutSeconds  int    `env:"OSS__READ_WRITE_TIMEOUT_SECONDS" envDefault:"60"`
 	JSONPathSelector         string `env:"OSS__JSONPATH_SELECTOR"`
+	CSVDelimiter             rune   `env:"OSS__CSV_DELIMITER"`
 }
 
 func SinkOSS(envs ...string) (*SinkOSSConfig, error) {

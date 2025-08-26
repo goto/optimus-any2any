@@ -17,6 +17,7 @@ type SinkSMTPConfig struct {
 	CompressionType          string `env:"SMTP__COMPRESSION_TYPE"`
 	SkipHeader               bool   `env:"SMTP__SKIP_HEADER" default:"false"`
 	ConnectionTimeoutSeconds int    `env:"SMTP__CONNECTION_TIMEOUT_SECONDS" envDefault:"120"`
+	CSVDelimiter             rune   `env:"SMTP__CSV_DELIMITER"`
 }
 
 // SinkSMTP parses the environment variables and returns the sink smtp configuration.

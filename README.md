@@ -125,6 +125,7 @@ It applies when sink and source are in the same environment. For example, transf
 |---|---|---|
 | FILE | FILE__DESTINATION_URI | Path to the output file. Format `file:///directory/to/somthing.extension` |
 | | FILE__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
+| | FILE__CSV_DELIMITER | Delimiter for CSV file format |
 | MC | MC__CREDENTIALS | Credentials for MaxCompute. |
 | | MC__DESTINATION_TABLE_ID | Destination table ID in Maxcompute. |
 | | MC__LOAD_METHOD | Load method availability: APPEND, REPLACE. (default: APPEND) |
@@ -145,16 +146,18 @@ It applies when sink and source are in the same environment. For example, transf
 | | OSS__CONNECTION_TIMEOUT_SECONDS | OSS client transport configuration, timeout for client waiting for the first connection with OSS. (default: 0, no timeout) |
 | | OSS__READ_WRITE_TIMEOUT_SECONDS | OSS client transport configuration, timeout for any read/write process to OSS. (default: 0, no timeout) |
 | | OSS__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
+| | OSS__CSV_DELIMITER | Delimiter for CSV file format |
 | S3 | S3__CREDENTIALS | Credentials for S3. |
 | | S3__PROVIDER | S3 provider availability: AWS, TIKTOK. (default: AWS) |
 | | S3__REGION | S3 region for the bucket. (default: us-east-1) |
 | | S3__DESTINATION_URI | The destination path in a S3 bucket to put the result files. Format `s3://bucket/path/to/file.extension` |
 | | S3__ENABLE_OVERWRITE | Flag to overwrite the file based on destination bucket path. |
-| | S3__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+| | S3__SKIP_HEADER | Skip header for CSV file format |
 | | S3__MAX_TEMP_FILE_RECORD_NUMBER | Maximum number of record that temp files can store before it is uploaded to S3. (default: 50000) |
 | | S3__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
 | | S3__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | S3__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
+| | S3__CSV_DELIMITER | Delimiter for CSV file format |
 | SFTP | SFTP__PRIVATE_KEY | SFTP private key for authentication. "" for ignore |
 | | SFTP__HOST_FINGERPRINT | SFTP host fingerprint for authentication. "" for ignore |
 | | SFTP__DESTINATION_URI | Following the [rfc2396 format](https://datatracker.ietf.org/doc/html/rfc2396) `sftp://user[:password]@host[:port]/path/to/folder/or/file.extension` |
@@ -163,6 +166,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | SFTP__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
 | | SFTP__ENABLE_OVERWRITE | Flag to overwrite the file based on destination uri path. (default: false) |
 | | SFTP__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+| | SFTP__CSV_DELIMITER | Delimiter for CSV file format |
 | SMTP | SMTP__CONNECTION_DSN | SMTP connection dsn, format `smtp://user[:password]@host[:port]`, if port is not specified, default port `587` will be used. user and password should be url encoded. |
 | | SMTP__FROM | SMTP from email address. |
 | | SMTP__TO | SMTP to, cc, and bcc email address, format: `to:email@address.tld[,another@address.tld]...[;cc:(,another@address.tld)...][;bcc:(,another@address.tld)...]` |
@@ -178,6 +182,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | SMTP__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | SMTP__SKIP_HEADER | Skip header for CSV file format. (default: false) |
 | | SMTP__CONNECTION_TIMEOUT_SECONDS | SMTP connection timeout in seconds. Default: 120s (2 minutes) |
+| | SMTP__CSV_DELIMITER | Delimiter for CSV file format |
 | POSTGRES | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__DESTINATION_TABLE_ID | Destination table ID in Postgres. |
 | | PG__PRE_SQL_SCRIPT | SQL script to run before the data transfer. |

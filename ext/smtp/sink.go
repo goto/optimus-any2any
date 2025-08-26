@@ -14,6 +14,7 @@ import (
 	osssink "github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/internal/fs"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -84,22 +85,17 @@ type SMTPSink struct {
 }
 
 // NewSink creates a new SMTPSink
-func NewSink(commonSink common.Sink,
-	connectionDSN string, from, to, subject, bodyFilePath, bodyNoRecordFilePath, attachment string,
-	storageConfig StorageConfig,
-	skipHeader bool,
-	compressionType string, compressionPassword string, connectionTimeout int,
-	opts ...common.Option) (*SMTPSink, error) {
+func NewSink(commonSink common.Sink, sinkCfg *config.SinkSMTPConfig, opts ...common.Option) (*SMTPSink, error) {
 
 	// create SMTP client
-	client, err := NewSMTPClient(commonSink.Context(), connectionDSN, connectionTimeout)
+	client, err := NewSMTPClient(commonSink.Context(), sinkCfg.ConnectionDSN, sinkCfg.ConnectionTimeoutSeconds)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
 
 	// parse "to" to "to", "cc", "bcc"
 	// to:email@domain.com,email2@domain.com;cc:sample@domain.com,sample2@domain.com;bcc:another@domain.com,another2@domain.com
-	toParts := strings.Split(to, ";")
+	toParts := strings.Split(sinkCfg.To, ";")
 	partsMap := map[string][]string{}
 	for _, part := range toParts {
 		parts := strings.Split(part, ":")
@@ -108,7 +104,7 @@ func NewSink(commonSink common.Sink,
 		}
 		partsMap[parts[0]] = strings.Split(parts[1], ",")
 	}
-	to = strings.Join(partsMap["to"], ",")
+	to := strings.Join(partsMap["to"], ",")
 	cc := strings.Join(partsMap["cc"], ",")
 	bcc := strings.Join(partsMap["bcc"], ",")
 	if to == "" {
@@ -117,13 +113,13 @@ func NewSink(commonSink common.Sink,
 
 	// parse email metadata as template
 	m := emailMetadataTemplate{}
-	m.from = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_from", from))
+	m.from = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_from", sinkCfg.From))
 	m.to = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_to", to))
 	m.cc = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_cc", cc))
 	m.bcc = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_bcc", bcc))
 
-	m.subject = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_subject", subject))
-	body, err := os.ReadFile(bodyFilePath)
+	m.subject = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_subject", sinkCfg.Subject))
+	body, err := os.ReadFile(sinkCfg.BodyFilePath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -131,29 +127,36 @@ func NewSink(commonSink common.Sink,
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if bodyNoRecordFilePath != "" {
-		bodyNoRecord, err := os.ReadFile(bodyNoRecordFilePath)
+	if sinkCfg.BodyNoRecordFilePath != "" {
+		bodyNoRecord, err := os.ReadFile(sinkCfg.BodyNoRecordFilePath)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 		m.bodyNoRecord = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_body_no_record", string(bodyNoRecord)))
 	}
 
-	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", attachment))
+	m.attachment = template.Must(compiler.NewTemplate("sink_smtp_email_metadata_attachment", sinkCfg.AttachmentFilename))
+
+	storageCfg := StorageConfig{
+		Mode:           strings.ToLower(sinkCfg.StorageMode),
+		DestinationDir: sinkCfg.StorageDestinationDir,
+		Credentials:    sinkCfg.StorageCredentials,
+		LinkExpiration: sinkCfg.StorageLinkExpiration,
+	}
 
 	s := &SMTPSink{
 		Sink:                  commonSink,
 		client:                client,
 		emailMetadataTemplate: m,
 		emailHandlers:         make(map[string]emailHandler),
-		storageConfig:         storageConfig,
+		storageConfig:         storageCfg,
 	}
 
-	commonSink.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageConfig.Mode))
+	commonSink.Logger().Info(fmt.Sprintf("using smtp sink with storage: %s", storageCfg.Mode))
 
 	// prepare handlers
-	if storageConfig.Mode == "oss" {
-		ossclient, err := osssink.NewOSSClient(commonSink.Context(), storageConfig.Credentials, osssink.OSSClientConfig{})
+	if storageCfg.Mode == "oss" {
+		ossclient, err := osssink.NewOSSClient(commonSink.Context(), storageCfg.Credentials, osssink.OSSClientConfig{})
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -162,10 +165,13 @@ func NewSink(commonSink common.Sink,
 		s.newHandlers = func() (fs.WriteHandler, error) {
 			return osssink.NewOSSHandler(commonSink.Context(), commonSink.Logger(), ossclient, true,
 				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
-				fs.WithWriteCompression(compressionType),
-				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
-				fs.WithWriteCompressionPassword(compressionPassword),
-				fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+				fs.WithWriteCompression(sinkCfg.CompressionType),
+				fs.WithWriteCompressionStaticDestinationURI(storageCfg.DestinationDir),
+				fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
+				fs.WithWriteChunkOptions(
+					xio.WithCSVSkipHeader(sinkCfg.SkipHeader),
+					xio.WithCSVDelimiter(sinkCfg.CSVDelimiter),
+				),
 			)
 		}
 	} else {
@@ -173,10 +179,13 @@ func NewSink(commonSink common.Sink,
 		s.newHandlers = func() (fs.WriteHandler, error) {
 			return file.NewFileHandler(commonSink.Context(), commonSink.Logger(),
 				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
-				fs.WithWriteCompression(compressionType),
-				fs.WithWriteCompressionStaticDestinationURI(storageConfig.DestinationDir),
-				fs.WithWriteCompressionPassword(compressionPassword),
-				fs.WithWriteChunkOptions(xio.WithCSVSkipHeader(skipHeader)),
+				fs.WithWriteCompression(sinkCfg.CompressionType),
+				fs.WithWriteCompressionStaticDestinationURI(storageCfg.DestinationDir),
+				fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
+				fs.WithWriteChunkOptions(
+					xio.WithCSVSkipHeader(sinkCfg.SkipHeader),
+					xio.WithCSVDelimiter(sinkCfg.CSVDelimiter),
+				),
 			)
 		}
 	}
