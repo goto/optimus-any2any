@@ -6,7 +6,7 @@ type SinkFileConfig struct {
 	CompressionType     string `env:"FILE__COMPRESSION_TYPE"`
 	CompressionPassword string `env:"FILE__COMPRESSION_PASSWORD"`
 	JSONPathSelector    string `env:"FILE__JSONPATH_SELECTOR"`
-	CSVDelimiter        rune   `env:"FILE__CSV_DELIMITER" envDefault:","`
+	CSVDelimiter        rune   `env:"FILE__CSV_DELIMITER"`
 }
 
 // SinkFile parses the environment variables and returns the sink file configuration.
