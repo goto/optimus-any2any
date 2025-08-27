@@ -12,7 +12,7 @@ type Config struct {
 	RetryMax                  int    `env:"RETRY_MAX" envDefault:"3"`
 	RetryBackoffMs            int64  `env:"RETRY_BACKOFF_MS" envDefault:"1000"`
 	EnablePprof               bool   `env:"ENABLE_PPROF" envDefault:"false"`
-	SourceConcurrency         int    `env:"SOURCE_CONCURRENCY" envDefault:"4"`
+	SourceConcurrency         int    `env:"SOURCE_CONCURRENCY" envDefault:"1"`
 	SinkConcurrency           int    `env:"SINK_CONCURRENCY" envDefault:"4"`
 	ConnectorConcurrency      int    `env:"CONNECTOR_CONCURRENCY" envDefault:"4"`
 	ConnectorProcessor        string `env:"CONNECTOR_PROCESSOR" envDefault:"JQ"` // JQ or PY
