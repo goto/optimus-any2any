@@ -234,6 +234,7 @@ It applies when sink and source are in the same environment. For example, transf
 | ENABLE_PPROF | Enable pprof for profiling. (default: false) |
 | SOURCE_CONCURRENCY | Concurrency number for the source. (default: 1) |
 | SINK_CONCURRENCY | Concurrency number for the sink. (default: 4) |
+| CONNECTOR_CONCURRENCY | Concurrency number for the connector. (default: 4) |
 | CONNECTOR_PROCESSOR | Connector processor type, JQ. (default: JQ) |
 | CONNECTOR_BATCH_SIZE | Batch size for the connector. (default: 512) |
 | CONNECTOR_BATCH_INDEX_COLUMN | Batch index column for the connector. (default: __METADATA__connector_batch_index) |
