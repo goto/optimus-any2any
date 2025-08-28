@@ -4,20 +4,20 @@ import (
 	errs "errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
-	"maps"
-
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
+	"github.com/pkg/errors"
+
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/pkg/errors"
 )
 
 // MaxcomputeSource is the source component for MaxCompute.
@@ -160,8 +160,6 @@ func (mc *MaxcomputeSource) Process() error {
 		return errors.WithStack(err)
 	}
 
-	// record reader tasks
-	recordReaderTasks := []func() error{}
 	for preRecord, err := range preRecordReader.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
@@ -216,38 +214,35 @@ func (mc *MaxcomputeSource) Process() error {
 
 			preRecordWithPrefixCopy := preRecordWithPrefix.Copy()
 			filenameCopy := filename
-			recordReaderTasks = append(recordReaderTasks, func() error {
-				for record, err := range recordReader.ReadRecord() {
-					if err != nil {
-						return err
+			for record, err := range recordReader.ReadRecord() {
+				if err != nil {
+					return err
+				}
+
+				recordCopy := record.Copy()
+				err = mc.ConcurrentQueue(func() error {
+					// merge with pre-record
+					for k := range preRecordWithPrefixCopy.AllFromFront() {
+						if _, ok := recordCopy.Get(k); !ok {
+							recordCopy.Set(k, preRecordWithPrefixCopy.GetOrDefault(k, nil))
+						}
 					}
+					// add filename column
+					recordCopy.Set(mc.filenameColumn, filenameCopy)
 
-					recordCopy := record.Copy()
-					err = mc.ConcurrentQueue(func() error {
-						// merge with pre-record
-						for k := range preRecordWithPrefixCopy.AllFromFront() {
-							if _, ok := recordCopy.Get(k); !ok {
-								recordCopy.Set(k, preRecordWithPrefixCopy.GetOrDefault(k, nil))
-							}
-						}
-						// add filename column
-						recordCopy.Set(mc.filenameColumn, filenameCopy)
-
-						if err := mc.SendRecord(recordCopy); err != nil {
-							mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-							return errors.WithStack(err)
-						}
-						return nil
-					})
-					if err != nil {
+					if err := mc.SendRecord(recordCopy); err != nil {
+						mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
 						return errors.WithStack(err)
 					}
+					return nil
+				})
+				if err != nil {
+					return errors.WithStack(err)
 				}
-				return errors.WithStack(mc.ConcurrentQueueWait()) // wait for all queued functions to finish
-			})
+			}
 		}
 	}
-	return mc.ConcurrentTasks(recordReaderTasks)
+	return errors.WithStack(mc.ConcurrentQueueWait()) // wait for all queued functions to finish
 }
 
 func (mc *MaxcomputeSource) executeQueryExplain(query string) error {
