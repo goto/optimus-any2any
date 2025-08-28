@@ -10,14 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-
 	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
 	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/goto/optimus-any2any/internal/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
+	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // RecordHelper is an interface that defines methods to manipulate records
