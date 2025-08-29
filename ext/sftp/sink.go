@@ -46,7 +46,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkSFTPConfig, opts ...com
 		u.Host, u.User.Username(), password,
 		sinkCfg.PrivateKey, sinkCfg.HostFingerprint,
 		sinkCfg.EnableOverwrite,
-		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+		fs.WithConcurrentLimiter(commonSink),
 		fs.WithWriteCompression(sinkCfg.CompressionType),
 		fs.WithWriteCompressionStaticDestinationURI(sinkCfg.DestinationURI),
 		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),

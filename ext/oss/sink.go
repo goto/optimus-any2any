@@ -60,7 +60,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkOSSConfig, opts ...comm
 	// prepare handlers
 	handlers, err := NewOSSHandler(commonSink.Context(), commonSink.Logger(),
 		client, sinkCfg.EnableOverwrite,
-		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+		fs.WithConcurrentLimiter(commonSink),
 		fs.WithWriteCompression(sinkCfg.CompressionType),
 		fs.WithWriteCompressionStaticDestinationURI(sinkCfg.DestinationURI),
 		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),

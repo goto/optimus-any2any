@@ -55,15 +55,20 @@ func (h *ossHandler) Sync() error {
 	h.CommonWriteHandler.Sync()
 	// move all files from transient URIs to final URIs
 	for _, destinationURI := range h.DestinationURIs() {
-		// copy the file from transient URI to final URI
-		if err := h.client.Copy(destinationURI+DefaultTransientSuffix, destinationURI); err != nil {
+		if err := h.ConcurrentQueue(func() error {
+			// copy the file from transient URI to final URI
+			if err := h.client.Copy(destinationURI+DefaultTransientSuffix, destinationURI); err != nil {
+				return errors.WithStack(err)
+			}
+			// remove the transient file
+			if err := h.client.Remove(destinationURI + DefaultTransientSuffix); err != nil {
+				return errors.WithStack(err)
+			}
+			h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", fs.MaskedURI(destinationURI)))
+			return nil
+		}); err != nil {
 			return errors.WithStack(err)
 		}
-		// remove the transient file
-		if err := h.client.Remove(destinationURI + DefaultTransientSuffix); err != nil {
-			return errors.WithStack(err)
-		}
-		h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", fs.MaskedURI(destinationURI)))
 	}
-	return nil
+	return errors.WithStack(h.ConcurrentQueueWait()) // wait for all copy operations to finish
 }

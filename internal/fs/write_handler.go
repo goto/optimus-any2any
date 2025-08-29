@@ -30,15 +30,15 @@ type WriteHandler interface {
 }
 
 type CommonWriteHandler struct {
-	ctx            context.Context
-	logger         *slog.Logger
-	schema         string
-	newWriter      func(string) (io.Writer, error)
-	writers        map[string]xio.WriteFlushCloser
-	counters       map[string]int
-	concurrentFunc func([]func() error) error
-	logBatchSize   int
-	chunkOpts      []xio.Option
+	common.ConcurrentLimiter
+	ctx          context.Context
+	logger       *slog.Logger
+	schema       string
+	newWriter    func(string) (io.Writer, error)
+	writers      map[string]xio.WriteFlushCloser
+	counters     map[string]int
+	logBatchSize int
+	chunkOpts    []xio.Option
 
 	// compression properties
 	compressionEnabled                           bool
@@ -60,11 +60,8 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 		newWriter: func(destinationURI string) (io.Writer, error) {
 			return nil, errors.New("newWriter function not implemented")
 		},
-		writers:  make(map[string]xio.WriteFlushCloser),
-		counters: make(map[string]int),
-		concurrentFunc: func(funcs []func() error) error {
-			return common.ConcurrentTask(ctx, 1, funcs)
-		},
+		writers:      make(map[string]xio.WriteFlushCloser),
+		counters:     make(map[string]int),
 		logBatchSize: 1000,
 		chunkOpts:    []xio.Option{},
 	}
@@ -72,6 +69,9 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 		if err := opt(w); err != nil {
 			return nil, errors.WithStack(err)
 		}
+	}
+	if w.ConcurrentLimiter == nil {
+		return nil, errors.New("concurrent limiter is not set") // must be set using WithConcurrentLimiter option
 	}
 	return w, nil
 }
@@ -159,7 +159,7 @@ func (h *CommonWriteHandler) Sync() error {
 	for _, writer := range h.writers {
 		funcs = append(funcs, writer.Flush)
 	}
-	if err := h.concurrentFunc(funcs); err != nil {
+	if err := h.ConcurrentTasks(funcs); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -201,7 +201,7 @@ func (h *CommonWriteHandler) Sync() error {
 			})
 		}
 		// write the compressed files to their final destinations concurrently
-		if err := h.concurrentFunc(funcs); err != nil {
+		if err := h.ConcurrentTasks(funcs); err != nil {
 			return errors.WithStack(err)
 		}
 	}
