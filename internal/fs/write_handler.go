@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 
@@ -36,6 +37,7 @@ type CommonWriteHandler struct {
 	schema       string
 	newWriter    func(string) (io.Writer, error)
 	writers      map[string]xio.WriteFlushCloser
+	writersM     map[string]*sync.Mutex
 	counters     map[string]int
 	logBatchSize int
 	chunkOpts    []xio.Option
@@ -61,6 +63,7 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 			return nil, errors.New("newWriter function not implemented")
 		},
 		writers:      make(map[string]xio.WriteFlushCloser),
+		writersM:     make(map[string]*sync.Mutex),
 		counters:     make(map[string]int),
 		logBatchSize: 1000,
 		chunkOpts:    []xio.Option{},
@@ -121,11 +124,18 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
 		w = xio.NewChunkWriter(h.logger, writer, opts...)
 		h.writers[destinationURI] = w
+		h.writersM[destinationURI] = &sync.Mutex{}
 		h.counters[destinationURI] = 0
 	}
 
-	_, err = w.Write(raw)
-	if err != nil {
+	// write data with concurrency control immediately
+	mu := h.writersM[destinationURI]
+	if err := h.ConcurrentQueue(func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		_, err = w.Write(raw)
+		return errors.WithStack(err)
+	}); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -142,6 +152,11 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 }
 
 func (h *CommonWriteHandler) Sync() error {
+	// wait for all writes to complete before flushing
+	if err := h.ConcurrentQueueWait(); err != nil {
+		return errors.WithStack(err)
+	}
+
 	// for logging purposes
 	for destinationURI := range h.counters {
 		if h.counters[destinationURI]%h.logBatchSize == 0 {
