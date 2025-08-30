@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
 
@@ -30,15 +31,16 @@ type WriteHandler interface {
 }
 
 type CommonWriteHandler struct {
-	ctx            context.Context
-	logger         *slog.Logger
-	schema         string
-	newWriter      func(string) (io.Writer, error)
-	writers        map[string]xio.WriteFlushCloser
-	counters       map[string]int
-	concurrentFunc func([]func() error) error
-	logBatchSize   int
-	chunkOpts      []xio.Option
+	common.ConcurrentLimiter
+	ctx          context.Context
+	logger       *slog.Logger
+	schema       string
+	newWriter    func(string) (io.Writer, error)
+	writers      map[string]xio.WriteFlushCloser
+	writersM     map[string]*sync.Mutex
+	counters     map[string]int
+	logBatchSize int
+	chunkOpts    []xio.Option
 
 	// compression properties
 	compressionEnabled                           bool
@@ -60,11 +62,9 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 		newWriter: func(destinationURI string) (io.Writer, error) {
 			return nil, errors.New("newWriter function not implemented")
 		},
-		writers:  make(map[string]xio.WriteFlushCloser),
-		counters: make(map[string]int),
-		concurrentFunc: func(funcs []func() error) error {
-			return common.ConcurrentTask(ctx, 1, funcs)
-		},
+		writers:      make(map[string]xio.WriteFlushCloser),
+		writersM:     make(map[string]*sync.Mutex),
+		counters:     make(map[string]int),
 		logBatchSize: 1000,
 		chunkOpts:    []xio.Option{},
 	}
@@ -72,6 +72,9 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 		if err := opt(w); err != nil {
 			return nil, errors.WithStack(err)
 		}
+	}
+	if w.ConcurrentLimiter == nil {
+		return nil, errors.New("concurrent limiter is not set") // must be set using WithConcurrentLimiter option
 	}
 	return w, nil
 }
@@ -121,11 +124,18 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
 		w = xio.NewChunkWriter(h.logger, writer, opts...)
 		h.writers[destinationURI] = w
+		h.writersM[destinationURI] = &sync.Mutex{}
 		h.counters[destinationURI] = 0
 	}
 
-	_, err = w.Write(raw)
-	if err != nil {
+	// write data with concurrency control immediately
+	mu := h.writersM[destinationURI]
+	if err := h.ConcurrentQueue(func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		_, err = w.Write(raw)
+		return errors.WithStack(err)
+	}); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -142,6 +152,11 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 }
 
 func (h *CommonWriteHandler) Sync() error {
+	// wait for all writes to complete before flushing
+	if err := h.ConcurrentQueueWait(); err != nil {
+		return errors.WithStack(err)
+	}
+
 	// for logging purposes
 	for destinationURI := range h.counters {
 		if h.counters[destinationURI]%h.logBatchSize == 0 {
@@ -159,7 +174,7 @@ func (h *CommonWriteHandler) Sync() error {
 	for _, writer := range h.writers {
 		funcs = append(funcs, writer.Flush)
 	}
-	if err := h.concurrentFunc(funcs); err != nil {
+	if err := h.ConcurrentTasks(funcs); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -201,7 +216,7 @@ func (h *CommonWriteHandler) Sync() error {
 			})
 		}
 		// write the compressed files to their final destinations concurrently
-		if err := h.concurrentFunc(funcs); err != nil {
+		if err := h.ConcurrentTasks(funcs); err != nil {
 			return errors.WithStack(err)
 		}
 	}

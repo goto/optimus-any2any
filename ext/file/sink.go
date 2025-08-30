@@ -36,7 +36,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkFileConfig, opts ...com
 
 	// prepare handlers
 	handlers, err := NewFileHandler(commonSink.Context(), commonSink.Logger(),
-		fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+		fs.WithConcurrentLimiter(commonSink),
 		fs.WithWriteCompression(sinkCfg.CompressionType),
 		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
 		fs.WithWriteChunkOptions(

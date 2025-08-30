@@ -164,7 +164,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkSMTPConfig, opts ...com
 		// create new oss write handler
 		s.newHandlers = func() (fs.WriteHandler, error) {
 			return osssink.NewOSSHandler(commonSink.Context(), commonSink.Logger(), ossclient, true,
-				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+				fs.WithConcurrentLimiter(commonSink),
 				fs.WithWriteCompression(sinkCfg.CompressionType),
 				fs.WithWriteCompressionStaticDestinationURI(storageCfg.DestinationDir),
 				fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
@@ -178,7 +178,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkSMTPConfig, opts ...com
 		// create new file write handler
 		s.newHandlers = func() (fs.WriteHandler, error) {
 			return file.NewFileHandler(commonSink.Context(), commonSink.Logger(),
-				fs.WithWriteConcurrentFunc(commonSink.ConcurrentTasks),
+				fs.WithConcurrentLimiter(commonSink),
 				fs.WithWriteCompression(sinkCfg.CompressionType),
 				fs.WithWriteCompressionStaticDestinationURI(storageCfg.DestinationDir),
 				fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
