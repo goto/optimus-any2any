@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/goto/optimus-any2any/internal/component/common"
 	xio "github.com/goto/optimus-any2any/internal/io"
 )
 
@@ -61,12 +62,12 @@ func WithWriteCompressionStaticDestinationURI(destinationURI string) WriteOption
 	}
 }
 
-func WithWriteConcurrentFunc(f func([]func() error) error) WriteOption {
+func WithConcurrentLimiter(concurrentLimiter common.ConcurrentLimiter) WriteOption {
 	return func(w *CommonWriteHandler) error {
-		if f == nil {
-			return errors.New("concurrent function cannot be nil")
+		if concurrentLimiter == nil {
+			return errors.New("concurrent limiter cannot be nil")
 		}
-		w.concurrentFunc = f
+		w.ConcurrentLimiter = concurrentLimiter
 		return nil
 	}
 }
