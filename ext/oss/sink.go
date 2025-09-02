@@ -139,8 +139,10 @@ func (o *OSSSink) process() error {
 		}
 
 		err = o.DryRunable(func() error {
-			if err := o.handlers.Write(destinationURI, append(raw, '\n')); err != nil {
-				o.Logger().Error("failed to write to file")
+			if err := o.ConcurrentQueue(func() error {
+				err := o.handlers.Write(destinationURI, append(raw, '\n'))
+				return errors.WithStack(err)
+			}); err != nil {
 				return errors.WithStack(err)
 			}
 			recordCounter++
@@ -155,6 +157,11 @@ func (o *OSSSink) process() error {
 	if recordCounter == 0 {
 		o.Logger().Info(fmt.Sprintf("no records to write"))
 		return nil
+	}
+
+	// wait for all writes to complete
+	if err := o.DryRunable(o.ConcurrentQueueWait); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// flush all write handlers

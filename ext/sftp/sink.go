@@ -119,8 +119,10 @@ func (s *SFTPSink) process() error {
 		}
 
 		err = s.DryRunable(func() error {
-			if err := s.handlers.Write(destinationURI, append(raw, '\n')); err != nil {
-				s.Logger().Error("failed to write to file")
+			if err := s.ConcurrentQueue(func() error {
+				err := s.handlers.Write(destinationURI, append(raw, '\n'))
+				return errors.WithStack(err)
+			}); err != nil {
 				return errors.WithStack(err)
 			}
 			recordCounter++
@@ -139,6 +141,11 @@ func (s *SFTPSink) process() error {
 	if recordCounter == 0 {
 		s.Logger().Info(fmt.Sprintf("no records to write"))
 		return nil
+	}
+
+	// wait for all writes to complete
+	if err := s.DryRunable(s.ConcurrentQueueWait); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// flush all write handlers

@@ -152,8 +152,10 @@ func (s3 *S3Sink) process() error {
 		}
 
 		err = s3.DryRunable(func() error {
-			if err := s3.handlers.Write(destinationURI, append(raw, '\n')); err != nil {
-				s3.Logger().Error("failed to write to file")
+			if err := s3.ConcurrentQueue(func() error {
+				err := s3.handlers.Write(destinationURI, append(raw, '\n'))
+				return errors.WithStack(err)
+			}); err != nil {
 				return errors.WithStack(err)
 			}
 			recordCounter++
@@ -163,9 +165,15 @@ func (s3 *S3Sink) process() error {
 			return errors.WithStack(err)
 		}
 	}
+
 	if recordCounter == 0 {
 		s3.Logger().Info(fmt.Sprintf("no records to write"))
 		return nil
+	}
+
+	// wait for all writes to complete
+	if err := s3.DryRunable(s3.ConcurrentQueueWait); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// flush all write handlers
