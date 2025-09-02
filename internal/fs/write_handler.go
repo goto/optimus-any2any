@@ -37,7 +37,7 @@ type CommonWriteHandler struct {
 	schema       string
 	newWriter    func(string) (io.Writer, error)
 	writers      map[string]xio.WriteFlushCloser
-	writersM     map[string]*sync.Mutex
+	writersM     sync.Map // map[string]*sync.Mutex
 	counters     map[string]int
 	logBatchSize int
 	chunkOpts    []xio.Option
@@ -63,7 +63,7 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 			return nil, errors.New("newWriter function not implemented")
 		},
 		writers:      make(map[string]xio.WriteFlushCloser),
-		writersM:     make(map[string]*sync.Mutex),
+		writersM:     sync.Map{},
 		counters:     make(map[string]int),
 		logBatchSize: 1000,
 		chunkOpts:    []xio.Option{},
@@ -97,6 +97,11 @@ func (h *CommonWriteHandler) SetNewWriterFunc(newWriter func(string) (io.Writer,
 
 // Write writes raw data to the destination URI.
 func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
+	// get lock for the destination URI
+	mu := h.getLock(destinationURI)
+	mu.Lock()
+	defer mu.Unlock()
+
 	u, err := url.Parse(destinationURI)
 	if err != nil {
 		return errors.WithStack(err)
@@ -106,7 +111,7 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	}
 
 	// write data with concurrency control
-	_, ok := h.writersM[destinationURI]
+	w, ok := h.writers[destinationURI]
 	if !ok {
 		h.logger.Debug(fmt.Sprintf("creating new writer for destination URI: %s", destinationURI))
 		var writer io.Writer
@@ -124,16 +129,10 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 
 		ext, _ := SplitExtension(destinationURI)
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
-		w := xio.NewChunkWriter(h.logger, writer, opts...)
+		w = xio.NewChunkWriter(h.logger, writer, opts...)
 		h.writers[destinationURI] = w
-		h.writersM[destinationURI] = &sync.Mutex{}
 		h.counters[destinationURI] = 0
 	}
-
-	w := h.writers[destinationURI]
-	mu := h.writersM[destinationURI]
-	mu.Lock()
-	defer mu.Unlock()
 
 	if _, err := w.Write(raw); err != nil {
 		return errors.WithStack(err)
@@ -251,6 +250,11 @@ func (h *CommonWriteHandler) DestinationURIs() []string {
 		uris = append(uris, uri)
 	}
 	return uris
+}
+
+func (h *CommonWriteHandler) getLock(destinationURI string) *sync.Mutex {
+	mu, _ := h.writersM.LoadOrStore(destinationURI, &sync.Mutex{})
+	return mu.(*sync.Mutex)
 }
 
 func (h *CommonWriteHandler) compress() error {
