@@ -65,6 +65,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkS3Config, opts ...commo
 	// prepare handlers
 	handlers, err := NewS3Handler(commonSink.Context(), commonSink.Logger(),
 		client, sinkCfg.EnableOverwrite,
+		fs.WithLogBatchSize(sinkCfg.BatchSize),
 		fs.WithConcurrentLimiter(commonSink),
 		fs.WithWriteCompression(sinkCfg.CompressionType),
 		fs.WithWriteCompressionPassword(sinkCfg.CompressionPassword),
