@@ -54,10 +54,12 @@ func (h *ossHandler) Sync() error {
 	// ensure all writes are flushed
 	h.CommonWriteHandler.Sync()
 	// move all files from transient URIs to final URIs
+	tasks := []func() error{}
 	for _, destinationURI := range h.DestinationURIs() {
-		if err := h.ConcurrentQueue(func() error {
+		destinationURICopy := destinationURI // capture range variable
+		tasks = append(tasks, func() error {
 			// copy the file from transient URI to final URI
-			if err := h.client.Copy(destinationURI+DefaultTransientSuffix, destinationURI); err != nil {
+			if err := h.client.Copy(destinationURICopy+DefaultTransientSuffix, destinationURICopy); err != nil {
 				return errors.WithStack(err)
 			}
 			// remove the transient file
@@ -66,9 +68,7 @@ func (h *ossHandler) Sync() error {
 			}
 			h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", fs.MaskedURI(destinationURI)))
 			return nil
-		}); err != nil {
-			return errors.WithStack(err)
-		}
+		})
 	}
-	return errors.WithStack(h.ConcurrentQueueWait()) // wait for all copy operations to finish
+	return errors.WithStack(h.ConcurrentTasks(tasks)) // wait for all copy operations to finish
 }
