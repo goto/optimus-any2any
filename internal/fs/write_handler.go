@@ -30,15 +30,20 @@ type WriteHandler interface {
 	DestinationURIs() []string
 }
 
+// writer destination state
+type writerState struct {
+	mu sync.Mutex
+	w  xio.WriteFlushCloser
+	n  int
+}
+
 type CommonWriteHandler struct {
 	common.ConcurrentLimiter
 	ctx          context.Context
 	logger       *slog.Logger
 	schema       string
 	newWriter    func(string) (io.Writer, error)
-	writers      map[string]xio.WriteFlushCloser
-	writersM     sync.Map // map[string]*sync.Mutex
-	counters     map[string]int
+	writerS      sync.Map // map[string]*writerState
 	logBatchSize int
 	chunkOpts    []xio.Option
 
@@ -62,9 +67,7 @@ func NewCommonWriteHandler(ctx context.Context, logger *slog.Logger, opts ...Wri
 		newWriter: func(destinationURI string) (io.Writer, error) {
 			return nil, errors.New("newWriter function not implemented")
 		},
-		writers:      make(map[string]xio.WriteFlushCloser),
-		writersM:     sync.Map{},
-		counters:     make(map[string]int),
+		writerS:      sync.Map{},
 		logBatchSize: 1000,
 		chunkOpts:    []xio.Option{},
 	}
@@ -97,11 +100,6 @@ func (h *CommonWriteHandler) SetNewWriterFunc(newWriter func(string) (io.Writer,
 
 // Write writes raw data to the destination URI.
 func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
-	// get lock for the destination URI
-	mu := h.getLock(destinationURI)
-	mu.Lock()
-	defer mu.Unlock()
-
 	u, err := url.Parse(destinationURI)
 	if err != nil {
 		return errors.WithStack(err)
@@ -110,64 +108,72 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 		return errors.Errorf("invalid scheme: '%s', expected '%s'", u.Scheme, h.schema)
 	}
 
-	// write data with concurrency control
-	w, ok := h.writers[destinationURI]
-	if !ok {
-		h.logger.Debug(fmt.Sprintf("creating new writer for destination URI: %s", destinationURI))
-		var writer io.Writer
+	ws := h.getWriterState(destinationURI)
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	// lazy-init writer once per destination
+	if ws.w == nil {
+		h.logger.Debug(fmt.Sprintf("creating new writer for: %s", destinationURI))
+
+		var base io.Writer
 		if !h.compressionEnabled {
-			writer, err = h.newWriter(destinationURI)
-			if err != nil {
-				return errors.WithStack(err)
-			}
+			base, err = h.newWriter(destinationURI)
 		} else {
-			writer, err = h.compressionTransientNewWriter(destinationURI)
-			if err != nil {
-				return errors.WithStack(err)
-			}
+			base, err = h.compressionTransientNewWriter(destinationURI)
+		}
+		if err != nil {
+			return errors.WithStack(err)
 		}
 
 		ext, _ := SplitExtension(destinationURI)
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
-		w = xio.NewChunkWriter(h.logger, writer, opts...)
-		h.writers[destinationURI] = w
-		h.counters[destinationURI] = 0
+		ws.w = xio.NewChunkWriter(h.logger, base, opts...)
+		ws.n = 0
 	}
 
-	if _, err := w.Write(raw); err != nil {
+	if _, err := ws.w.Write(raw); err != nil {
 		return errors.WithStack(err)
 	}
 
-	h.counters[destinationURI]++
-	if h.counters[destinationURI]%h.logBatchSize == 0 {
+	ws.n++
+	if ws.n%h.logBatchSize == 0 {
 		if !h.compressionEnabled {
-			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI], MaskedURI(destinationURI)))
+			h.logger.Info(fmt.Sprintf("written %d records to file: %s", ws.n, MaskedURI(destinationURI)))
 		} else {
-			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", h.counters[destinationURI], MaskedURI(destinationURI)))
+			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", ws.n, MaskedURI(destinationURI)))
 		}
 	}
-
 	return nil
 }
 
+func (h *CommonWriteHandler) getWriterState(dest string) *writerState {
+	e, _ := h.writerS.LoadOrStore(dest, &writerState{})
+	return e.(*writerState)
+}
+
 func (h *CommonWriteHandler) Sync() error {
-	// for logging purposes
-	for destinationURI := range h.counters {
-		if h.counters[destinationURI]%h.logBatchSize == 0 {
-			continue
+	totalRecords := 0
+	funcs := []func() error{}
+	h.writerS.Range(func(key, value interface{}) bool {
+		// get the writer state
+		destinationURI := key.(string)
+		ws := value.(*writerState)
+		// for logging purposes
+		if ws.n%h.logBatchSize != 0 {
+			if !h.compressionEnabled {
+				h.logger.Info(fmt.Sprintf("written %d records to file: %s", ws.n%h.logBatchSize, MaskedURI(destinationURI)))
+			} else {
+				h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", ws.n%h.logBatchSize, MaskedURI(destinationURI)))
+			}
 		}
-		if !h.compressionEnabled {
-			h.logger.Info(fmt.Sprintf("written %d records to file: %s", h.counters[destinationURI]%h.logBatchSize, MaskedURI(destinationURI)))
-		} else {
-			h.logger.Info(fmt.Sprintf("written %d records to transient file, future destination: %s", h.counters[destinationURI]%h.logBatchSize, MaskedURI(destinationURI)))
-		}
-	}
+		// flush the writer function
+		funcs = append(funcs, ws.w.Flush)
+		totalRecords += ws.n
+		return true
+	})
 
 	// flush all writers concurrently
-	funcs := []func() error{}
-	for _, writer := range h.writers {
-		funcs = append(funcs, writer.Flush)
-	}
 	if err := h.ConcurrentTasks(funcs); err != nil {
 		return errors.WithStack(err)
 	}
@@ -214,24 +220,31 @@ func (h *CommonWriteHandler) Sync() error {
 			return errors.WithStack(err)
 		}
 	}
-	totalRecords := 0
-	for _, count := range h.counters {
-		totalRecords += count
-	}
+
 	h.logger.Info(fmt.Sprintf("total %d records have been written", totalRecords))
 	return nil
 }
 
 func (h *CommonWriteHandler) Close() error {
-	for uri, writer := range h.writers {
-		if err := writer.Close(); err != nil {
-			return errors.WithStack(err)
+	var err error
+	// close all writers
+	h.writerS.Range(func(key, value interface{}) bool {
+		destinationURI := key.(string)
+		ws := value.(*writerState)
+
+		// close the writer
+		if ws.w != nil {
+			if e := ws.w.Close(); e != nil {
+				err = errors.WithStack(e)
+				return false
+			} else {
+				h.logger.Info(fmt.Sprintf("closed writer for %s", MaskedURI(destinationURI)))
+			}
 		}
-		h.logger.Info(fmt.Sprintf("closed writer for %s", MaskedURI(uri)))
-		delete(h.writers, uri)
-		delete(h.counters, uri)
-	}
-	return nil
+		h.writerS.Delete(destinationURI)
+		return true
+	})
+	return errors.WithStack(err)
 }
 
 func (h *CommonWriteHandler) DestinationURIs() []string {
@@ -245,16 +258,13 @@ func (h *CommonWriteHandler) DestinationURIs() []string {
 	}
 
 	// otherwise, return the destination URIs of the writers
-	uris := make([]string, 0, len(h.writers))
-	for uri := range h.writers {
-		uris = append(uris, uri)
-	}
+	uris := []string{}
+	h.writerS.Range(func(key, _ interface{}) bool {
+		destinationURI := key.(string)
+		uris = append(uris, destinationURI)
+		return true
+	})
 	return uris
-}
-
-func (h *CommonWriteHandler) getLock(destinationURI string) *sync.Mutex {
-	mu, _ := h.writersM.LoadOrStore(destinationURI, &sync.Mutex{})
-	return mu.(*sync.Mutex)
 }
 
 func (h *CommonWriteHandler) compress() error {
