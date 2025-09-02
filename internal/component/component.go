@@ -60,7 +60,7 @@ const (
 func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, source Type, cfg *config.Config, envs ...string) (flow.Source, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
-	opts = append(opts, common.SetupConcurrency(cfg.SourceConcurrency))
+	opts = append(opts, common.SetupConcurrency(cfg.SourceConcurrency, cfg.Concurrency))
 	// create commonSource
 	commonSource, err := common.NewCommonSource(ctx, cancelFn, l, strings.ToLower(string(source)), opts...)
 	if err != nil {
@@ -131,7 +131,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, sink Type, cfg *config.Config, envs ...string) (flow.Sink, error) {
 	// set up options
 	opts := getOpts(ctx, cfg)
-	opts = append(opts, common.SetupConcurrency(cfg.SinkConcurrency))
+	opts = append(opts, common.SetupConcurrency(cfg.SinkConcurrency, cfg.Concurrency))
 	// create commonSink
 	commonSink, err := common.NewCommonSink(ctx, cancelFn, l, strings.ToLower(string(sink)), opts...)
 	if err != nil {
@@ -220,7 +220,11 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 // It will return an error if the connector is unknown or not implemented.
 func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logger, cfg *config.Config, envs ...string) (*common.Connector, error) {
 	processor := cfg.ConnectorProcessor
-	commonConnector, err := common.NewConnector(ctx, cancelFn, l, cfg.ConnectorConcurrency, cfg.MetadataPrefix, cfg.ConnectorBatchSize, cfg.ConnectorBatchIndexColumn, strings.ToLower(string(processor)))
+	concurrency := cfg.Concurrency
+	if cfg.ConnectorConcurrency > 0 {
+		concurrency = cfg.ConnectorConcurrency
+	}
+	commonConnector, err := common.NewConnector(ctx, cancelFn, l, concurrency, cfg.MetadataPrefix, cfg.ConnectorBatchSize, cfg.ConnectorBatchIndexColumn, strings.ToLower(string(processor)))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
