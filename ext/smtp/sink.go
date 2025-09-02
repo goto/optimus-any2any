@@ -258,8 +258,10 @@ func (s *SMTPSink) process() error {
 		}
 
 		err = s.DryRunable(func() error {
-			if err := eh.handlers.Write(destinationURI, append(raw, '\n')); err != nil {
-				s.Logger().Error(fmt.Sprintf("write error: %s", err.Error()))
+			if err := s.ConcurrentQueue(func() error {
+				err := eh.handlers.Write(destinationURI, append(raw, '\n'))
+				return errors.WithStack(err)
+			}); err != nil {
 				return errors.WithStack(err)
 			}
 			recordCounter++
@@ -273,6 +275,11 @@ func (s *SMTPSink) process() error {
 	if recordCounter == 0 {
 		s.Logger().Info(fmt.Sprintf("no records to write"))
 		return nil
+	}
+
+	// wait for all writes to complete
+	if err := s.DryRunable(s.ConcurrentQueueWait); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// sync all handlers

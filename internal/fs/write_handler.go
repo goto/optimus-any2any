@@ -104,7 +104,9 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 	if u.Scheme != h.schema {
 		return errors.Errorf("invalid scheme: '%s', expected '%s'", u.Scheme, h.schema)
 	}
-	w, ok := h.writers[destinationURI]
+
+	// write data with concurrency control
+	_, ok := h.writersM[destinationURI]
 	if !ok {
 		h.logger.Debug(fmt.Sprintf("creating new writer for destination URI: %s", destinationURI))
 		var writer io.Writer
@@ -122,20 +124,18 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 
 		ext, _ := SplitExtension(destinationURI)
 		opts := append([]xio.Option{xio.WithExtension(ext)}, h.chunkOpts...)
-		w = xio.NewChunkWriter(h.logger, writer, opts...)
+		w := xio.NewChunkWriter(h.logger, writer, opts...)
 		h.writers[destinationURI] = w
 		h.writersM[destinationURI] = &sync.Mutex{}
 		h.counters[destinationURI] = 0
 	}
 
-	// write data with concurrency control immediately
+	w := h.writers[destinationURI]
 	mu := h.writersM[destinationURI]
-	if err := h.ConcurrentQueue(func() error {
-		mu.Lock()
-		defer mu.Unlock()
-		_, err = w.Write(raw)
-		return errors.WithStack(err)
-	}); err != nil {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if _, err := w.Write(raw); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -152,11 +152,6 @@ func (h *CommonWriteHandler) Write(destinationURI string, raw []byte) error {
 }
 
 func (h *CommonWriteHandler) Sync() error {
-	// wait for all writes to complete before flushing
-	if err := h.ConcurrentQueueWait(); err != nil {
-		return errors.WithStack(err)
-	}
-
 	// for logging purposes
 	for destinationURI := range h.counters {
 		if h.counters[destinationURI]%h.logBatchSize == 0 {

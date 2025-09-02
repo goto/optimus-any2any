@@ -104,8 +104,10 @@ func (fs *FileSink) Process() error {
 		// write to file
 		err = fs.DryRunable(func() error {
 			fs.Logger().Debug(fmt.Sprintf("write %s", string(raw)))
-			if err := fs.handlers.Write(destinationURI, append(raw, '\n')); err != nil {
-				fs.Logger().Error(fmt.Sprintf("failed to write to file"))
+			if err := fs.ConcurrentQueue(func() error {
+				err := fs.handlers.Write(destinationURI, append(raw, '\n'))
+				return errors.WithStack(err)
+			}); err != nil {
 				return errors.WithStack(err)
 			}
 			recordCounter++
@@ -114,6 +116,11 @@ func (fs *FileSink) Process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	}
+
+	// wait for all writes to complete
+	if err := fs.DryRunable(fs.ConcurrentQueueWait); err != nil {
+		return errors.WithStack(err)
 	}
 
 	// flush all write handlers
