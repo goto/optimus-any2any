@@ -114,3 +114,13 @@ func WithWriteNewWriterFunc(newWriter func(string) (io.Writer, error)) WriteOpti
 		return nil
 	}
 }
+
+func WithLogBatchSize(size int) WriteOption {
+	return func(w *CommonWriteHandler) error {
+		if size <= 0 {
+			return nil // No log batch size, use default
+		}
+		w.logBatchSize = size
+		return nil
+	}
+}
