@@ -100,21 +100,23 @@ func (sf *SalesforceSource) process() error {
 		err := sf.ConcurrentQueue(func() error {
 			var result *simpleforce.QueryResult
 			err := sf.DryRunable(func() error {
-				result, err = sf.client.Query(sf.includeDeleted, url)
+				r, err := sf.client.Query(sf.includeDeleted, url)
 				if err != nil {
 					sf.Logger().Error(fmt.Sprintf("failed to query salesforce: %s", err.Error()))
 					return errors.WithStack(err)
 				}
+				result = r
 				if url != sf.soqlQuery {
 					sf.Logger().Info(fmt.Sprintf("fetched %d records from %s", len(result.Records), url))
 				}
 				return nil
 			}, func() error {
 				// In dry-run mode, simulate an empty result
-				result = &simpleforce.QueryResult{
+				r := &simpleforce.QueryResult{
 					Done:    true,
 					Records: []simpleforce.SObject{},
 				}
+				result = r
 				return nil
 			})
 			if err != nil {
@@ -124,7 +126,8 @@ func (sf *SalesforceSource) process() error {
 
 			// send records to the channel
 			for _, v := range result.Records {
-				record := model.NewRecordFromMap(map[string]interface{}(v))
+				value := v
+				record := model.NewRecordFromMap(map[string]interface{}(value))
 				if err := sf.SendRecord(record); err != nil {
 					sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
 					return errors.WithStack(err)
