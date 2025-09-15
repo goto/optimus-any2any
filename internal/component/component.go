@@ -3,6 +3,7 @@ package component
 import (
 	"context"
 	"fmt"
+	_io "io"
 	"log/slog"
 	"strings"
 
@@ -51,8 +52,9 @@ const (
 )
 
 const (
-	JQ ProcessorType = "JQ"
-	PY ProcessorType = "PY"
+	PASS ProcessorType = "PASS"
+	JQ   ProcessorType = "JQ"
+	PY   ProcessorType = "PY"
 )
 
 // GetSource returns a source based on the given type.
@@ -232,6 +234,10 @@ func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog
 
 	// get connector exec function
 	switch ProcessorType(strings.ToUpper(processor)) {
+	case PASS:
+		connectorExecFunc = func(inputReader _io.Reader) (_io.Reader, error) {
+			return inputReader, nil
+		}
 	case JQ:
 		jqCfg, err := config.ProcessorJQ(envs...)
 		if err != nil {
