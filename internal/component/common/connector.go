@@ -55,13 +55,28 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 	c.concurrentLimits.Add(int64(concurrency))
 
 	// set the connector function to process
-	c.Connector.SetConnectorFunc(c.process)
+	c.Connector.SetConnectorFunc(func(o flow.Outlet, i ...flow.Inlet) error {
+		for raw := range o.Out() {
+			if raw == nil {
+				continue
+			}
+			line := make([]byte, len(raw))
+			copy(line, raw)
+			for _, inlet := range i {
+				inlet.In(bytes.TrimSpace(line))
+			}
+		}
+		return nil
+	})
 	return c, nil
 }
 
 // SetExecFunc sets the execution function for the Connector.
 func (c *Connector) SetExecFunc(execFunc ConnectorExecFunc) {
 	c.exec = execFunc
+	if c.exec != nil {
+		c.Connector.SetConnectorFunc(c.process)
+	}
 }
 
 func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
