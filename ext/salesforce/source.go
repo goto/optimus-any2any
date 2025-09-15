@@ -90,13 +90,22 @@ func (sf *SalesforceSource) process() error {
 	}
 
 	// fetch records in batches
-	for i := 0; i < result.TotalSize; i += batchSize {
-		url := sf.soqlQuery // use the initial SOQL query for the first batch
-		if i > 0 {
-			url = fmt.Sprintf(urlTemplate, i)
+	for i := 0; i < totalRecords; i += batchSize {
+		if i == 0 {
+			// send records to the channel
+			for _, v := range result.Records {
+				value := v
+				record := model.NewRecordFromMap(map[string]interface{}(value))
+				if err := sf.SendRecord(record); err != nil {
+					sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
+					return errors.WithStack(err)
+				}
+			}
+			continue
 		}
 
 		// fetch records from the next records URL concurrently
+		url := fmt.Sprintf(urlTemplate, i)
 		err := sf.ConcurrentQueue(func() error {
 			var result *simpleforce.QueryResult
 			err := sf.DryRunable(func() error {
