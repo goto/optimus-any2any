@@ -51,8 +51,9 @@ const (
 )
 
 const (
-	JQ ProcessorType = "JQ"
-	PY ProcessorType = "PY"
+	PASS ProcessorType = "PASS"
+	JQ   ProcessorType = "JQ"
+	PY   ProcessorType = "PY"
 )
 
 // GetSource returns a source based on the given type.
@@ -232,6 +233,8 @@ func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog
 
 	// get connector exec function
 	switch ProcessorType(strings.ToUpper(processor)) {
+	case PASS:
+		break
 	case JQ:
 		jqCfg, err := config.ProcessorJQ(envs...)
 		if err != nil {

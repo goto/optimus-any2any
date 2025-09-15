@@ -86,7 +86,7 @@ func (c *CommonSource) SendRecord(record *model.Record) error {
 	// we set the record index as a metadata
 	if !c.IsSpecializedMetadataRecord(record) {
 		// set the record index as a metadata
-		record.Set(c.metadataPrefix+"record_index", c.recordCounter.Load())
+		record.Set("record_index", c.recordCounter.Load())
 		c.recordCounter.Add(1)
 	}
 
