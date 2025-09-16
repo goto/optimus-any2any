@@ -89,21 +89,18 @@ func (sf *SalesforceSource) process() error {
 		sf.Logger().Info(fmt.Sprintf("total records: %d, batch size: %d, url template: %s", totalRecords, batchSize, urlTemplate))
 	}
 
-	// fetch records in batches
-	for i := 0; i < totalRecords; i += batchSize {
-		if i == 0 {
-			// send records to the channel
-			for _, v := range result.Records {
-				value := v
-				record := model.NewRecordFromMap(map[string]interface{}(value))
-				if err := sf.SendRecord(record); err != nil {
-					sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
-					return errors.WithStack(err)
-				}
-			}
-			continue
+	// send records to the channel
+	for _, v := range result.Records {
+		value := v
+		record := model.NewRecordFromMap(map[string]interface{}(value))
+		if err := sf.SendRecord(record); err != nil {
+			sf.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
+			return errors.WithStack(err)
 		}
+	}
 
+	// fetch records in batches
+	for i := batchSize; i < totalRecords; i += batchSize {
 		// fetch records from the next records URL concurrently
 		url := fmt.Sprintf(urlTemplate, i)
 		err := sf.ConcurrentQueue(func() error {
