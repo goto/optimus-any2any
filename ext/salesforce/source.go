@@ -90,6 +90,7 @@ func (sf *SalesforceSource) process() error {
 	}
 
 	// send records to the channel
+	sf.Logger().Info(fmt.Sprintf("fetched %d records from query", len(result.Records)))
 	for _, v := range result.Records {
 		value := v
 		record := model.NewRecordFromMap(map[string]interface{}(value))
