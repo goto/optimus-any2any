@@ -31,6 +31,15 @@ func ToMap(record *Record) map[string]interface{} {
 	return recordMap
 }
 
+// ToListMap converts a list of records to a list of maps.
+func ToListMap(records []*Record) []map[string]interface{} {
+	listMap := make([]map[string]interface{}, 0, len(records))
+	for _, record := range records {
+		listMap = append(listMap, ToMap(record))
+	}
+	return listMap
+}
+
 // HasAnyPrefix checks if any key in the record starts with the given prefix.
 func HasAnyPrefix(record *Record, prefix string) bool {
 	for key := range record.Keys() {

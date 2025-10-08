@@ -201,10 +201,10 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 	// prefix metadata will not be used in the body content template
 	if s.batchSize == 1 {
 		recordCount = 1
-		body, err = compiler.Compile(s.bodyContentTemplate, records[0])
+		body, err = compiler.Compile(s.bodyContentTemplate, model.ToMap(records[0]))
 	} else {
 		recordCount = len(records)
-		body, err = compiler.Compile(s.bodyContentTemplate, records)
+		body, err = compiler.Compile(s.bodyContentTemplate, model.ToListMap(records))
 	}
 	if err != nil {
 		return errors.WithStack(err)
