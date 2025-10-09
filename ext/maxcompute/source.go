@@ -214,13 +214,14 @@ func (mc *MaxcomputeSource) Process() error {
 
 			preRecordWithPrefixCopy := preRecordWithPrefix.Copy()
 			filenameCopy := filename
-			for record, err := range recordReader.ReadRecord() {
-				if err != nil {
-					return err
-				}
+			err = mc.ConcurrentQueue(func() error {
+				for record, err := range recordReader.ReadRecord() {
+					if err != nil {
+						return errors.WithStack(err)
+					}
 
-				recordCopy := record.Copy()
-				err = mc.ConcurrentQueue(func() error {
+					recordCopy := record.Copy()
+
 					// merge with pre-record
 					for k := range preRecordWithPrefixCopy.AllFromFront() {
 						if _, ok := recordCopy.Get(k); !ok {
@@ -234,11 +235,11 @@ func (mc *MaxcomputeSource) Process() error {
 						mc.Logger().Error(fmt.Sprintf("failed to send record: %s", err.Error()))
 						return errors.WithStack(err)
 					}
-					return nil
-				})
-				if err != nil {
-					return errors.WithStack(err)
 				}
+				return nil
+			})
+			if err != nil {
+				return errors.WithStack(err)
 			}
 		}
 	}
