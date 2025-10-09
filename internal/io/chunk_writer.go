@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/goto/optimus-any2any/internal/fileconverter"
+	"github.com/pkg/errors"
 )
 
 type chunkWriter struct {
@@ -50,14 +51,14 @@ func (w *chunkWriter) Write(p []byte) (n int, err error) {
 	if w.fileTmp == nil {
 		// create a temporary writer
 		if err := w.initFileTmp(); err != nil {
-			return 0, err
+			return 0, errors.WithStack(err)
 		}
 	}
 
 	// write the data to the temporary writer
 	n, err = w.fileTmp.Write(p)
 	if err != nil {
-		return 0, err
+		return 0, errors.WithStack(err)
 	}
 	w.size += n
 	w.l.Debug(fmt.Sprintf("write %d bytes to temporary writer", n))
@@ -66,7 +67,7 @@ func (w *chunkWriter) Write(p []byte) (n int, err error) {
 	if !w.noChunk && w.size >= w.chunkSize {
 		w.l.Debug(fmt.Sprintf("chunk size reached: %d bytes. Flushing to destination writer", w.size))
 		if err := w.Flush(); err != nil {
-			return n, err
+			return n, errors.WithStack(err)
 		}
 	}
 	return n, nil
@@ -87,7 +88,7 @@ func (w *chunkWriter) Flush() error {
 	// convert the temporary file to the desired format
 	convertedFileTmp, err := w.getConvertedFileTmp()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer func() {
 		// remove converted file
@@ -98,7 +99,7 @@ func (w *chunkWriter) Flush() error {
 	// write the converted data to the actual writer
 	n, err := io.Copy(w.writer, convertedFileTmp)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	w.written += n
 	w.l.Debug(fmt.Sprintf("flushed %d bytes to destination writer", n))
@@ -126,7 +127,7 @@ func (w *chunkWriter) initFileTmp() error {
 	// create a temporary file
 	f, err := os.CreateTemp(os.TempDir(), "*.json")
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	w.fileTmp = f
 	return nil
@@ -134,7 +135,7 @@ func (w *chunkWriter) initFileTmp() error {
 
 func (w *chunkWriter) getConvertedFileTmp() (*os.File, error) {
 	if _, err := w.fileTmp.Seek(0, io.SeekStart); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	switch strings.ToLower(w.extension) {
