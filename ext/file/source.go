@@ -84,25 +84,26 @@ func (fs *FileSource) Process() error {
 	// read files
 	for _, f := range fs.Readers {
 		_ = fs.DryRunable(func() error {
-			sc := bufio.NewScanner(f)
-			buf := make([]byte, 0, 4*1024)
-			sc.Buffer(buf, 1024*1024)
+			reader := bufio.NewReader(f)
+			for {
+				raw, err := reader.ReadBytes('\n')
+				if len(raw) > 0 {
+					line := make([]byte, len(raw))
+					copy(line, raw)
 
-			for sc.Scan() {
-				// read line
-				raw := sc.Bytes()
-				line := make([]byte, len(raw)) // Important: make a copy of the line before sending
-				copy(line, raw)
-
-				record := model.NewRecord()
-				if err := json.Unmarshal(line, &record); err != nil {
-					return errors.WithStack(fmt.Errorf("failed to unmarshal record: %w", err))
+					record := model.NewRecord()
+					if err := json.Unmarshal(line, &record); err != nil {
+						return errors.WithStack(fmt.Errorf("failed to unmarshal record: %w", err))
+					}
+					// send to channel
+					fs.SendRecord(record)
 				}
-				// send to channel
-				fs.SendRecord(record)
-			}
-			if err := sc.Err(); err != nil {
-				return errors.WithStack(err)
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 			return nil
 		})

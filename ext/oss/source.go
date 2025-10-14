@@ -106,46 +106,48 @@ func (o *OSSSource) process() error {
 		defer ossFile.Close()
 
 		// TODO: refactor this
-		var reader io.Reader
+		var r io.Reader
 		switch filepath.Ext(oss.ToString(objectProp.Key)) {
 		case ".json":
-			reader = ossFile
+			r = ossFile
 		case ".csv":
 			dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
 				return errors.WithStack(err)
 			}
-			reader = dst
+			r = dst
 		case ".tsv":
 			dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
 			if err != nil {
 				o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
 				return errors.WithStack(err)
 			}
-			reader = dst
+			r = dst
 		default:
 			o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
-			reader = ossFile
+			r = ossFile
 		}
 
-		sc := bufio.NewScanner(reader)
-		buf := make([]byte, 0, 4*1024)
-		sc.Buffer(buf, 1024*1024)
+		reader := bufio.NewReader(r)
+		for {
+			raw, err := reader.ReadBytes('\n')
+			if len(raw) > 0 {
+				line := make([]byte, len(raw))
+				copy(line, raw)
 
-		for sc.Scan() {
-			raw := sc.Bytes()
-			line := make([]byte, len(raw))
-			copy(line, raw)
-			o.Send(line)
-			recordCounter++
-			if recordCounter%logCheckPoint == 0 {
-				o.Logger().Info(fmt.Sprintf("sent %d records", recordCounter))
+				o.Send(line)
+				recordCounter++
+				if recordCounter%logCheckPoint == 0 {
+					o.Logger().Info(fmt.Sprintf("sent %d records", recordCounter))
+				}
 			}
-		}
-		if err := sc.Err(); err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to read object: %s", oss.ToString(objectProp.Key)))
-			return errors.WithStack(err)
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
 	o.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))

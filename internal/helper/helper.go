@@ -25,27 +25,30 @@ func NewRecordReader(r io.Reader) *RecordReader {
 
 func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	return func(yield func(*model.Record, error) bool) {
-		sc := bufio.NewScanner(r.r)
-		buf := make([]byte, 0, 4*1024)
-		sc.Buffer(buf, 1024*1024)
+		reader := bufio.NewReader(r.r)
+		for {
+			raw, err := reader.ReadBytes('\n')
+			if len(raw) > 0 {
+				line := make([]byte, len(raw))
+				copy(line, raw)
 
-		for sc.Scan() {
-			raw := sc.Bytes()
-			line := make([]byte, len(raw))
-			copy(line, raw)
+				var record model.Record
+				if err := json.Unmarshal(line, &record); err != nil {
+					yield(nil, errors.WithStack(err))
+					return
+				}
 
-			var record model.Record
-			if err := json.Unmarshal(line, &record); err != nil {
+				if !yield(&record, nil) {
+					return
+				}
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
 				yield(nil, errors.WithStack(err))
 				return
 			}
-
-			if !yield(&record, nil) {
-				return
-			}
-		}
-		if err := sc.Err(); err != nil {
-			yield(nil, errors.WithStack(err))
 		}
 	}
 }
