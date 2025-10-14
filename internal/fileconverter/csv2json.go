@@ -31,19 +31,24 @@ func CSV2JSON(l *slog.Logger, src io.ReadSeeker, skipHeader bool, skipRows int, 
 	if skipRows > 0 {
 		rowOffset := 0
 
-		sc := bufio.NewScanner(src)
-		buf := make([]byte, 0, 4*1024)
-		sc.Buffer(buf, 1024*1024)
+		reader := bufio.NewReader(src)
+		for {
+			raw, err := reader.ReadBytes('\n')
+			if len(raw) > 0 {
+				line := make([]byte, len(raw))
+				copy(line, raw)
 
-		for skipRows > 0 && sc.Scan() {
-			raw := sc.Bytes()
-			rowOffset += len(raw)
-			skipRows--
+				rowOffset += len(line)
+				skipRows--
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
 		}
-		if err := sc.Err(); err != nil {
-			l.Error(fmt.Sprintf("failed to read csv: %v", err))
-			return nil, errors.WithStack(err)
-		}
+
 		if _, err := src.Seek(int64(rowOffset), io.SeekStart); err != nil {
 			l.Error(fmt.Sprintf("failed to reset seek: %v", err))
 			return nil, errors.WithStack(err)
