@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -67,8 +68,8 @@ func NewSource(commonSource common.Source, creds string,
 }
 
 func (o *OSSSource) process() error {
-	logCheckPoint := 1000
-	recordCounter := 0
+	var logCheckPoint int64 = 1000
+	var recordCounter atomic.Int64
 
 	// list objects
 	var objectResult *oss.ListObjectsResult
@@ -95,61 +96,73 @@ func (o *OSSSource) process() error {
 	o.Logger().Info(fmt.Sprintf("found %d objects in bucket path: %s", len(objectResult.Contents), o.path))
 
 	// process objects
-	for _, objectProp := range objectResult.Contents {
-		o.Logger().Info(fmt.Sprintf("processing object: %s", oss.ToString(objectProp.Key)))
-		// read object
-		ossFile, err := o.client.OpenFile(o.Context(), o.bucket, oss.ToString(objectProp.Key))
-		if err != nil {
-			o.Logger().Warn(fmt.Sprintf("failed to open object: %s", oss.ToString(objectProp.Key)))
-			return errors.WithStack(err)
-		}
-		defer ossFile.Close()
-
-		// TODO: refactor this
-		var r io.Reader
-		switch filepath.Ext(oss.ToString(objectProp.Key)) {
-		case ".json":
-			r = ossFile
-		case ".csv":
-			dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
+	for _, content := range objectResult.Contents {
+		objectProp := content
+		err := o.ConcurrentQueue(func() error {
+			o.Logger().Info(fmt.Sprintf("processing object: %s", oss.ToString(objectProp.Key)))
+			// read object
+			ossFile, err := o.client.OpenFile(o.Context(), o.bucket, oss.ToString(objectProp.Key))
 			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
+				o.Logger().Warn(fmt.Sprintf("failed to open object: %s", oss.ToString(objectProp.Key)))
 				return errors.WithStack(err)
 			}
-			r = dst
-		case ".tsv":
-			dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
-			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
-				return errors.WithStack(err)
+			defer ossFile.Close()
+
+			// TODO: refactor this
+			var r io.Reader
+			switch filepath.Ext(oss.ToString(objectProp.Key)) {
+			case ".json":
+				r = ossFile
+			case ".csv":
+				dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
+					return errors.WithStack(err)
+				}
+				r = dst
+			case ".tsv":
+				dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
+				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
+					return errors.WithStack(err)
+				}
+				r = dst
+			default:
+				o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
+				r = ossFile
 			}
-			r = dst
-		default:
-			o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
-			r = ossFile
-		}
 
-		reader := bufio.NewReader(r)
-		for {
-			raw, err := reader.ReadBytes('\n')
-			if len(raw) > 0 && raw[0] != '\n' {
-				line := make([]byte, len(raw))
-				copy(line, raw)
+			reader := bufio.NewReader(r)
+			for {
+				raw, err := reader.ReadBytes('\n')
+				if len(raw) > 0 && raw[0] != '\n' {
+					line := make([]byte, len(raw))
+					copy(line, raw)
 
-				o.Send(line)
-				recordCounter++
-				if recordCounter%logCheckPoint == 0 {
-					o.Logger().Info(fmt.Sprintf("sent %d records", recordCounter))
+					o.Send(line)
+					currentCount := recordCounter.Add(1)
+					if currentCount%logCheckPoint == 0 {
+						o.Logger().Info(fmt.Sprintf("sent %d records", currentCount))
+					}
+				}
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return errors.WithStack(err)
 				}
 			}
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return errors.WithStack(err)
-			}
+			return nil
+		})
+		if err != nil {
+			o.Logger().Error(fmt.Sprintf("failed to process object: %s", oss.ToString(objectProp.Key)))
+			return errors.WithStack(err)
 		}
 	}
-	o.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter))
+	if err := o.ConcurrentQueueWait(); err != nil {
+		o.Logger().Error(fmt.Sprintf("failed to wait for concurrent queue: %s", err))
+		return errors.WithStack(err)
+	}
+	o.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter.Load()))
 	return nil
 }
