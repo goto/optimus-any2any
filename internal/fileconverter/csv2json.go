@@ -34,7 +34,7 @@ func CSV2JSON(l *slog.Logger, src io.ReadSeeker, skipHeader bool, skipRows int, 
 		reader := bufio.NewReader(src)
 		for skipRows > 0 {
 			raw, err := reader.ReadBytes('\n')
-			if len(raw) > 0 {
+			if len(raw) > 0 && raw[0] != '\n' {
 				line := make([]byte, len(raw))
 				copy(line, raw)
 

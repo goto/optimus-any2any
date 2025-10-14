@@ -132,7 +132,7 @@ func (o *OSSSource) process() error {
 		reader := bufio.NewReader(r)
 		for {
 			raw, err := reader.ReadBytes('\n')
-			if len(raw) > 0 {
+			if len(raw) > 0 && raw[0] != '\n' {
 				line := make([]byte, len(raw))
 				copy(line, raw)
 

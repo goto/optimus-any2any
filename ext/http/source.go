@@ -109,7 +109,7 @@ func (hs *HTTPSource) Process() error {
 	reader := bufio.NewReader(resp.Body)
 	for {
 		raw, err := reader.ReadBytes('\n')
-		if len(raw) > 0 {
+		if len(raw) > 0 && raw[0] != '\n' {
 			line := make([]byte, len(raw))
 			copy(line, raw)
 

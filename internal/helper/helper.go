@@ -28,7 +28,7 @@ func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 		reader := bufio.NewReader(r.r)
 		for {
 			raw, err := reader.ReadBytes('\n')
-			if len(raw) > 0 {
+			if len(raw) > 0 && raw[0] != '\n' {
 				line := make([]byte, len(raw))
 				copy(line, raw)
 
