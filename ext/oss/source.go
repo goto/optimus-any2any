@@ -12,6 +12,7 @@ import (
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fileconverter"
+	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )
@@ -109,27 +110,28 @@ func (o *OSSSource) process() error {
 			defer ossFile.Close()
 
 			// TODO: refactor this
-			var r io.Reader
+			var r io.ReadSeeker = xio.NewNormalizeLineEndingReader(ossFile)
 			switch filepath.Ext(oss.ToString(objectProp.Key)) {
 			case ".json":
-				r = ossFile
+				// skip
+				o.Logger().Debug(fmt.Sprintf("file format is json: %s", oss.ToString(objectProp.Key)))
 			case ".csv":
-				dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, o.csvDelimiter)
+				dst, err := fileconverter.CSV2JSON(o.Logger(), r, o.skipHeader, o.skipRows, o.csvDelimiter)
 				if err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
 					return errors.WithStack(err)
 				}
 				r = dst
 			case ".tsv":
-				dst, err := fileconverter.CSV2JSON(o.Logger(), ossFile, o.skipHeader, o.skipRows, rune('\t'))
+				dst, err := fileconverter.CSV2JSON(o.Logger(), r, o.skipHeader, o.skipRows, rune('\t'))
 				if err != nil {
-					o.Logger().Error(fmt.Sprintf("failed to convert csv to json: %s", oss.ToString(objectProp.Key)))
+					o.Logger().Error(fmt.Sprintf("failed to convert tsv to json: %s", oss.ToString(objectProp.Key)))
 					return errors.WithStack(err)
 				}
 				r = dst
 			default:
 				o.Logger().Warn(fmt.Sprintf("unsupported file format: %s, use default (json)", filepath.Ext(oss.ToString(objectProp.Key))))
-				r = ossFile
+				// skip
 			}
 
 			reader := bufio.NewReader(r)
