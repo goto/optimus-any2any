@@ -30,6 +30,7 @@ type recordWriterPool struct {
 	batchSizeInBytes int64
 	mutexes          []sync.Mutex
 	recordWriters    []*tunnel.RecordProtocWriter
+	blockIdMutex     sync.Mutex
 	blockIds         []int
 }
 
@@ -87,6 +88,9 @@ func (p *recordWriterPool) send(record *model.Record) error {
 }
 
 func (p *recordWriterPool) newRecordWriter() (*tunnel.RecordProtocWriter, error) {
+	p.blockIdMutex.Lock()
+	defer p.blockIdMutex.Unlock()
+
 	// create new record writer
 	blockId := len(p.blockIds)
 	if blockId >= maxBlockId {
