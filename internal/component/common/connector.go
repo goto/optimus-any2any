@@ -101,40 +101,7 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 
 		// when we reach batch size, process the batch
 		if recordCount%c.batchSize == 0 {
-			// copy the batch buffer to a new buffer to support concurrent processing
-			var batchBufferCopy bytes.Buffer
-			batchBufferCopy.Write(batchBuffer.Bytes())
-
-			// prepare the function to execute the batch
-			currentRecordCount := recordCount
-			fn := func() error {
-				batchOutputReader, err := c.exec(&batchBufferCopy)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				if err := c.flush(batchOutputReader, inlets...); err != nil {
-					return errors.WithStack(err)
-				}
-				// record the number of records processed
-				c.recordCount.Add(c.Context(), int64(currentRecordCount), c.attributesOpt)
-				return nil
-			}
-
-			// submit the batch processing to the concurrent queue
-			callerLoc := getCallerLoc()
-			err := c.concurrentQueue.Submit(func() error {
-				// increment the concurrent count and record the duration
-				c.concurrentCount.Add(1)
-				startTime := time.Now()
-				defer func() {
-					c.concurrentCount.Add(-1)
-					c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
-						attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
-					), c.attributesOpt)
-				}()
-
-				return errors.WithStack(fn())
-			})
+			err := c.submit(&batchBuffer, recordCount, inlets...)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -146,14 +113,12 @@ func (c *Connector) process(outlet flow.Outlet, inlets ...flow.Inlet) error {
 
 	// process any remaining records
 	if recordCount%c.batchSize != 0 {
-		batchOutputReader, err := c.exec(&batchBuffer)
+		err := c.submit(&batchBuffer, recordCount, inlets...)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		if err := c.flush(batchOutputReader, inlets...); err != nil {
-			return errors.WithStack(err)
-		}
 	}
+
 	// wait for all queued functions to finish and release concurrent limits
 	defer func() {
 		c.concurrentLimits.Add(-int64(c.concurrency))
@@ -185,4 +150,43 @@ func (c *Connector) flush(r io.Reader, inlets ...flow.Inlet) error {
 		c.recordBytesBucket.Record(c.Context(), int64(len(raw)), c.attributesOpt)
 	}
 	return nil
+}
+
+func (c *Connector) submit(batchBuffer *bytes.Buffer, recordCount int, inlets ...flow.Inlet) error {
+	// copy the batch buffer to a new buffer to support concurrent processing
+	var batchBufferCopy bytes.Buffer
+	batchBufferCopy.Write(batchBuffer.Bytes())
+
+	// prepare the function to execute the batch
+	currentRecordCount := recordCount
+	fn := func() error {
+		batchOutputReader, err := c.exec(&batchBufferCopy)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if err := c.flush(batchOutputReader, inlets...); err != nil {
+			return errors.WithStack(err)
+		}
+		// record the number of records processed
+		c.recordCount.Add(c.Context(), int64(currentRecordCount), c.attributesOpt)
+		return nil
+	}
+
+	// submit the batch processing to the concurrent queue
+	callerLoc := getCallerLoc()
+	err := c.concurrentQueue.Submit(func() error {
+		// increment the concurrent count and record the duration
+		c.concurrentCount.Add(1)
+		startTime := time.Now()
+		defer func() {
+			c.concurrentCount.Add(-1)
+			c.processDurationMs.Record(c.Context(), time.Since(startTime).Milliseconds(), metric.WithAttributes(
+				attribute.KeyValue{Key: "caller", Value: attribute.StringValue(callerLoc)},
+			), c.attributesOpt)
+		}()
+
+		return errors.WithStack(fn())
+	})
+
+	return errors.WithStack(err)
 }
