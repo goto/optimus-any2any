@@ -139,7 +139,7 @@ func (o *OSSSource) process() error {
 			filename := filepath.Base(oss.ToString(objectProp.Key))
 
 			// send records
-			recordReader := helper.NewRecordReader(r)
+			recordReader := helper.NewRecordReader(o.Logger(), r)
 			for record, err := range recordReader.ReadRecord() {
 				if err != nil {
 					o.Logger().Error(fmt.Sprintf("failed to read record %s", err.Error()))

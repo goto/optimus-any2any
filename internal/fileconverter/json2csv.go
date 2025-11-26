@@ -28,7 +28,7 @@ func JSON2CSV(l *slog.Logger, src io.ReadSeeker, skipHeader bool, delimiter rune
 	if _, err = src.Seek(0, io.SeekStart); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	reader := helper.NewRecordReader(src)
+	reader := helper.NewRecordReader(l, src)
 	// get the header
 	headerMap := model.NewRecord()
 	for record, err := range reader.ReadRecord() {
