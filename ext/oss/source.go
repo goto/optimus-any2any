@@ -1,7 +1,6 @@
 package oss
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net/url"
@@ -12,6 +11,7 @@ import (
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/fileconverter"
+	"github.com/goto/optimus-any2any/internal/helper"
 	xio "github.com/goto/optimus-any2any/internal/io"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
@@ -21,19 +21,20 @@ import (
 type OSSSource struct {
 	common.Source
 
-	client       *Client
-	bucket       string
-	path         string
-	csvDelimiter rune
-	skipHeader   bool
-	skipRows     int
+	client         *Client
+	bucket         string
+	path           string
+	filenameColumn string
+	csvDelimiter   rune
+	skipHeader     bool
+	skipRows       int
 }
 
 var _ flow.Source = (*OSSSource)(nil)
 
 // NewSource creates a new OSSSource.
 func NewSource(commonSource common.Source, creds string,
-	sourceURI string, csvDelimiter rune, skipHeader bool, skipRows int, opts ...common.Option) (*OSSSource, error) {
+	sourceURI string, filenameColumn string, csvDelimiter rune, skipHeader bool, skipRows int, opts ...common.Option) (*OSSSource, error) {
 	// create OSS client
 	client, err := NewOSSClient(commonSource.Context(), creds, OSSClientConfig{})
 	if err != nil {
@@ -47,13 +48,14 @@ func NewSource(commonSource common.Source, creds string,
 	}
 
 	o := &OSSSource{
-		Source:       commonSource,
-		client:       client,
-		bucket:       parsedURL.Host,
-		path:         strings.TrimPrefix(parsedURL.Path, "/"),
-		csvDelimiter: csvDelimiter,
-		skipHeader:   skipHeader,
-		skipRows:     skipRows,
+		Source:         commonSource,
+		client:         client,
+		bucket:         parsedURL.Host,
+		path:           strings.TrimPrefix(parsedURL.Path, "/"),
+		filenameColumn: filenameColumn,
+		csvDelimiter:   csvDelimiter,
+		skipHeader:     skipHeader,
+		skipRows:       skipRows,
 	}
 
 	// add clean function
@@ -69,7 +71,6 @@ func NewSource(commonSource common.Source, creds string,
 }
 
 func (o *OSSSource) process() error {
-	var logCheckPoint int64 = 1000
 	var recordCounter atomic.Int64
 
 	// list objects
@@ -134,26 +135,23 @@ func (o *OSSSource) process() error {
 				// skip
 			}
 
-			reader := bufio.NewReader(r)
-			for {
-				raw, err := reader.ReadBytes('\n')
-				if len(raw) > 0 && raw[0] != '\n' {
-					line := make([]byte, len(raw))
-					copy(line, raw)
+			// get filename from object key
+			filename := filepath.Base(oss.ToString(objectProp.Key))
 
-					o.Send(line)
-					currentCount := recordCounter.Add(1)
-					if currentCount%logCheckPoint == 0 {
-						o.Logger().Info(fmt.Sprintf("sent %d records", currentCount))
-					}
-				}
-				if err == io.EOF {
-					break
-				}
+			// send records
+			recordReader := helper.NewRecordReader(r)
+			for record, err := range recordReader.ReadRecord() {
 				if err != nil {
+					o.Logger().Error(fmt.Sprintf("failed to read record %s", err.Error()))
 					return errors.WithStack(err)
 				}
+				// add metadata filename
+				record.Set(o.filenameColumn, filename)
+
+				// send to channel
+				o.SendRecord(record)
 			}
+
 			return nil
 		})
 		if err != nil {
