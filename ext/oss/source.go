@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -71,8 +70,6 @@ func NewSource(commonSource common.Source, creds string,
 }
 
 func (o *OSSSource) process() error {
-	var recordCounter atomic.Int64
-
 	// list objects
 	var objectResult *oss.ListObjectsResult
 	var err error
@@ -163,6 +160,5 @@ func (o *OSSSource) process() error {
 		o.Logger().Error(fmt.Sprintf("failed to wait for concurrent queue: %s", err))
 		return errors.WithStack(err)
 	}
-	o.Logger().Info(fmt.Sprintf("successfully sent %d records", recordCounter.Load()))
 	return nil
 }
