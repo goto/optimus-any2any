@@ -61,5 +61,6 @@ func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 				r.logger.Info(fmt.Sprintf("read %d records", countRecord))
 			}
 		}
+		r.logger.Info(fmt.Sprintf("completed reading %d records", countRecord))
 	}
 }
