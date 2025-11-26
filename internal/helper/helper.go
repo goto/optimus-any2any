@@ -3,8 +3,10 @@ package helper
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"iter"
+	"log/slog"
 
 	"github.com/goccy/go-json"
 
@@ -14,18 +16,22 @@ import (
 )
 
 type RecordReader struct {
+	logger        *slog.Logger
+	logCheckpoint int
+
 	r io.Reader
 }
 
 var _ common.RecordReader = (*RecordReader)(nil)
 
-func NewRecordReader(r io.Reader) *RecordReader {
-	return &RecordReader{r: r}
+func NewRecordReader(logger *slog.Logger, r io.Reader) *RecordReader {
+	return &RecordReader{logger: logger, r: r, logCheckpoint: 1000}
 }
 
 func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 	return func(yield func(*model.Record, error) bool) {
 		reader := bufio.NewReader(r.r)
+		countRecord := 0
 		for {
 			raw, err := reader.ReadBytes('\n')
 			if len(raw) > 0 && raw[0] != '\n' {
@@ -48,6 +54,11 @@ func (r *RecordReader) ReadRecord() iter.Seq2[*model.Record, error] {
 			if err != nil {
 				yield(nil, errors.WithStack(err))
 				return
+			}
+
+			countRecord++
+			if countRecord%r.logCheckpoint == 0 {
+				r.logger.Info(fmt.Sprintf("read %d records", countRecord))
 			}
 		}
 	}
