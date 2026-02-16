@@ -1,6 +1,10 @@
 package io
 
-import "io"
+import (
+	"io"
+
+	"github.com/pkg/errors"
+)
 
 type NormalizeLineEndingReader struct {
 	io.Reader
@@ -16,7 +20,7 @@ func (n *NormalizeLineEndingReader) Read(p []byte) (int, error) {
 	for i < len(p) {
 		b, err := n.readNormalizedByte()
 		if err != nil {
-			return i, err
+			return i, errors.WithStack(err)
 		}
 		p[i] = b
 		i++
@@ -34,7 +38,7 @@ func (n *NormalizeLineEndingReader) Seek(offset int64, whence int) (int64, error
 func (n *NormalizeLineEndingReader) readNormalizedByte() (byte, error) {
 	nRead, err := n.Reader.Read(n.buf[:])
 	if err != nil {
-		return 0, err
+		return 0, errors.WithStack(err)
 	}
 	if nRead == 0 {
 		return 0, io.EOF

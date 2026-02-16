@@ -31,7 +31,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkFileConfig, opts ...com
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_file_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to parse destination URI template: %w", err))
 	}
 
 	// prepare handlers

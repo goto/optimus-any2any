@@ -44,12 +44,12 @@ func NewSink(commonSink common.Sink,
 		return nil, errors.WithStack(err)
 	}
 	if parsedConnection.Scheme != "redis" && parsedConnection.Scheme != "rediss" {
-		return nil, fmt.Errorf("invalid connection DSN scheme: %s", parsedConnection.Scheme)
+		return nil, errors.WithStack(fmt.Errorf("invalid connection DSN scheme: %s", parsedConnection.Scheme))
 	}
 	var tlsConfig *tls.Config
 	if parsedConnection.Scheme == "rediss" {
 		if connectionTLSCert == "" || connectionTLSKey == "" || connectionTLSCACert == "" {
-			return nil, fmt.Errorf("missing TLS certificate, key or CA certificate")
+			return nil, errors.WithStack(fmt.Errorf("missing TLS certificate, key or CA certificate"))
 		}
 		c, err := auth.NewTLSConfig(connectionTLSCert, connectionTLSKey, connectionTLSCACert)
 		if err != nil {

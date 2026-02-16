@@ -41,7 +41,7 @@ func (w *S3Writer) Write(p []byte) (int, error) {
 	if w.fileTmp == nil {
 		// create a temporary writer
 		if err := w.initFileTmp(); err != nil {
-			return 0, err
+			return 0, errors.WithStack(err)
 		}
 	}
 
@@ -55,7 +55,7 @@ func (w *S3Writer) Write(p []byte) (int, error) {
 	// if the size exceeds the chunk size, write to the actual writer
 	if w.size >= w.chunkSize {
 		if err := w.Flush(); err != nil {
-			return n, err
+			return n, errors.WithStack(err)
 		}
 	}
 	return n, nil
@@ -100,7 +100,7 @@ func (w *S3Writer) ReadFrom(r io.Reader) (int64, error) {
 	if w.fileTmp == nil {
 		// create a temporary writer
 		if err := w.initFileTmp(); err != nil {
-			return 0, err
+			return 0, errors.WithStack(err)
 		}
 	}
 

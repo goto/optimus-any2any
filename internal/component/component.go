@@ -123,7 +123,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			opts...)
 	case IO:
 	}
-	return nil, fmt.Errorf("source: unknown source: %s", source)
+	return nil, errors.WithStack(fmt.Errorf("source: unknown source: %s", source))
 }
 
 // GetSink returns a sink based on the given type.
@@ -213,7 +213,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		}
 		return kafka.NewSink(commonSink, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
-	return nil, fmt.Errorf("sink: unknown sink: %s", sink)
+	return nil, errors.WithStack(fmt.Errorf("sink: unknown sink: %s", sink))
 }
 
 // GetConnector returns a connector based on the given environment variables.
@@ -252,7 +252,7 @@ func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog
 		}
 		connectorExecFunc = f
 	default:
-		return nil, fmt.Errorf("connector: unknown processor type: %s", cfg.ConnectorProcessor)
+		return nil, errors.WithStack(fmt.Errorf("connector: unknown processor type: %s", cfg.ConnectorProcessor))
 	}
 
 	// set the exec function for the common connector
@@ -280,7 +280,7 @@ func GetDirectSourceSink(ctx context.Context, l *slog.Logger, source Type, sink 
 		}
 		return direct.NewMC2OSS(ctx, l, cfg.MetadataPrefix, sourceCfg, sinkCfg)
 	}
-	return nil, fmt.Errorf("direct: unknown source-sink: %s-%s", source, sink)
+	return nil, errors.WithStack(fmt.Errorf("direct: unknown source-sink: %s-%s", source, sink))
 }
 
 // getOpts returns options based on the given config.

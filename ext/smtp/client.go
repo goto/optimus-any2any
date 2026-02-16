@@ -32,7 +32,7 @@ func NewSMTPClient(ctx context.Context, connectionDSN string, connectionTimeout 
 		return nil, errors.WithStack(err)
 	}
 	if dsn.Scheme != "smtp" {
-		return nil, fmt.Errorf("invalid scheme: %s", dsn.Scheme)
+		return nil, errors.WithStack(fmt.Errorf("invalid scheme: %s", dsn.Scheme))
 	}
 	username := dsn.User.Username()
 	password, _ := dsn.User.Password()

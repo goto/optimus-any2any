@@ -106,7 +106,7 @@ func (c *Common) SetOtelSDK(ctx context.Context, otelCollectorGRPCEndpoint strin
 	c.Core.AddCleanFunc(func() error {
 		if err := shutdownFunc(); err != nil {
 			c.Core.Logger().Error(fmt.Sprintf("otel sdk shutdown error: %s", err.Error()))
-			return err
+			return errors.WithStack(err)
 		}
 		return nil
 	})
@@ -311,7 +311,7 @@ func Retry(l *slog.Logger, retryMax int, retryBackoffMs int64, f func() error, h
 		time.Sleep(time.Duration(sleepTime*retryBackoffMs) * time.Millisecond)
 	}
 
-	return err
+	return errors.WithStack(err)
 }
 
 // ConcurrentTask runs N tasks concurrently with a limit, cancels on first error or context cancel.

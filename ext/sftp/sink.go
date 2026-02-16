@@ -61,7 +61,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkSFTPConfig, opts ...com
 
 	t, err := compiler.NewTemplate("sink_sftp_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to parse destination URI template: %w", err))
 	}
 
 	s := &SFTPSink{

@@ -408,7 +408,7 @@ func (h *CommonWriteHandler) compressPerType(compressionType string, compression
 		// update the destination URI mapping
 		compressionTransientFilePathtoDestinationURI[f.Name()] = destinationURI
 	default:
-		return fmt.Errorf("unsupported compression type: %s", compressionType)
+		return errors.WithStack(fmt.Errorf("unsupported compression type: %s", compressionType))
 	}
 	return nil
 }

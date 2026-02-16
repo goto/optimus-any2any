@@ -94,7 +94,7 @@ func (p *recordWriterPool) newRecordWriter() (*tunnel.RecordProtocWriter, error)
 	// create new record writer
 	blockId := len(p.blockIds)
 	if blockId >= maxBlockId {
-		return nil, fmt.Errorf("max block id %d reached", maxBlockId)
+		return nil, errors.WithStack(fmt.Errorf("max block id %d reached", maxBlockId))
 	}
 	rw, err := p.session.OpenRecordWriter(blockId)
 	if err != nil {
@@ -157,7 +157,7 @@ func newBatchRecordSender(l *slog.Logger, session *tunnel.UploadSession, batchSi
 
 	wp, err := newRecordWriterPool(l, session, batchSizeInBytes, concurrency)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	s := &mcBatchRecordSender{
 		l:   l,

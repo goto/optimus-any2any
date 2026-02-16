@@ -28,12 +28,12 @@ func NewClient(sfURL, sfUser, sfPassword, sfToken, sfAPIVersion string) (*Client
 
 	client := simpleforce.NewClient(sfURL, simpleforce.DefaultClientID, sfAPIVersion)
 	if client == nil {
-		return nil, fmt.Errorf("source: failed to create a new Salesforce client")
+		return nil, errors.WithStack(fmt.Errorf("source: failed to create a new Salesforce client"))
 	}
 
 	err := client.LoginPassword(sfUser, sfPassword, sfToken)
 	if err != nil {
-		return nil, fmt.Errorf("source: failed to login with the provided credentials")
+		return nil, errors.WithStack(fmt.Errorf("source: failed to login with the provided credentials"))
 	}
 
 	return &Client{
