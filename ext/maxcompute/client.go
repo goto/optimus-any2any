@@ -49,13 +49,13 @@ func NewClient(rawCreds string) (*Client, error) {
 	client := &Client{
 		Odps: cfg.GenOdps(),
 		QueryReader: func(query string) (RecordReaderCloser, error) {
-			return nil, fmt.Errorf("query reader needs to be initialized")
+			return nil, errors.WithStack(fmt.Errorf("query reader needs to be initialized"))
 		},
 		StreamWriter: func(tableID string) (*mcStreamRecordSender, error) {
-			return nil, fmt.Errorf("stream writer needs to be initialized")
+			return nil, errors.WithStack(fmt.Errorf("stream writer needs to be initialized"))
 		},
 		BatchWriter: func(tableID string) (*mcBatchRecordSender, error) {
-			return nil, fmt.Errorf("batch writer needs to be initialized")
+			return nil, errors.WithStack(fmt.Errorf("batch writer needs to be initialized"))
 		},
 	}
 

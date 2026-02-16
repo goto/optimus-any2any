@@ -48,7 +48,7 @@ func (f *FileArchiver) Archive(files []string, destWriter io.Writer) error {
 			return f.archiveZip(files, tempWriter)
 		})
 	default:
-		return fmt.Errorf("unsupported compression type: %s", f.extension)
+		return errors.WithStack(fmt.Errorf("unsupported compression type: %s", f.extension))
 	}
 }
 
@@ -61,7 +61,7 @@ func (f *FileArchiver) handleWithTempFile(destWriter io.Writer, writeFn func(io.
 	defer os.Remove(tmpFile.Name())
 
 	if err := writeFn(tmpFile); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// Flush the temp file to the actual destWriter
@@ -82,7 +82,7 @@ func (f *FileArchiver) handleWithTempFile(destWriter io.Writer, writeFn func(io.
 
 func (f *FileArchiver) archiveGz(files []string, destWriter io.Writer) error {
 	if len(files) != 1 {
-		return fmt.Errorf("gzip compression supports only a single file, but got %d files", len(files))
+		return errors.WithStack(fmt.Errorf("gzip compression supports only a single file, but got %d files", len(files)))
 	}
 
 	file, err := os.Open(files[0])
