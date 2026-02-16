@@ -60,10 +60,7 @@ func CSV2JSON(l *slog.Logger, src io.ReadSeeker, skipHeader bool, skipRows int, 
 
 	headers := []string{}
 	isHeader := true
-	for record, err := csvReader.Read(); true; record, err = csvReader.Read() {
-		if err == io.EOF {
-			break
-		}
+	for record, err := csvReader.Read(); err != io.EOF; record, err = csvReader.Read() {
 		if err != nil {
 			l.Error(fmt.Sprintf("failed to read csv: %v", err))
 			return nil, errors.WithStack(err)
