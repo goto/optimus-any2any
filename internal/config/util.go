@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/pkg/errors"
 )
 
 // parse parses the environment variables and returns the configuration.
@@ -19,7 +20,7 @@ func parse[T any](envs ...string) (*T, error) {
 		FuncMap:     map[reflect.Type]env.ParserFunc{reflect.TypeOf(rune(0)): runeParser},
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return &c, nil
 }
@@ -63,5 +64,5 @@ func runeParser(v string) (interface{}, error) {
 		return rune(v[0]), nil
 	}
 
-	return nil, fmt.Errorf("unable to parse %s as rune", v)
+	return nil, errors.WithStack(fmt.Errorf("unable to parse %s as rune", v))
 }

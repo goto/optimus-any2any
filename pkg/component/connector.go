@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
+	"github.com/pkg/errors"
 )
 
 // ConnectorFunc is a function type that defines the signature for connecting
@@ -68,7 +69,7 @@ func (c *Connector) Connect() flow.ConnectMultiSink {
 	return func(o flow.Outlet, i ...flow.Inlet) {
 		c.RegisterProcess(func() error {
 			if c.connectorFunc == nil {
-				return fmt.Errorf("connector function is not set for %s", c.name)
+				return errors.WithStack(fmt.Errorf("connector function is not set for %s", c.name))
 			}
 			return c.connectorFunc(o, i...)
 		})

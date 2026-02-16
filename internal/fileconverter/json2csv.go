@@ -137,7 +137,7 @@ func convertValueToString(v interface{}) (string, error) {
 	case map[string]interface{}, []interface{}:
 		b, err := json.Marshal(val)
 		if err != nil {
-			return "", err
+			return "", errors.WithStack(err)
 		}
 		return string(b), nil
 	case nil:

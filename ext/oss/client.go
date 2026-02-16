@@ -46,7 +46,7 @@ type ossCredentials struct {
 func parseOSSCredentials(data []byte) (*ossCredentials, error) {
 	cred := new(ossCredentials)
 	if err := json.Unmarshal(data, cred); err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return cred, nil

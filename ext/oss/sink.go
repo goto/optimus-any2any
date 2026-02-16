@@ -45,7 +45,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkOSSConfig, opts ...comm
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_oss_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to parse destination URI template: %w", err))
 	}
 
 	// parse batch step template // TODO: deprecate this, we keep this for backward compatibility
@@ -53,7 +53,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkOSSConfig, opts ...comm
 	if sinkCfg.BatchSize > 0 {
 		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", sinkCfg.BatchSize, sinkCfg.BatchSize))
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse batch step template: %w", err)
+			return nil, errors.WithStack(fmt.Errorf("failed to parse batch step template: %w", err))
 		}
 	}
 

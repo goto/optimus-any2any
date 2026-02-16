@@ -17,7 +17,7 @@ func NewTLSConfig(tlsCert, tlsKey, tlsCACert string) (*tls.Config, error) {
 	// load the CA certificate
 	caCertPool := x509.NewCertPool()
 	if ok := caCertPool.AppendCertsFromPEM([]byte(tlsCACert)); !ok {
-		return nil, fmt.Errorf("failed to append CA certificate")
+		return nil, errors.WithStack(fmt.Errorf("failed to append CA certificate"))
 	}
 	// create a new tls.Config
 	return &tls.Config{

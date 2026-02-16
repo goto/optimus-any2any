@@ -112,7 +112,7 @@ func signalAwareContext(parent context.Context, signals ...os.Signal) (context.C
 	go func() {
 		select {
 		case sig := <-sigCh:
-			cancelWithCause(fmt.Errorf("signal: %v", sig))
+			cancelWithCause(errors.WithStack(fmt.Errorf("signal: %v", sig)))
 			signal.Stop(sigCh)
 		case <-ctx.Done():
 			signal.Stop(sigCh)

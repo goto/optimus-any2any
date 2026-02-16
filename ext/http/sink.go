@@ -240,7 +240,7 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 					} else {
 						s.Logger().Error(fmt.Sprintf("failed to send data to %s; status code: %d, body: %s", m.endpoint, resp.StatusCode, string(bodyBytes)))
 					}
-					return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+					return errors.WithStack(fmt.Errorf("unexpected status code: %d", resp.StatusCode))
 				}
 
 				if s.batchSize > 1 {
@@ -291,7 +291,7 @@ func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata
 			h := sc.Text()
 			parts := strings.Split(h, ":")
 			if len(parts) != 2 {
-				return metadata, fmt.Errorf("invalid header format: %s", h)
+				return metadata, errors.WithStack(fmt.Errorf("invalid header format: %s", h))
 			}
 			metadata.headers[parts[0]] = append(metadata.headers[parts[0]], strings.Split(parts[1], ",")...)
 		}
