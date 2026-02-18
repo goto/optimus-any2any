@@ -97,6 +97,10 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__ADDITIONAL_HINTS | Additional hints for the execution query. |
 | | MC__LOG_VIEW_RETENTION_IN_DAYS | Log view retention in days. (default: 2) |
 | | MC__BATCH_SIZE | Number of records fetched in one request. (default: 1000) |
+| PSQL | PG__CONNECTION_DSN | Postgres connection DSN. |
+| | PG__QUERY_FILE_PATH | Path to the SQL query file. |
+| | PG__MAX_OPEN_CONNECTION | Maximum open connections for source pool. |
+| | PG__MIN_OPEN_CONNECTION | Minimum open connections for source pool. |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |
 | | OSS__SOURCE_URI | The source path in a OSS bucket to read the files. Format oss://bucket/path/to/folder/or/file.json. |
 | | OSS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
