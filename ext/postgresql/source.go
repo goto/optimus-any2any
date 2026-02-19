@@ -2,16 +2,21 @@ package postgresql
 
 import (
 	"fmt"
+	"net"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/pkg/errors"
+
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
 	xnet "github.com/goto/optimus-any2any/internal/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 )
 
 // PGSource is a source that reads data from PostgreSQL.
@@ -103,7 +108,7 @@ func (s *PGSource) process() error {
 		for i, field := range fields {
 			var value interface{}
 			if i < len(values) {
-				value = normalizePGValue(values[i])
+				value = normalizePGValue(field.DataTypeOID, values[i])
 			}
 			record.Set(field.Name, value)
 		}
@@ -119,16 +124,45 @@ func (s *PGSource) process() error {
 	return nil
 }
 
-func normalizePGValue(v any) any {
+func normalizePGValue(oid uint32, v any) any {
 	if v == nil {
 		return nil
 	}
-	switch vv := v.(type) {
-	case []byte:
-		return string(vv)
-	case [16]uint8:
-		return uuid.UUID(vv).String()
+	switch oid {
+	case pgtype.UUIDOID:
+		if b, ok := v.([16]byte); ok {
+			return uuid.UUID(b).String()
+		}
+		return fmt.Sprintf("%v", v)
+	case pgtype.ByteaOID:
+		if b, ok := v.([]byte); ok {
+			return fmt.Sprintf("\\x%x", b)
+		}
+		return v
+	case pgtype.TimeOID:
+		if t, ok := v.(pgtype.Time); ok {
+			d := time.Duration(t.Microseconds) * time.Microsecond
+			base := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
+			return base.Add(d).Format(time.TimeOnly)
+		}
+		return v
+	case pgtype.IntervalOID:
+		if iv, ok := v.(pgtype.Interval); ok {
+			d := time.Duration(iv.Microseconds)*time.Microsecond + time.Duration(iv.Days)*24*time.Hour + time.Duration(iv.Months)*30*24*time.Hour
+			return d.String()
+		}
+		return v
+	case pgtype.XMLOID:
+		if b, ok := v.([]byte); ok {
+			return string(b)
+		}
+		return v
+	case pgtype.MacaddrOID:
+		if b, ok := v.(net.HardwareAddr); ok {
+			return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x", b[0], b[1], b[2], b[3], b[4], b[5])
+		}
+		return v
 	default:
-		return vv
+		return v
 	}
 }
