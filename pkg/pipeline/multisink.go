@@ -83,7 +83,6 @@ func (p *MultiSinkPipeline) Close() error {
 
 // groupSinkWait waits until all sinks are done.
 func (p *MultiSinkPipeline) groupSinkWait(sinks []flow.Sink) {
-	// todo: lets discuss what can go wrong with this implimentation
 	for _, sink := range sinks {
 		sink.Wait()
 	}
