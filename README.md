@@ -99,6 +99,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | MC__BATCH_SIZE | Number of records fetched in one request. (default: 1000) |
 | PSQL | PG__CONNECTION_DSN | Postgres connection DSN. |
 | | PG__QUERY_FILE_PATH | Path to the SQL query file. |
+| | PG__QUERY_TEMPLATE_VALUES | Key-value values used for Go template compilation in query file. Format `key=value,key2=value2` with `[[ .key ]]` placeholders. |
 | | PG__MAX_OPEN_CONNECTION | Maximum open connections for source pool. If not set, we consider defaults of pgxpool |
 | | PG__MIN_OPEN_CONNECTION | Minimum open connections for source pool. If not set, we consider defaults of pgxpool |
 | OSS | OSS__CREDENTIALS | Credentials for OSS. |

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,7 +32,7 @@ type PGSource struct {
 var _ flow.Source = (*PGSource)(nil)
 
 // NewSource creates a new PostgreSQL source.
-func NewSource(commonSource common.Source, dsn, queryFilePath string, maxOpenConnection, minOpenConnection int32) (*PGSource, error) {
+func NewSource(commonSource common.Source, dsn, queryFilePath string, queryTemplateValues map[string]string, maxOpenConnection, minOpenConnection int32) (*PGSource, error) {
 	// build pool config from DSN
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -55,11 +57,27 @@ func NewSource(commonSource common.Source, dsn, queryFilePath string, maxOpenCon
 		pool.Close()
 		return nil, errors.WithStack(err)
 	}
+	// compile query as golang template using provided values
+	queryTemplate, err := compiler.NewTemplate("source_pg_query", string(rawQuery))
+	if err != nil {
+		pool.Close()
+		return nil, errors.WithStack(err)
+	}
+	query, err := compiler.Compile(queryTemplate, queryTemplateValues)
+	if err != nil {
+		pool.Close()
+		return nil, errors.WithStack(err)
+	}
+	query = strings.TrimSpace(query)
+	if err := validateReadOnlyQuery(query); err != nil {
+		pool.Close()
+		return nil, errors.WithStack(err)
+	}
 
 	s := &PGSource{
 		Source: commonSource,
 		pool:   pool,
-		query:  string(rawQuery),
+		query:  query,
 	}
 
 	// add clean func
@@ -87,6 +105,7 @@ func (s *PGSource) process() error {
 		return nil
 	}, func() error {
 		address := fmt.Sprintf("%s:%d", s.pool.Config().ConnConfig.Host, s.pool.Config().ConnConfig.Port)
+		s.Logger().Info(fmt.Sprintf("dry run will not run the query, generated query:\n%s", s.query))
 		return errors.WithStack(xnet.ConnCheck(address))
 	})
 	if err != nil {

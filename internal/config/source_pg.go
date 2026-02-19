@@ -2,10 +2,11 @@ package config
 
 // SourcePGConfig is a configuration for the source PostgreSQL component.
 type SourcePGConfig struct {
-	ConnectionDSN     string `env:"PG__CONNECTION_DSN"`
-	MaxOpenConnection int32  `env:"PG__MAX_OPEN_CONNECTION"`
-	MinOpenConnection int32  `env:"PG__MIN_OPEN_CONNECTION"`
-	QueryFilePath     string `env:"PG__QUERY_FILE_PATH"`
+	ConnectionDSN       string            `env:"PG__CONNECTION_DSN"`
+	MaxOpenConnection   int32             `env:"PG__MAX_OPEN_CONNECTION"`
+	MinOpenConnection   int32             `env:"PG__MIN_OPEN_CONNECTION"`
+	QueryFilePath       string            `env:"PG__QUERY_FILE_PATH"`
+	QueryTemplateValues map[string]string `env:"PG__QUERY_TEMPLATE_VALUES" envKeyValSeparator:"=" envSeparator:","`
 }
 
 // SourcePG parses the environment variables and returns the source PG configuration.

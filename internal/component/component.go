@@ -81,7 +81,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return postgresql.NewSource(commonSource, sourceCfg.ConnectionDSN, sourceCfg.QueryFilePath, sourceCfg.MaxOpenConnection, sourceCfg.MinOpenConnection)
+		return postgresql.NewSource(commonSource, sourceCfg.ConnectionDSN, sourceCfg.QueryFilePath, sourceCfg.QueryTemplateValues, sourceCfg.MaxOpenConnection, sourceCfg.MinOpenConnection)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
