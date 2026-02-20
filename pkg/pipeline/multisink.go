@@ -3,7 +3,6 @@ package pipeline
 import (
 	errs "errors"
 	"log/slog"
-	"sync"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
@@ -44,13 +43,13 @@ func (p *MultiSinkPipeline) Run() <-chan uint8 {
 	go func() {
 		defer close(done)
 		connect(p.source, sinks...)
-		p.groupSinkWait(p.sinks...)
+		p.groupSinkWait(p.sinks)
 		p.logger.Info("all sinks are done")
 	}()
 	return done
 }
 
-// Err returns the error from source or sink.
+// Errs returns the error from source or sink.
 func (p *MultiSinkPipeline) Errs() []error {
 	var errs []error
 	if err := p.source.Err(); err != nil {
@@ -83,14 +82,8 @@ func (p *MultiSinkPipeline) Close() error {
 }
 
 // groupSinkWait waits until all sinks are done.
-func (p *MultiSinkPipeline) groupSinkWait(sinks ...flow.Sink) {
-	var wg sync.WaitGroup
+func (p *MultiSinkPipeline) groupSinkWait(sinks []flow.Sink) {
 	for _, sink := range sinks {
-		wg.Add(1)
-		go func(s flow.Sink) {
-			defer wg.Done()
-			s.Wait()
-		}(sink)
+		sink.Wait()
 	}
-	wg.Wait()
 }
