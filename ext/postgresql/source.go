@@ -69,9 +69,9 @@ func NewSource(commonSource common.Source, dsn, queryFilePath string, queryTempl
 		return nil, errors.WithStack(err)
 	}
 	query = strings.TrimSpace(query)
-	if err := validateReadOnlyQuery(query); err != nil {
+	if ok := IsSelectQuery(query); !ok {
 		pool.Close()
-		return nil, errors.WithStack(err)
+		return nil, fmt.Errorf("non select statements not supported")
 	}
 
 	s := &PGSource{
