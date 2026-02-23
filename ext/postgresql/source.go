@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,7 +31,7 @@ type PGSource struct {
 var _ flow.Source = (*PGSource)(nil)
 
 // NewSource creates a new PostgreSQL source.
-func NewSource(commonSource common.Source, dsn, queryFilePath string, queryTemplateValues map[string]string, maxOpenConnection, minOpenConnection int32) (*PGSource, error) {
+func NewSource(commonSource common.Source, dsn, queryFilePath string, maxOpenConnection, minOpenConnection int32) (*PGSource, error) {
 	// build pool config from DSN
 	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
@@ -57,17 +56,7 @@ func NewSource(commonSource common.Source, dsn, queryFilePath string, queryTempl
 		pool.Close()
 		return nil, errors.WithStack(err)
 	}
-	// compile query as golang template using provided values
-	queryTemplate, err := compiler.NewTemplate("source_pg_query", string(rawQuery))
-	if err != nil {
-		pool.Close()
-		return nil, errors.WithStack(err)
-	}
-	query, err := compiler.Compile(queryTemplate, queryTemplateValues)
-	if err != nil {
-		pool.Close()
-		return nil, errors.WithStack(err)
-	}
+	query := string(rawQuery)
 	query = strings.TrimSpace(query)
 	if ok := IsSelectQuery(query); !ok {
 		pool.Close()
