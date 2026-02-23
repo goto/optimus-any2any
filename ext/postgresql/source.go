@@ -84,10 +84,19 @@ func NewSource(commonSource common.Source, dsn, queryFilePath string, maxOpenCon
 
 func (s *PGSource) process() error {
 	var rows pgx.Rows
+	var tx pgx.Tx
 
 	err := s.DryRunable(func() error {
-		r, err := s.pool.Query(s.Context(), s.query)
+		t, err := s.pool.BeginTx(s.Context(), pgx.TxOptions{AccessMode: pgx.ReadOnly})
 		if err != nil {
+			return errors.WithStack(err)
+		}
+		tx = t
+
+		r, err := tx.Query(s.Context(), s.query)
+		if err != nil {
+			_ = tx.Rollback(s.Context())
+			tx = nil
 			return errors.WithStack(err)
 		}
 		rows = r
@@ -103,6 +112,11 @@ func (s *PGSource) process() error {
 	if rows == nil {
 		return nil
 	}
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback(s.Context())
+		}
+	}()
 	defer rows.Close()
 
 	fields := rows.FieldDescriptions()
@@ -129,6 +143,11 @@ func (s *PGSource) process() error {
 	if err := rows.Err(); err != nil {
 		return errors.WithStack(err)
 	}
+
+	if err := tx.Commit(s.Context()); err != nil {
+		return errors.WithStack(err)
+	}
+	tx = nil
 	return nil
 }
 
