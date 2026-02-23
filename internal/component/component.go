@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/pkg/errors"
+
 	"github.com/goto/optimus-any2any/ext/direct"
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
@@ -25,7 +27,6 @@ import (
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
 	"github.com/goto/optimus-any2any/pkg/flow"
-	"github.com/pkg/errors"
 )
 
 type (
@@ -75,6 +76,12 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			return nil, errors.WithStack(err)
 		}
 		return maxcompute.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.QueryFilePath, sourceCfg.PreQueryFilePath, sourceCfg.FilenameColumn, sourceCfg.ExecutionProject, sourceCfg.AdditionalHints, sourceCfg.LogViewRetentionInDays, sourceCfg.BatchSize)
+	case PSQL:
+		sourceCfg, err := config.SourcePG(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return postgresql.NewSource(commonSource, sourceCfg.ConnectionDSN, sourceCfg.QueryFilePath, sourceCfg.MaxOpenConnection, sourceCfg.MinOpenConnection)
 	case FILE:
 		sourceCfg, err := config.SourceFile(envs...)
 		if err != nil {
