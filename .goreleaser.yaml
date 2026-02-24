@@ -16,7 +16,7 @@ builds:
   - id: any2any
     binary: ./build/any2any
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     goos:
       - linux
       - darwin
@@ -24,7 +24,6 @@ builds:
       - amd64
       - arm64
       - arm
-      - 386
 
 dockers:
   - goos: linux
