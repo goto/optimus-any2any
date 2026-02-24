@@ -27,7 +27,7 @@ builds:
 dockers_v2:
   - id: any2any
     dockerfile: Dockerfile
-    image_templates:
+    images:
       - "docker.io/gotocompany/{{ .ProjectName }}:{{ .Env.VERSION }}"
     platforms:
       - linux/amd64
