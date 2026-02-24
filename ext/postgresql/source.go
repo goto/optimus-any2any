@@ -58,10 +58,6 @@ func NewSource(commonSource common.Source, dsn, queryFilePath string, maxOpenCon
 	}
 	query := string(rawQuery)
 	query = strings.TrimSpace(query)
-	if ok := IsSelectQuery(query); !ok {
-		pool.Close()
-		return nil, fmt.Errorf("non select statements not supported")
-	}
 
 	s := &PGSource{
 		Source: commonSource,
