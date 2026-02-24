@@ -23,15 +23,15 @@ builds:
     goarch:
       - amd64
       - arm64
-      - arm
 
-dockers:
-  - goos: linux
-    ids:
-      - any2any
+dockers_v2:
+  - id: any2any
     dockerfile: Dockerfile
     image_templates:
-      - 'docker.io/gotocompany/{{.ProjectName}}:{{ .Env.VERSION }}'
+      - "docker.io/gotocompany/{{ .ProjectName }}:{{ .Env.VERSION }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
 
 release:
   disable: true
