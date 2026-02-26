@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 type customHandler struct {
@@ -45,7 +47,7 @@ func (h *customHandler) Handle(ctx context.Context, r slog.Record) error {
 	)
 
 	_, err := h.w.Write([]byte(customMsg))
-	return err
+	return errors.WithStack(err)
 }
 
 func (h *customHandler) Enabled(ctx context.Context, level slog.Level) bool {
