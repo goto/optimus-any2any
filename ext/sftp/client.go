@@ -51,7 +51,7 @@ func NewSFTPClient(address, username, password, privateKey, hostFingerprint stri
 			fingerprint := hex.EncodeToString(hash[:])
 			// Compare the fingerprint with the known fingerprint
 			if fingerprint != hostFingerprint {
-				return fmt.Errorf("unknown host key fingerprint: %s", fingerprint)
+				return errors.WithStack(fmt.Errorf("unknown host key fingerprint: %s", fingerprint))
 			}
 			return nil
 		}

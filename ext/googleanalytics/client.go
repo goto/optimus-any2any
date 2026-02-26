@@ -31,7 +31,7 @@ func NewClient(ctx context.Context, svcAcc string, tlsCert, tlsCACert, tlsKey st
 		"https://www.googleapis.com/auth/analytics.readonly",
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	// create a new TLS config
@@ -49,7 +49,7 @@ func NewClient(ctx context.Context, svcAcc string, tlsCert, tlsCACert, tlsKey st
 		grpc.WithPerRPCCredentials(oauth.TokenSource{TokenSource: c.TokenSource}),
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	client := analyticsdata.NewBetaAnalyticsDataClient(conn)

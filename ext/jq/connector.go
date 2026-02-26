@@ -33,7 +33,9 @@ func NewJQConnectorExecFunc(ctx context.Context, l *slog.Logger, query string) (
 		l.Error("processor: jq not found")
 		return nil, errors.WithStack(err)
 	}
-	l.Info(fmt.Sprintf("creating jq connector exec func with query:\n%s", query))
+	if strings.TrimSpace(compiledQuery) != "" {
+		l.Info(fmt.Sprintf("creating jq connector exec func with query:\n%s", compiledQuery))
+	}
 	return func(inputReader io.Reader) (io.Reader, error) {
 		if query == "" {
 			return inputReader, nil // no processing needed
@@ -112,7 +114,7 @@ func execJQ(ctx context.Context, l *slog.Logger, query string, inputReader io.Re
 	}
 
 	if len(stderr.Bytes()) > 0 {
-		err := fmt.Errorf("jq error: %s", stderr.String())
+		err := errors.WithStack(fmt.Errorf("jq error: %s", stderr.String()))
 		l.Error(fmt.Sprintf("jq error: %s", err))
 		e = errs.Join(e, err)
 	}

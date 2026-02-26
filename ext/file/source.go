@@ -33,7 +33,7 @@ func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
 		return nil, errors.WithStack(err)
 	}
 	if sourceURI.Scheme != "file" {
-		return nil, fmt.Errorf("invalid scheme: %s", sourceURI.Scheme)
+		return nil, errors.WithStack(fmt.Errorf("invalid scheme: %s", sourceURI.Scheme))
 	}
 
 	f, err := os.Open(sourceURI.Path)
@@ -116,20 +116,20 @@ func ReadFiles(dir string) ([]*os.File, error) {
 	files := make([]*os.File, 0)
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		if info.IsDir() {
 			return nil
 		}
 		f, err := os.Open(path)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		files = append(files, f)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return files, nil
 }

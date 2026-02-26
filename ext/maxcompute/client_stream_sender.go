@@ -75,7 +75,7 @@ func (s *mcStreamRecordSender) flush() error {
 	if err := s.retryFunc(func() error {
 		traceId, recordCount, bytesSend, err := s.packWriter.Flush()
 		s.l.Debug(fmt.Sprintf("flush trace id: %s, record count: %d, bytes send: %d", traceId, recordCount, bytesSend))
-		return err
+		return errors.WithStack(err)
 	}); err != nil {
 		return errors.WithStack(err)
 	}

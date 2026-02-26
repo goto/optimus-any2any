@@ -87,6 +87,7 @@ require (
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/kr/fs v0.1.0 // indirect
@@ -112,6 +113,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
 	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.9.0 // indirect

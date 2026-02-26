@@ -59,7 +59,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkS3Config, opts ...commo
 	// parse destinationURI as template
 	tmpl, err := compiler.NewTemplate("sink_s3_destination_uri", sinkCfg.DestinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to parse destination URI template: %w", err))
 	}
 
 	// prepare handlers
@@ -83,7 +83,7 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkS3Config, opts ...commo
 	if sinkCfg.BatchSize > 0 {
 		batchStepTmpl, err = compiler.NewTemplate("sink_oss_batch_step", fmt.Sprintf("[[ mul (div .__METADATA__record_index %d) %d ]]", sinkCfg.BatchSize, sinkCfg.BatchSize))
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse batch step template: %w", err)
+			return nil, errors.WithStack(fmt.Errorf("failed to parse batch step template: %w", err))
 		}
 	}
 

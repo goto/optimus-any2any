@@ -8,6 +8,7 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 func NewTemplate(name, raw string) (*template.Template, error) {
@@ -21,7 +22,7 @@ func Compile(tmpl *template.Template, values interface{}) (string, error) {
 	var builder strings.Builder
 	err := tmpl.Execute(&builder, values)
 	if err != nil {
-		return "", err
+		return "", errors.WithStack(err)
 	}
 	return builder.String(), nil
 }

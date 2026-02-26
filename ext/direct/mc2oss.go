@@ -61,7 +61,7 @@ func NewMC2OSS(ctx context.Context, l *slog.Logger, prefixMetadata string, cfgMC
 	// parse destinationURI as template
 	destinationURITemplate, err := compiler.NewTemplate("sink_oss_destination_uri", cfgOSS.DestinationURI)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse destination URI template: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to parse destination URI template: %w", err))
 	}
 	t, err := tunnel.NewTunnelFromProject(client.DefaultProject())
 	if err != nil {

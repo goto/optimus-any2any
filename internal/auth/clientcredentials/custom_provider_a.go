@@ -85,17 +85,17 @@ func (c *ProviderA) Token() (*oauth2.Token, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get token: %s, response: %s", resp.Status, body)
+		return nil, errors.WithStack(fmt.Errorf("failed to get token: %s, response: %s", resp.Status, body))
 	}
 
 	var token ProviderATokenResponse
 	if err := json.Unmarshal(body, &token); err != nil {
-		return nil, fmt.Errorf("failed to decode token response: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to decode token response: %w", err))
 	}
 
 	expiresIn, err := time.ParseDuration(token.ExpiresIn + "s")
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse expires_in: %w", err)
+		return nil, errors.WithStack(fmt.Errorf("failed to parse expires_in: %w", err))
 	}
 
 	return &oauth2.Token{
