@@ -12,6 +12,7 @@ import (
 	"github.com/goto/optimus-any2any/ext/file"
 	"github.com/goto/optimus-any2any/ext/gmail"
 	"github.com/goto/optimus-any2any/ext/googleanalytics"
+	"github.com/goto/optimus-any2any/ext/gcs"
 	"github.com/goto/optimus-any2any/ext/http"
 	"github.com/goto/optimus-any2any/ext/io"
 	"github.com/goto/optimus-any2any/ext/jq"
@@ -49,6 +50,7 @@ const (
 	REDIS Type = "REDIS"
 	HTTP  Type = "HTTP"
 	GA    Type = "GA"
+	GCS   Type = "GCS"
 )
 
 const (
@@ -128,6 +130,12 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			sourceCfg.ClientCredentialsProvider, sourceCfg.ClientCredentialsClientID,
 			sourceCfg.ClientCredentialsClientSecret, sourceCfg.ClientCredentialsTokenURL,
 			opts...)
+	case GCS:
+		sourceCfg, err := config.SourceGCS(envs...)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		return gcs.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.CSVDelimiter, sourceCfg.SkipHeader, sourceCfg.SkipRows, opts...)
 	case IO:
 	}
 	return nil, errors.WithStack(fmt.Errorf("source: unknown source: %s", source))

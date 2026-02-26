@@ -122,6 +122,11 @@ It applies when sink and source are in the same environment. For example, transf
 | | HTTP__CLIENT_CREDENTIALS_CLIENT_ID | (experimental) HTTP client credentials client ID. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_CLIENT_SECRET | (experimental) HTTP client credentials client secret. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_TOKEN_URL | (experimental) HTTP client credentials token URL. (default: "") (optional) |
+| GCS | GCS__CREDENTIALS | Service account JSON credentials for Google Cloud Storage. |
+| | GCS__SOURCE_URI | The source path in a GCS bucket to read the files. Format `gs://bucket/path/to/folder/or/file.json`. |
+| | GCS__CSV_DELIMITER | Delimiter for CSV file format. (default: ,) |
+| | GCS__SKIP_HEADER | Skip header for CSV file format. (default: false) |
+| | GCS__SKIP_ROWS | Skip rows for CSV file format. (default: 0) |
 
 ## Supported Sinks
 
