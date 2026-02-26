@@ -145,7 +145,7 @@ func (gs *GmailSource) process() error {
 			}
 
 			// send records
-			recordReader := helper.NewRecordReader(r)
+			recordReader := helper.NewRecordReader(gs.Logger(), r)
 			for record, err := range recordReader.ReadRecord() {
 				if err != nil {
 					gs.Logger().Error(fmt.Sprintf("failed to read record %s", err.Error()))

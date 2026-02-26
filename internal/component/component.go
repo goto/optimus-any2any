@@ -108,7 +108,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return oss.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.CSVDelimiter, sourceCfg.SkipHeader, sourceCfg.SkipRows, opts...)
+		return oss.NewSource(commonSource, sourceCfg.Credentials, sourceCfg.SourceURI, sourceCfg.FilenameColumn, sourceCfg.CSVDelimiter, sourceCfg.SkipHeader, sourceCfg.SkipRows, opts...)
 	case GA:
 		sourceCfg, err := config.SourceGA(envs...)
 		if err != nil {

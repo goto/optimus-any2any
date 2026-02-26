@@ -12,6 +12,8 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
+	"github.com/goto/optimus-any2any/internal/helper"
+	"github.com/goto/optimus-any2any/internal/model"
 	"github.com/pkg/errors"
 )
 
@@ -35,17 +37,64 @@ func NewJQConnectorExecFunc(ctx context.Context, l *slog.Logger, query string) (
 		l.Info(fmt.Sprintf("creating jq connector exec func with query:\n%s", compiledQuery))
 	}
 	return func(inputReader io.Reader) (io.Reader, error) {
-		if compiledQuery == "" {
+		if query == "" {
 			return inputReader, nil // no processing needed
 		}
 
-		// execute jq command with the provided query
-		outputReader, err := execJQ(ctx, l, compiledQuery, inputReader)
-		if err != nil {
-			return nil, errors.WithStack(err)
+		if strings.TrimSpace(compiledQuery) == strings.TrimSpace(query) {
+			l.Info("using raw query without compilation")
+
+			// execute jq command with the provided query
+			outputReader, err := execJQ(ctx, l, query, inputReader)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			return outputReader, nil
 		}
 
-		return outputReader, nil
+		l.Info("using compiled query")
+		compiledQueries := []string{}
+		inputBuffers := []bytes.Buffer{}
+		for record, err := range helper.NewRecordReader(l, inputReader).ReadRecord() {
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			// compile the query with the record
+			currentCompiledQuery, err := compiler.Compile(tmpl, model.ToMap(record))
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			currentCompiledQuery = strings.TrimSpace(currentCompiledQuery)
+
+			// group records with the same compiled query
+			if len(compiledQueries) == 0 || compiledQueries[len(compiledQueries)-1] != currentCompiledQuery {
+				compiledQueries = append(compiledQueries, currentCompiledQuery)
+				inputBuffers = append(inputBuffers, bytes.Buffer{})
+			}
+			raw, err := record.MarshalJSON()
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			inputBuffers[len(inputBuffers)-1].Write(raw)
+			inputBuffers[len(inputBuffers)-1].WriteByte('\n')
+		}
+
+		outputBuffer := bytes.Buffer{}
+		for i, currentCompiledQuery := range compiledQueries {
+			l.Debug(fmt.Sprintf("executing jq with compiled query:\n%s", currentCompiledQuery))
+			outputReader, err := execJQ(ctx, l, currentCompiledQuery, &inputBuffers[i])
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+			_, err = io.Copy(&outputBuffer, outputReader)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+
+		return &outputBuffer, nil
 	}, nil
 }
 
