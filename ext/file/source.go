@@ -8,8 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/djherbis/buffer"
-	"github.com/djherbis/nio/v3"
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/model"
@@ -20,13 +18,14 @@ import (
 // FileSource is a source that reads data from a file.
 type FileSource struct {
 	common.Source
-	Readers []io.ReadCloser
+	readers        map[string]io.ReadCloser
+	filenameColumn string
 }
 
 var _ flow.Source = (*FileSource)(nil)
 
-// NewSource creates a new file common.
-func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
+// NewSource creates a new file source.
+func NewSource(commonSource common.Source, uri string, filenameColumn string) (*FileSource, error) {
 	// open file
 	sourceURI, err := url.Parse(uri)
 	if err != nil {
@@ -44,31 +43,32 @@ func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// prepare files
-	var files []io.ReadCloser
+	// prepare readers map: filename -> reader
+	readers := make(map[string]io.ReadCloser)
 	if fileStat.IsDir() {
 		// read all files in the directory recursively
 		ff, err := ReadFiles(sourceURI.Path)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		for _, f := range ff {
-			files = append(files, nio.NewReader(f, buffer.New(32*1024)))
+		for _, file := range ff {
+			readers[filepath.Base(file.Name())] = file
 		}
 	} else {
-		files = append(files, nio.NewReader(f, buffer.New(32*1024)))
+		readers[filepath.Base(f.Name())] = f
 	}
 	// create source
 	fs := &FileSource{
-		Source:  commonSource,
-		Readers: files,
+		Source:         commonSource,
+		readers:        readers,
+		filenameColumn: filenameColumn,
 	}
 
 	// add clean func
 	commonSource.AddCleanFunc(func() error {
 		fs.Logger().Info(fmt.Sprintf("close files"))
-		for _, f := range files {
-			f.Close()
+		for _, r := range readers {
+			r.Close()
 		}
 		return nil
 	})
@@ -82,9 +82,10 @@ func NewSource(commonSource common.Source, uri string) (*FileSource, error) {
 // Process reads data from the file and sends it to the channel.
 func (fs *FileSource) Process() error {
 	// read files
-	for _, f := range fs.Readers {
+	for filename, rc := range fs.readers {
+		filename, rc := filename, rc
 		_ = fs.DryRunable(func() error {
-			reader := bufio.NewReader(f)
+			reader := bufio.NewReader(rc)
 			for {
 				raw, err := reader.ReadBytes('\n')
 				if len(raw) > 0 && raw[0] != '\n' {
@@ -95,6 +96,8 @@ func (fs *FileSource) Process() error {
 					if err := json.Unmarshal(line, &record); err != nil {
 						return errors.WithStack(fmt.Errorf("failed to unmarshal record: %w", err))
 					}
+					// add metadata filename
+					record.Set(fs.filenameColumn, filename)
 					// send to channel
 					fs.SendRecord(record)
 				}

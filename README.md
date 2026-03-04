@@ -75,6 +75,7 @@ It applies when sink and source are in the same environment. For example, transf
 | Component | Configuration | Description |
 |---|---|---|
 | FILE | FILE__SOURCE_URI | Path to the input file. Format file:///directory/to/folder/or/file.ext |
+| | FILE__FILENAME_COLUMN | Column name for the filename. (default: __METADATA__filename) |
 | | FILE__COMPRESSION_TYPE | If set, the resulting files will be archived into the selected type. Supported types: `auto`, `gz`, `gzip`, `tar.gz`, and `zip` |
 | | FILE__COMPRESSION_PASSWORD | Set password for the resulting archive file. Only supported for `zip` compression_type |
 | | FILE__JSONPATH_SELECTOR | If set, the record will be selected based on the given JSONPath selector. Empty for ignore |
