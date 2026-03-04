@@ -87,7 +87,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return file.NewSource(commonSource, sourceCfg.SourceURI)
+		return file.NewSource(commonSource, sourceCfg.SourceURI, sourceCfg.FilenameColumn)
 	case SF:
 		sourceCfg, err := config.SourceSalesforce(envs...)
 		if err != nil {
