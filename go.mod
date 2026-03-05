@@ -1,8 +1,6 @@
 module github.com/goto/optimus-any2any
 
-go 1.23.0
-
-toolchain go1.23.7
+go 1.26.0
 
 require (
 	github.com/GitRowin/orderedmapjson v0.4.1
