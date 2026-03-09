@@ -52,7 +52,7 @@ func NewSource(commonSource common.Source,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() error {
-		gs.Logger().Debug(fmt.Sprintf("close gmail service"))
+		gs.Logger().Debug("close gmail service")
 		return nil
 	})
 	commonSource.RegisterProcess(gs.process)
@@ -85,7 +85,7 @@ func (gs *GmailSource) process() error {
 
 	// check if there are any messages
 	if len(resp.Messages) == 0 {
-		gs.Logger().Info(fmt.Sprintf("no messages found"))
+		gs.Logger().Info("no messages found")
 		return nil
 	}
 
@@ -101,7 +101,7 @@ func (gs *GmailSource) process() error {
 		// extract data
 		for _, p := range msg.Payload.Parts {
 			if p.Filename == "" {
-				gs.Logger().Debug(fmt.Sprintf("no attachment found"))
+				gs.Logger().Debug("no attachment found")
 				continue
 			}
 			// get attachment

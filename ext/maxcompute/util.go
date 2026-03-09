@@ -475,7 +475,6 @@ func createData(l *slog.Logger, value interface{}, dt datatype.DataType) (data.D
 		case float32:
 			curr = int8(v)
 		case float64:
-			curr = int8(v)
 			return nil, errors.WithStack(fmt.Errorf("unsupported tinyint type %T with value %+v", value, value))
 		}
 		return data.TinyInt(curr), nil

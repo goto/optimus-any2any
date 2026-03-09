@@ -98,7 +98,7 @@ func (s *SFTPSink) process() error {
 
 		destinationURI, err := compiler.Compile(s.destinationURITemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
+			s.Logger().Error("failed to compile destination URI")
 			return errors.WithStack(err)
 		}
 
@@ -106,14 +106,14 @@ func (s *SFTPSink) process() error {
 		recordWithoutMetadata := s.RecordWithoutMetadata(record)
 		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			s.Logger().Error("failed to marshal record")
 			return errors.WithStack(err)
 		}
 		// if jsonPathSelector is provided, select the data using it
 		if s.jsonPathSelector != "" {
 			raw, err = s.JSONPathSelector(raw, s.jsonPathSelector)
 			if err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				s.Logger().Error("failed to select data using json path selector")
 				return errors.WithStack(err)
 			}
 		}
@@ -139,7 +139,7 @@ func (s *SFTPSink) process() error {
 	}
 
 	if recordCounter == 0 {
-		s.Logger().Info(fmt.Sprintf("no records to write"))
+		s.Logger().Info("no records to write")
 		return nil
 	}
 

@@ -113,7 +113,7 @@ func (mo *mc2oss) Run() []error {
 		// compile query
 		query, err := compiler.Compile(mo.queryTemplate, model.ToMap(preRecordWithPrefix))
 		if err != nil {
-			mo.l.Error(fmt.Sprintf("failed to compile query"))
+			mo.l.Error("failed to compile query")
 			return []error{errors.WithStack(err)}
 		}
 
@@ -124,7 +124,7 @@ func (mo *mc2oss) Run() []error {
 			// generate destination URI
 			destinationURI, err := compiler.Compile(mo.destinationURITemplate, model.ToMap(preRecordWithPrefixCopy))
 			if err != nil {
-				mo.l.Error(fmt.Sprintf("failed to compile destination URI"))
+				mo.l.Error("failed to compile destination URI")
 				return errors.WithStack(err)
 			}
 			// build query unload

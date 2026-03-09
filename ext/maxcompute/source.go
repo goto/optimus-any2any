@@ -115,7 +115,7 @@ func NewSource(commonSource common.Source, creds string, queryFilePath string, p
 
 	// add clean function
 	commonSource.AddCleanFunc(func() error {
-		mc.Logger().Debug(fmt.Sprintf("cleaning up"))
+		mc.Logger().Debug("cleaning up")
 		var e error
 		for _, closer := range mc.closers {
 			if err := mc.DryRunable(closer.Close); err != nil {
@@ -140,7 +140,7 @@ func (mc *MaxcomputeSource) Process() error {
 	err = mc.DryRunable(func() error {
 		preRecordReader, err = mc.Client.QueryReader(mc.PreQuery)
 		if err != nil {
-			mc.Logger().Error(fmt.Sprintf("failed to get pre-record reader"))
+			mc.Logger().Error("failed to get pre-record reader")
 			return errors.WithStack(err)
 		}
 		mc.closers = append(mc.closers, preRecordReader)
@@ -183,7 +183,7 @@ func (mc *MaxcomputeSource) Process() error {
 			// compile query
 			query, err := compiler.Compile(queryTemplate, model.ToMap(preRecordWithPrefix))
 			if err != nil {
-				mc.Logger().Error(fmt.Sprintf("failed to compile query"))
+				mc.Logger().Error("failed to compile query")
 				return errors.WithStack(err)
 			}
 
@@ -192,7 +192,7 @@ func (mc *MaxcomputeSource) Process() error {
 			err = mc.DryRunable(func() error {
 				recordReader, err = mc.Client.QueryReader(query)
 				if err != nil {
-					mc.Logger().Error(fmt.Sprintf("failed to get record reader"))
+					mc.Logger().Error("failed to get record reader")
 					return errors.WithStack(err)
 				}
 				mc.closers = append(mc.closers, recordReader)
@@ -274,14 +274,11 @@ func getQueryExplain(query string) string {
 	// separate headers, variables and udfs from the query
 	hr, query := SeparateHeadersAndQuery(query)
 	varsAndUDFs, query := SeparateVariablesUDFsAndQuery(query)
-	drops, query := SeparateDropsAndQuery(query)
+	_, query = SeparateDropsAndQuery(query)
 
 	// construct final query with headers, drops, variables and udfs
 	if hr != "" {
 		hr += "\n"
-	}
-	if drops != "" {
-		drops += "\n"
 	}
 	if varsAndUDFs != "" {
 		varsAndUDFs += "\n"

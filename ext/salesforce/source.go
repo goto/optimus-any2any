@@ -52,7 +52,7 @@ func NewSource(commonSource common.Source,
 
 	// add clean func
 	commonSource.AddCleanFunc(func() error {
-		sf.Logger().Debug(fmt.Sprintf("close salesforce client"))
+		sf.Logger().Debug("close salesforce client")
 		return nil
 	})
 	commonSource.RegisterProcess(sf.process)

@@ -88,7 +88,7 @@ func NewCommon(c *component.Core) (*Common, error) {
 		metadataPrefix: "__METADATA__",         // default
 		commonmetric:   &commonmetric{},
 	}
-	if err := common.commonmetric.initializeMetrics(common.Core); err != nil {
+	if err := common.initializeMetrics(common.Core); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return common, nil

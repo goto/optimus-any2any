@@ -192,9 +192,9 @@ func NewSink(commonSink common.Sink, sinkCfg *config.SinkSMTPConfig, opts ...com
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		s.Logger().Info(fmt.Sprintf("close smtp client"))
+		s.Logger().Info("close smtp client")
 		s.client.Close()
-		s.Logger().Info(fmt.Sprintf("closing email handlers"))
+		s.Logger().Info("closing email handlers")
 		for _, eh := range s.emailHandlers {
 			eh.handlers.Close()
 		}
@@ -273,7 +273,7 @@ func (s *SMTPSink) process() error {
 	}
 
 	if recordCounter == 0 {
-		s.Logger().Info(fmt.Sprintf("no records to write"))
+		s.Logger().Info("no records to write")
 		return nil
 	}
 

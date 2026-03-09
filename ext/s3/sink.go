@@ -122,7 +122,7 @@ func (s3 *S3Sink) process() error {
 
 		destinationURI, err := compiler.Compile(s3.destinationURITemplate, model.ToMap(record))
 		if err != nil {
-			s3.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
+			s3.Logger().Error("failed to compile destination URI")
 			return errors.WithStack(err)
 		}
 
@@ -140,14 +140,14 @@ func (s3 *S3Sink) process() error {
 		recordWithoutMetadata := s3.RecordWithoutMetadata(record)
 		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
-			s3.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			s3.Logger().Error("failed to marshal record")
 			return errors.WithStack(err)
 		}
 		// if jsonPathSelector is provided, select the data using it
 		if s3.jsonPathSelector != "" {
 			raw, err = s3.JSONPathSelector(raw, s3.jsonPathSelector)
 			if err != nil {
-				s3.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				s3.Logger().Error("failed to select data using json path selector")
 				return errors.WithStack(err)
 			}
 		}
@@ -168,7 +168,7 @@ func (s3 *S3Sink) process() error {
 	}
 
 	if recordCounter == 0 {
-		s3.Logger().Info(fmt.Sprintf("no records to write"))
+		s3.Logger().Info("no records to write")
 		return nil
 	}
 

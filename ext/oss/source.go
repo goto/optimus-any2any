@@ -59,7 +59,7 @@ func NewSource(commonSource common.Source, creds string,
 
 	// add clean function
 	commonSource.AddCleanFunc(func() error {
-		o.Logger().Debug(fmt.Sprintf("cleaning up"))
+		o.Logger().Debug("cleaning up")
 		return nil
 	})
 
@@ -89,7 +89,7 @@ func (o *OSSSource) process() error {
 		return errors.WithStack(err)
 	}
 	if len(objectResult.Contents) == 0 {
-		o.Logger().Info(fmt.Sprintf("no objects found"))
+		o.Logger().Info("no objects found")
 		return nil
 	}
 	o.Logger().Info(fmt.Sprintf("found %d objects in bucket path: %s", len(objectResult.Contents), o.path))

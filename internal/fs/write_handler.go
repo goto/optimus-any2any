@@ -323,13 +323,11 @@ func (h *CommonWriteHandler) compressPerType(compressionType string, compression
 	}
 
 	// compress based on the compression type
-	var archivedPaths []string
 	switch compressionType {
 	case "gz", "gzip":
 		for _, filePath := range filePaths {
 			fileName := fmt.Sprintf("%s.%s", filepath.Base(filePath), compressionType)
 			archivedPath := filepath.Join(filepath.Dir(filePath), fileName)
-			archivedPaths = append(archivedPaths, archivedPath)
 
 			f, err := os.OpenFile(archivedPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 			if err != nil {

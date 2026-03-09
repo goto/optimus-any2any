@@ -2,7 +2,6 @@ package component
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -22,9 +21,9 @@ func NewCoreSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slo
 	}
 	// special case for source to close the channel
 	// after all processes are done
-	c.Core.postHookProcess = func() error {
-		c.Core.l.Debug(fmt.Sprintf("close inlet"))
-		return c.Core.CloseInlet()
+	c.postHookProcess = func() error {
+		c.l.Debug("close inlet")
+		return c.CloseInlet()
 	}
 	return c
 }

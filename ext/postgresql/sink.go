@@ -60,7 +60,7 @@ func NewSink(commonSink common.Sink,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		p.Logger().Info(fmt.Sprintf("close pg connection"))
+		p.Logger().Info("close pg connection")
 		return p.conn.Close(p.Context())
 	})
 
@@ -106,7 +106,7 @@ func (p *PGSink) process() error {
 
 		// flush records buffer to file
 		if err := p.Retry(p.flush); err != nil {
-			p.Logger().Error(fmt.Sprintf("failed to flush records"))
+			p.Logger().Error("failed to flush records")
 			return errors.WithStack(err)
 		}
 	}
@@ -114,7 +114,7 @@ func (p *PGSink) process() error {
 	// flush remaining records
 	if p.fileRecordCounter > 0 {
 		if err := p.Retry(p.flush); err != nil {
-			p.Logger().Error(fmt.Sprintf("failed to flush remaining records"))
+			p.Logger().Error("failed to flush remaining records")
 			return errors.WithStack(err)
 		}
 	}
@@ -125,15 +125,15 @@ func (p *PGSink) process() error {
 func (p *PGSink) flush() error {
 	// flush the writer first
 	if err := p.writerTmpHandler.Flush(); err != nil {
-		p.Logger().Error(fmt.Sprintf("failed to close writer"))
+		p.Logger().Error("failed to close writer")
 		return errors.WithStack(err)
 	}
 	defer func() {
-		p.Logger().Debug(fmt.Sprintf("clear records buffer"))
+		p.Logger().Debug("clear records buffer")
 		p.writerTmpHandler = nil
 		p.fileRecordCounter = 0
 		if err := os.Remove(tmpFile); err != nil {
-			p.Logger().Error(fmt.Sprintf("failed to remove tmp file"))
+			p.Logger().Error("failed to remove tmp file")
 			return
 		}
 	}()
@@ -141,13 +141,13 @@ func (p *PGSink) flush() error {
 	// read from the tmp file
 	f, err := os.OpenFile(tmpFile, os.O_RDONLY, 0644)
 	if err != nil {
-		p.Logger().Error(fmt.Sprintf("failed to open tmp file"))
+		p.Logger().Error("failed to open tmp file")
 		return errors.WithStack(err)
 	}
 
 	r, err := fileconverter.JSON2CSV(p.Logger(), f, false, ',') // convert json to csv, no skip header by default
 	if err != nil {
-		p.Logger().Error(fmt.Sprintf("failed to convert json to csv"))
+		p.Logger().Error("failed to convert json to csv")
 		return errors.WithStack(err)
 	}
 	defer func() {

@@ -48,14 +48,14 @@ func NewConnector(ctx context.Context, cancelFn context.CancelCauseFunc, logger 
 		commonmetric:     &commonmetric{},
 	}
 	// initialize metrics related
-	c.commonmetric.initializeMetrics(c.Connector)
+	c.initializeMetrics(c.Connector)
 
 	// initialize concurrent queue
 	c.concurrentQueue = cq.NewConcurrentQueueWithCancel(ctx, cancelFn, concurrency)
 	c.concurrentLimits.Add(int64(concurrency))
 
 	// set the connector function to process
-	c.Connector.SetConnectorFunc(c.process)
+	c.SetConnectorFunc(c.process)
 	return c, nil
 }
 

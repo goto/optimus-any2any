@@ -96,7 +96,7 @@ func (c *Client) Remove(destinationURI string) error {
 		return errors.WithStack(err)
 	}
 	// remove object
-	if response, err := c.Client.DeleteObject(c.ctx, &oss.DeleteObjectRequest{
+	if response, err := c.DeleteObject(c.ctx, &oss.DeleteObjectRequest{
 		Bucket: oss.Ptr(u.Host),
 		Key:    oss.Ptr(strings.TrimLeft(u.Path, "/")),
 	}); err != nil {
@@ -118,7 +118,7 @@ func (c *Client) Copy(sourceURI, destinationURI string) error {
 		return errors.WithStack(err)
 	}
 	// copy object from source to destination
-	if response, err := c.Client.CopyObject(c.ctx, &oss.CopyObjectRequest{
+	if response, err := c.CopyObject(c.ctx, &oss.CopyObjectRequest{
 		SourceBucket: oss.Ptr(uSrc.Host),
 		SourceKey:    oss.Ptr(strings.TrimLeft(uSrc.Path, "/")),
 		Bucket:       oss.Ptr(uDst.Host),
@@ -145,7 +145,7 @@ func (c *Client) GeneratePresignURL(destinationURI string, expirationInSeconds i
 	// set expiration time
 	expireAt := time.Now().Add(time.Duration(expirationInSeconds) * time.Second)
 	// generate presigned URL
-	presignResponse, err := c.Client.Presign(c.ctx, req, oss.PresignExpiration(expireAt))
+	presignResponse, err := c.Presign(c.ctx, req, oss.PresignExpiration(expireAt))
 	if err != nil {
 		return "", errors.WithStack(err)
 	}

@@ -66,7 +66,7 @@ func NewSource(commonSource common.Source, uri string, filenameColumn string) (*
 
 	// add clean func
 	commonSource.AddCleanFunc(func() error {
-		fs.Logger().Info(fmt.Sprintf("close files"))
+		fs.Logger().Info("close files")
 		for _, r := range readers {
 			r.Close()
 		}
@@ -83,7 +83,6 @@ func NewSource(commonSource common.Source, uri string, filenameColumn string) (*
 func (fs *FileSource) Process() error {
 	// read files
 	for filename, rc := range fs.readers {
-		filename, rc := filename, rc
 		_ = fs.DryRunable(func() error {
 			reader := bufio.NewReader(rc)
 			for {
