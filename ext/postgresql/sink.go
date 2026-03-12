@@ -7,9 +7,9 @@ import (
 
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/fileconverter"
-	xio "github.com/goto/optimus-any2any/internal/io"
-	xnet "github.com/goto/optimus-any2any/internal/net"
+	"github.com/goto/optimus-any2any/internal/ext/fileconverter"
+	xio "github.com/goto/optimus-any2any/internal/ext/io"
+	xnet "github.com/goto/optimus-any2any/internal/ext/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"

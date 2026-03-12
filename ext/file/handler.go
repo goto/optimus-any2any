@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/goto/optimus-any2any/internal/fs"
+	"github.com/goto/optimus-any2any/internal/ext/fs"
 	"github.com/pkg/errors"
 )
 

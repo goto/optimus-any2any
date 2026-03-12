@@ -9,9 +9,9 @@ import (
 
 	"github.com/aliyun/alibabacloud-oss-go-sdk-v2/oss"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/fileconverter"
-	"github.com/goto/optimus-any2any/internal/helper"
-	xio "github.com/goto/optimus-any2any/internal/io"
+	"github.com/goto/optimus-any2any/internal/ext/fileconverter"
+	"github.com/goto/optimus-any2any/internal/ext/helper"
+	xio "github.com/goto/optimus-any2any/internal/ext/io"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )

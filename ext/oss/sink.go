@@ -7,12 +7,12 @@ import (
 
 	"github.com/goccy/go-json"
 
-	"github.com/goto/optimus-any2any/internal/compiler"
+	"github.com/goto/optimus-any2any/internal/ext/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/config"
-	"github.com/goto/optimus-any2any/internal/fs"
-	xio "github.com/goto/optimus-any2any/internal/io"
-	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/ext/fs"
+	xio "github.com/goto/optimus-any2any/internal/ext/io"
+	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )

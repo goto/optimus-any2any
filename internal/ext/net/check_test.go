@@ -3,7 +3,7 @@ package net_test
 import (
 	"testing"
 
-	xnet "github.com/goto/optimus-any2any/internal/net"
+	xnet "github.com/goto/optimus-any2any/internal/ext/net"
 	"github.com/stretchr/testify/assert"
 )
 

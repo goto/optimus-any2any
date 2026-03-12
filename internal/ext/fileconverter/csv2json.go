@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/pkg/errors"
 )
 

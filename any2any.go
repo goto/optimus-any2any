@@ -12,7 +12,7 @@ import (
 
 	"github.com/goto/optimus-any2any/internal/component"
 	"github.com/goto/optimus-any2any/internal/config"
-	"github.com/goto/optimus-any2any/internal/logger"
+	"github.com/goto/optimus-any2any/internal/component/logger"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/goto/optimus-any2any/pkg/pipeline"
 	"github.com/pkg/errors"

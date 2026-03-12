@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
+	cq "github.com/goto/optimus-any2any/internal/component/concurrentqueue"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"

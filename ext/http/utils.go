@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	xclientcredentials "github.com/goto/optimus-any2any/internal/auth/clientcredentials"
+	xclientcredentials "github.com/goto/optimus-any2any/internal/ext/auth/clientcredentials"
 	"github.com/pkg/errors"
 )
 

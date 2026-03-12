@@ -14,7 +14,7 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/datatype"
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tableschema"
 	"github.com/goccy/go-json"
-	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/pkg/errors"
 )
 

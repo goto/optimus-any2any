@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/goto/optimus-any2any/internal/fileconverter"
+	"github.com/goto/optimus-any2any/internal/ext/fileconverter"
 	"github.com/pkg/errors"
 )
 

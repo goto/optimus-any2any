@@ -15,8 +15,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/model"
-	xnet "github.com/goto/optimus-any2any/internal/net"
+	"github.com/goto/optimus-any2any/internal/ext/model"
+	xnet "github.com/goto/optimus-any2any/internal/ext/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
 

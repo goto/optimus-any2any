@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	xio "github.com/goto/optimus-any2any/internal/io"
+	xio "github.com/goto/optimus-any2any/internal/ext/io"
 )
 
 type WriteOption func(w *CommonWriteHandler) error

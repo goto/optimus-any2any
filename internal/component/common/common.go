@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	cq "github.com/goto/optimus-any2any/internal/concurrentqueue"
-	"github.com/goto/optimus-any2any/internal/model"
-	"github.com/goto/optimus-any2any/internal/otel"
+	cq "github.com/goto/optimus-any2any/internal/component/concurrentqueue"
+	"github.com/goto/optimus-any2any/internal/ext/model"
+	"github.com/goto/optimus-any2any/internal/component/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
