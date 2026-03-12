@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 
-	"github.com/goto/optimus-any2any/internal/auth"
+	"github.com/goto/optimus-any2any/internal/ext/auth"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	analyticsdata "google.golang.org/genproto/googleapis/analytics/data/v1beta"

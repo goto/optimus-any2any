@@ -10,10 +10,10 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/goto/optimus-any2any/internal/compiler"
+	"github.com/goto/optimus-any2any/internal/ext/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/helper"
-	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/ext/helper"
+	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/pkg/errors"
 )
 

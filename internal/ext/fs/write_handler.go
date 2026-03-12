@@ -13,9 +13,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/goto/optimus-any2any/internal/archive"
+	"github.com/goto/optimus-any2any/internal/ext/archive"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	xio "github.com/goto/optimus-any2any/internal/io"
+	xio "github.com/goto/optimus-any2any/internal/ext/io"
 )
 
 // WriteHandler is an interface that defines methods for writing data to a destination URI.

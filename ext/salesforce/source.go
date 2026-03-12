@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 	"github.com/simpleforce/simpleforce"

@@ -11,8 +11,8 @@ import (
 	"github.com/aliyun/aliyun-odps-go-sdk/odps"
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/internal/config"
-	"github.com/goto/optimus-any2any/internal/logger"
-	"github.com/goto/optimus-any2any/internal/otel"
+	"github.com/goto/optimus-any2any/internal/component/logger"
+	"github.com/goto/optimus-any2any/internal/component/otel"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )

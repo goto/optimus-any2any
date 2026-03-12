@@ -11,7 +11,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/goto/optimus-any2any/internal/compiler"
+	"github.com/goto/optimus-any2any/internal/ext/compiler"
 	"github.com/pkg/errors"
 )
 

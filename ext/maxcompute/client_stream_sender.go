@@ -6,7 +6,7 @@ import (
 
 	"github.com/aliyun/aliyun-odps-go-sdk/odps/tunnel"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/model"
+	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/pkg/errors"
 )
 

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goto/optimus-any2any/internal/compiler"
+	"github.com/goto/optimus-any2any/internal/ext/compiler"
 	"github.com/stretchr/testify/assert"
 )
 

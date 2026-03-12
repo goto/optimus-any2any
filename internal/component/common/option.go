@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/goto/optimus-any2any/internal/logger"
+	"github.com/goto/optimus-any2any/internal/component/logger"
 )
 
 // Option is a function that takes a Common struct and modifies it

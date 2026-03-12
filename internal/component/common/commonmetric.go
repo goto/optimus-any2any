@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/goto/optimus-any2any/internal/otel"
+	"github.com/goto/optimus-any2any/internal/component/otel"
 	"github.com/goto/optimus-any2any/pkg/component"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"

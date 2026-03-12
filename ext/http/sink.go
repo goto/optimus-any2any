@@ -10,11 +10,11 @@ import (
 	"strings"
 	"text/template"
 
-	xauth "github.com/goto/optimus-any2any/internal/auth"
-	"github.com/goto/optimus-any2any/internal/compiler"
+	xauth "github.com/goto/optimus-any2any/internal/ext/auth"
+	"github.com/goto/optimus-any2any/internal/ext/compiler"
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/model"
-	xnet "github.com/goto/optimus-any2any/internal/net"
+	"github.com/goto/optimus-any2any/internal/ext/model"
+	xnet "github.com/goto/optimus-any2any/internal/ext/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
 	"github.com/pkg/errors"
 )

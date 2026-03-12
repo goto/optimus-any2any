@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/goto/optimus-any2any/internal/logger"
+	"github.com/goto/optimus-any2any/internal/component/logger"
 	"github.com/spf13/pflag"
 )
 
