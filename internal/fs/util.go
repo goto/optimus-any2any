@@ -36,10 +36,8 @@ func NearestCommonParentDir(filePaths []string) string {
 func SplitExtension(path string) (string, string) {
 	leftExt := ""
 	rightExt := ""
-	for {
-		if filepath.Ext(path) == "" {
-			break
-		}
+	for filepath.Ext(path) != "" {
+
 		if _, ok := supportedExtensionFormatMap[leftExt]; ok {
 			// if leftExt is a supported extension, we stop here
 			break

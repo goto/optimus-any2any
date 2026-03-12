@@ -23,7 +23,7 @@ func NewCoreSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.
 	// special case for sink to drain the channel after process is done
 	// and send done signal
 	// this is to prevent the sink from blocking
-	c.Core.postHookProcess = func() error {
+	c.postHookProcess = func() error {
 		c.Core.Logger().Debug("skip message")
 		for range c.Out() {
 			// drain the channel

@@ -65,7 +65,7 @@ func NewSink(commonSink common.Sink,
 	} else {
 		headerStrBuilder := strings.Builder{}
 		for k, v := range headers {
-			headerStrBuilder.WriteString(fmt.Sprintf("%s: %s\n", k, v))
+			fmt.Fprintf(&headerStrBuilder, "%s: %s\n", k, v)
 		}
 		m.headers = template.Must(compiler.NewTemplate("sink_http_headers", headerStrBuilder.String()))
 	}
@@ -108,7 +108,7 @@ func NewSink(commonSink common.Sink,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		s.Logger().Info(fmt.Sprintf("close idle connections"))
+		s.Logger().Info("close idle connections")
 		s.client.CloseIdleConnections()
 		return nil
 	})
@@ -134,7 +134,7 @@ func (s *HTTPSink) process() error {
 
 		m, err := compileMetadata(s.httpMetadataTemplate, record)
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("compile metadata error"))
+			s.Logger().Error("compile metadata error")
 			return errors.WithStack(err)
 		}
 
@@ -306,7 +306,7 @@ func compileMetadata(m httpMetadataTemplate, record *model.Record) (httpMetadata
 func hashMetadata(m httpMetadata) string {
 	headerStr := strings.Builder{}
 	for k, v := range m.headers {
-		headerStr.WriteString(fmt.Sprintf("%s=%s;", k, strings.Join(v, ",")))
+		fmt.Fprintf(&headerStr, "%s=%s;", k, strings.Join(v, ","))
 	}
 	s := fmt.Sprintf("%s\n%s\n%s", m.method, m.endpoint, headerStr.String())
 	md5sum := md5.Sum([]byte(s))

@@ -1,0 +1,18 @@
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - ineffassign
+    - unused
+    - copyloopvar
+  settings:
+    staticcheck:
+      checks:
+        - "SA*"
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

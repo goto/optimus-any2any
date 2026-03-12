@@ -36,7 +36,7 @@ func NewSink(commonSink common.Sink,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		k.Logger().Info(fmt.Sprintf("close client"))
+		k.Logger().Info("close client")
 		client.Close()
 		return nil
 	})
@@ -53,7 +53,7 @@ func (k *KafkaSink) process() error {
 		count atomic.Int32
 	)
 	// read from channel
-	k.Logger().Info(fmt.Sprintf("start reading from source"))
+	k.Logger().Info("start reading from source")
 	for record, err := range k.ReadRecord() {
 		if err != nil {
 			return errors.WithStack(err)
@@ -61,7 +61,7 @@ func (k *KafkaSink) process() error {
 		recordWithoutMetadata := k.RecordWithoutMetadata(record)
 		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
-			k.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			k.Logger().Error("failed to marshal record")
 			return errors.WithStack(err)
 		}
 

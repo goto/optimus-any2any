@@ -10,8 +10,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.10.1
+
   release-latest:
     if: github.ref_name == 'main'
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,6 +57,7 @@ jobs:
           VERSION: "latest"
   release-tag:
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

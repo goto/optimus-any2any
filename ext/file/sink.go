@@ -89,14 +89,14 @@ func (fs *FileSink) Process() error {
 		recordWithoutMetadata := fs.RecordWithoutMetadata(record)
 		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
-			fs.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			fs.Logger().Error("failed to marshal record")
 			return errors.WithStack(err)
 		}
 		// if jsonPathSelector is provided, select the data using it
 		if fs.jsonPathSelector != "" {
 			raw, err = fs.JSONPathSelector(raw, fs.jsonPathSelector)
 			if err != nil {
-				fs.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				fs.Logger().Error("failed to select data using json path selector")
 				return errors.WithStack(err)
 			}
 		}

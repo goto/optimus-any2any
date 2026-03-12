@@ -113,7 +113,7 @@ func NewSink(commonSink common.Sink, config *config.SinkMCConfig, opts ...common
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		mc.Logger().Info(fmt.Sprintf("drop temporary table"))
+		mc.Logger().Info("drop temporary table")
 		// delete temporary table if load method is replace
 		if mc.loadMethod == LOAD_METHOD_REPLACE {
 			mc.Logger().Info(fmt.Sprintf("load method is replace, deleting temporary table: %s", mc.tableIDTransition))
@@ -138,17 +138,18 @@ func (mc *MaxcomputeSink) process() error {
 	var sender common.RecordSender
 	var closer io.Closer
 	var err error
-	if mc.uploadMode == UPLOAD_MODE_STREAM {
+	switch mc.uploadMode {
+	case UPLOAD_MODE_STREAM:
 		streamWriter, e := mc.Client.StreamWriter(mc.tableIDTransition)
 		sender = streamWriter
 		closer = streamWriter
 		err = e
-	} else if mc.uploadMode == UPLOAD_MODE_REGULAR {
+	case UPLOAD_MODE_REGULAR:
 		batchWriter, e := mc.Client.BatchWriter(mc.tableIDTransition)
 		sender = batchWriter
 		closer = batchWriter
 		err = e
-	} else {
+	default:
 		err = fmt.Errorf("not supported upload mode %s", mc.uploadMode)
 	}
 	if err != nil {
@@ -198,7 +199,7 @@ func (mc *MaxcomputeSink) process() error {
 					return errors.WithStack(err)
 				}
 				mc.Logger().Info(fmt.Sprintf("executing query: %s", queryToExecute))
-				instance, err := mc.Client.Odps.ExecSQl(queryToExecute)
+				instance, err := mc.Client.ExecSQl(queryToExecute)
 				if err != nil {
 					return errors.WithStack(err)
 				}

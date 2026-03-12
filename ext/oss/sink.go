@@ -109,7 +109,7 @@ func (o *OSSSink) process() error {
 
 		destinationURI, err := compiler.Compile(o.destinationURITemplate, model.ToMap(record))
 		if err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to compile destination URI"))
+			o.Logger().Error("failed to compile destination URI")
 			return errors.WithStack(err)
 		}
 
@@ -127,14 +127,14 @@ func (o *OSSSink) process() error {
 		recordWithoutMetadata := o.RecordWithoutMetadata(record)
 		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
 		if err != nil {
-			o.Logger().Error(fmt.Sprintf("failed to marshal record"))
+			o.Logger().Error("failed to marshal record")
 			return errors.WithStack(err)
 		}
 		// if jsonPathSelector is provided, select the data using it
 		if o.jsonPathSelector != "" {
 			raw, err = o.JSONPathSelector(raw, o.jsonPathSelector)
 			if err != nil {
-				o.Logger().Error(fmt.Sprintf("failed to select data using json path selector"))
+				o.Logger().Error("failed to select data using json path selector")
 				return errors.WithStack(err)
 			}
 		}
@@ -156,7 +156,7 @@ func (o *OSSSink) process() error {
 	}
 
 	if recordCounter == 0 {
-		o.Logger().Info(fmt.Sprintf("no records to write"))
+		o.Logger().Info("no records to write")
 		return nil
 	}
 

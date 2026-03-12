@@ -22,11 +22,12 @@ func ConnCheck(address string) error {
 		host = u.Hostname()
 		port = u.Port()
 		if port == "" {
-			if u.Scheme == "http" {
+			switch u.Scheme {
+			case "http":
 				port = "80" // default port for http
-			} else if u.Scheme == "https" {
+			case "https":
 				port = "443" // default port for https
-			} else {
+			default:
 				return errors.New("unsupported scheme")
 			}
 		}

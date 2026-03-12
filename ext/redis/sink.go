@@ -94,7 +94,7 @@ func NewSink(commonSink common.Sink,
 
 	// add clean func
 	commonSink.AddCleanFunc(func() error {
-		s.Logger().Debug(fmt.Sprintf("close record writer"))
+		s.Logger().Debug("close record writer")
 		return nil
 	})
 
@@ -116,13 +116,13 @@ func (s *RedisSink) process() error {
 
 		recordKey, err := compiler.Compile(s.recordKeyTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to compile record key"))
+			s.Logger().Error("failed to compile record key")
 			return errors.WithStack(err)
 		}
 		s.Logger().Debug(fmt.Sprintf("record key: %s", recordKey))
 		recordValue, err := compiler.Compile(s.recordValueTemplate, model.ToMap(record))
 		if err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to compile record value"))
+			s.Logger().Error("failed to compile record value")
 			return errors.WithStack(err)
 		}
 
@@ -130,7 +130,7 @@ func (s *RedisSink) process() error {
 		// flush records
 		if len(s.records) == cap(s.records) {
 			if err := s.Retry(s.flush); err != nil {
-				s.Logger().Error(fmt.Sprintf("failed to set records"))
+				s.Logger().Error("failed to set records")
 				return errors.WithStack(err)
 			}
 			s.records = s.records[:0]
@@ -141,7 +141,7 @@ func (s *RedisSink) process() error {
 	// flush remaining records
 	if len(s.records) > 0 {
 		if err := s.Retry(s.flush); err != nil {
-			s.Logger().Error(fmt.Sprintf("failed to set records"))
+			s.Logger().Error("failed to set records")
 			return errors.WithStack(err)
 		}
 	}
