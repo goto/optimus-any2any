@@ -59,10 +59,12 @@ func (h *ossHandler) Sync() error {
 		destinationURICopy := destinationURI // capture range variable
 		tasks = append(tasks, func() error {
 			// copy the file from transient URI to final URI
+			h.Logger().Info(fmt.Sprintf("renaming object from transient uri %s to final uri %s...", fs.MaskedURI(destinationURICopy+DefaultTransientSuffix), fs.MaskedURI(destinationURICopy)))
 			if err := h.client.Copy(destinationURICopy+DefaultTransientSuffix, destinationURICopy); err != nil {
 				return errors.WithStack(err)
 			}
 			// remove the transient file
+			h.Logger().Info(fmt.Sprintf("removing transient object %s...", fs.MaskedURI(destinationURICopy+DefaultTransientSuffix)))
 			if err := h.client.Remove(destinationURICopy + DefaultTransientSuffix); err != nil {
 				return errors.WithStack(err)
 			}
