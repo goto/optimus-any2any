@@ -63,10 +63,10 @@ func (h *ossHandler) Sync() error {
 				return errors.WithStack(err)
 			}
 			// remove the transient file
-			if err := h.client.Remove(destinationURI + DefaultTransientSuffix); err != nil {
+			if err := h.client.Remove(destinationURICopy + DefaultTransientSuffix); err != nil {
 				return errors.WithStack(err)
 			}
-			h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", fs.MaskedURI(destinationURI)))
+			h.Logger().Info(fmt.Sprintf("rename object to final uri %s is success", fs.MaskedURI(destinationURICopy)))
 			return nil
 		})
 	}
