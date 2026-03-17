@@ -32,6 +32,9 @@ func NewOSSHandler(ctx context.Context, logger *slog.Logger, client *Client, ena
 		}
 		// create a new writer with a transient suffix
 		transientDestinationURI := destinationURI + DefaultTransientSuffix
+		if err := client.Remove(transientDestinationURI); err != nil { // make sure transient file does not exist
+			return nil, errors.WithStack(err)
+		}
 		return client.NewWriter(transientDestinationURI)
 	}
 
@@ -71,21 +74,4 @@ func (h *ossHandler) Sync() error {
 		})
 	}
 	return errors.WithStack(h.ConcurrentTasks(tasks)) // wait for all copy operations to finish
-}
-
-func (h *ossHandler) Close() error {
-	// remove all transient files if any
-	for _, destinationURI := range h.DestinationURIs() {
-		transientURI := destinationURI + DefaultTransientSuffix
-		h.Logger().Info(fmt.Sprintf("removing transient object %s...", fs.MaskedURI(transientURI)))
-		if err := h.client.Remove(transientURI); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
-	// close all writers
-	if err := h.CommonWriteHandler.Close(); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
 }
