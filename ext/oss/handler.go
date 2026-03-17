@@ -32,6 +32,9 @@ func NewOSSHandler(ctx context.Context, logger *slog.Logger, client *Client, ena
 		}
 		// create a new writer with a transient suffix
 		transientDestinationURI := destinationURI + DefaultTransientSuffix
+		if err := client.Remove(transientDestinationURI); err != nil { // make sure transient file does not exist
+			return nil, errors.WithStack(err)
+		}
 		return client.NewWriter(transientDestinationURI)
 	}
 
