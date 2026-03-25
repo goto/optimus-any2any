@@ -86,8 +86,7 @@ func (c *Client) NewWriter(destinationURI string) (io.WriteCloser, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	// create a new append file writer
-	return oss.NewAppendFile(c.ctx, c.Client, u.Host, strings.TrimLeft(u.Path, "/"))
+	return NewMultipartWriter(c.ctx, c.Client, u.Host, strings.TrimLeft(u.Path, "/"))
 }
 
 func (c *Client) Remove(destinationURI string) error {
