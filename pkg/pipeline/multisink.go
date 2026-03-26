@@ -3,6 +3,7 @@ package pipeline
 import (
 	errs "errors"
 	"log/slog"
+	"sync"
 
 	"github.com/goto/optimus-any2any/pkg/flow"
 )
@@ -83,7 +84,13 @@ func (p *MultiSinkPipeline) Close() error {
 
 // groupSinkWait waits until all sinks are done.
 func (p *MultiSinkPipeline) groupSinkWait(sinks []flow.Sink) {
+	var wg sync.WaitGroup
 	for _, sink := range sinks {
-		sink.Wait()
+		wg.Add(1)
+		go func(s flow.Sink) {
+			defer wg.Done()
+			s.Wait()
+		}(sink)
 	}
+	wg.Wait()
 }
