@@ -10,9 +10,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/goto/optimus-any2any/internal/component/common"
 	xauth "github.com/goto/optimus-any2any/internal/ext/auth"
 	"github.com/goto/optimus-any2any/internal/ext/compiler"
-	"github.com/goto/optimus-any2any/internal/component/common"
 	"github.com/goto/optimus-any2any/internal/ext/model"
 	xnet "github.com/goto/optimus-any2any/internal/ext/net"
 	"github.com/goto/optimus-any2any/pkg/flow"
@@ -215,17 +215,17 @@ func (s *HTTPSink) flush(m httpMetadata, records []*model.Record) error {
 		return errors.WithStack(err)
 	}
 
-	req := http.Request{
-		Method:        m.method,
-		URL:           u,
-		Header:        m.headers,
-		ContentLength: int64(len([]byte(body))),
-		Body:          io.NopCloser(strings.NewReader(body)),
-	}
-
 	err = s.ConcurrentQueue(func() error {
 		return s.Retry(func() error {
 			return s.DryRunable(func() error {
+				req := http.Request{
+					Method:        m.method,
+					URL:           u,
+					Header:        m.headers,
+					ContentLength: int64(len([]byte(body))),
+					Body:          io.NopCloser(strings.NewReader(body)),
+				}
+
 				resp, err := s.client.Do(req.WithContext(s.Context()))
 				if err != nil {
 					return errors.WithStack(err)
