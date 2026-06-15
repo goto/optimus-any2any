@@ -1,11 +1,6 @@
 FROM alpine:3
 
-ARG WITH_PYTHON=false
-
-RUN apk --no-cache add tzdata jq && \
-    if [ "$WITH_PYTHON" = "true" ]; then \
-        apk --no-cache add python3 py3-pip; \
-    fi
+RUN apk --no-cache add tzdata jq python3 py3-pip
 
 COPY ./build/any2any /usr/local/bin/any2any
 
