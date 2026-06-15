@@ -33,6 +33,14 @@ dockers:
     dockerfile: Dockerfile
     image_templates:
       - 'docker.io/gotocompany/{{.ProjectName}}:{{ .Env.VERSION }}'
+  - goos: linux
+    ids:
+      - any2any
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--build-arg=WITH_PYTHON=true"
+    image_templates:
+      - 'docker.io/gotocompany/{{.ProjectName}}:{{ .Env.VERSION }}-python'
 
 release:
   disable: true
