@@ -1,17 +1,13 @@
 package kafka
 
 import (
-	"encoding/base64"
 	"fmt"
 	"sync"
 	"sync/atomic"
-	"text/template"
 
 	"github.com/goccy/go-json"
 
 	"github.com/goto/optimus-any2any/internal/component/common"
-	"github.com/goto/optimus-any2any/internal/ext/compiler"
-	"github.com/goto/optimus-any2any/internal/ext/model"
 	"github.com/pkg/errors"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -20,16 +16,11 @@ import (
 type KafkaSink struct {
 	common.Sink
 
-	client          *kgo.Client
-	keyTemplate     *template.Template
-	valueSerializer string
-	keySourceField  string
-	valueSourceField string
+	client *kgo.Client
 }
 
 func NewSink(commonSink common.Sink,
 	bootstrapServers []string, topic string,
-	key string, valueSerializer, keySourceField, valueSourceField string,
 	opts ...common.Option) (*KafkaSink, error) {
 
 	// create kafka client
@@ -39,20 +30,8 @@ func NewSink(commonSink common.Sink,
 	}
 
 	k := &KafkaSink{
-		Sink:             commonSink,
-		client:           client,
-		valueSerializer:  valueSerializer,
-		keySourceField:   keySourceField,
-		valueSourceField: valueSourceField,
-	}
-
-	// compile key template if provided
-	if key != "" {
-		tmpl, err := compiler.NewTemplate("sink_kafka_key", key)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to compile kafka key template")
-		}
-		k.keyTemplate = tmpl
+		Sink:   commonSink,
+		client: client,
 	}
 
 	// add clean func
@@ -79,67 +58,17 @@ func (k *KafkaSink) process() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
-
-		var keyBytes []byte
-		var valueBytes []byte
-
-		switch k.valueSerializer {
-		case "proto_b64":
-			// extract base64-encoded value from record
-			val, ok := record.Get(k.valueSourceField)
-			if !ok {
-				k.Logger().Error(fmt.Sprintf("record missing field %q for proto_b64 serialization", k.valueSourceField))
-				return errors.Errorf("record missing field %q for proto_b64 serialization", k.valueSourceField)
-			}
-			valStr, ok := val.(string)
-			if !ok {
-				k.Logger().Error(fmt.Sprintf("field %q is not a string", k.valueSourceField))
-				return errors.Errorf("field %q is not a string for proto_b64 serialization", k.valueSourceField)
-			}
-			decoded, err := base64.StdEncoding.DecodeString(valStr)
-			if err != nil {
-				return errors.Wrap(err, "failed to decode base64 proto value")
-			}
-			valueBytes = decoded
-
-			// extract base64-encoded key from record
-			keyVal, ok := record.Get(k.keySourceField)
-			if ok {
-				keyStr, ok := keyVal.(string)
-				if ok {
-					decodedKey, err := base64.StdEncoding.DecodeString(keyStr)
-					if err != nil {
-						return errors.Wrap(err, "failed to decode base64 proto key")
-					}
-					keyBytes = decodedKey
-				}
-			}
-		default:
-			// default: JSON serialization
-			recordWithoutMetadata := k.RecordWithoutMetadata(record)
-			raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
-			if err != nil {
-				k.Logger().Error("failed to marshal record")
-				return errors.WithStack(err)
-			}
-			valueBytes = raw
-
-			// compile key from template if configured
-			if k.keyTemplate != nil {
-				recordMap := model.ToMap(recordWithoutMetadata)
-				keyStr, err := compiler.Compile(k.keyTemplate, recordMap)
-				if err != nil {
-					k.Logger().Error("failed to compile kafka key template")
-					return errors.WithStack(err)
-				}
-				keyBytes = []byte(keyStr)
-			}
+		recordWithoutMetadata := k.RecordWithoutMetadata(record)
+		raw, err := json.MarshalWithOption(recordWithoutMetadata, json.DisableHTMLEscape())
+		if err != nil {
+			k.Logger().Error("failed to marshal record")
+			return errors.WithStack(err)
 		}
 
 		// send a record
 		var e error
 		wg.Add(1)
-		k.client.Produce(k.Context(), &kgo.Record{Key: keyBytes, Value: valueBytes}, func(r *kgo.Record, err error) {
+		k.client.Produce(k.Context(), &kgo.Record{Value: raw}, func(r *kgo.Record, err error) {
 			defer wg.Done()
 			if err != nil {
 				e = err

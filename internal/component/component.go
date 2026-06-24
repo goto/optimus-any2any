@@ -19,7 +19,6 @@ import (
 	"github.com/goto/optimus-any2any/ext/maxcompute"
 	"github.com/goto/optimus-any2any/ext/oss"
 	"github.com/goto/optimus-any2any/ext/postgresql"
-	"github.com/goto/optimus-any2any/ext/py"
 	"github.com/goto/optimus-any2any/ext/redis"
 	"github.com/goto/optimus-any2any/ext/s3"
 	"github.com/goto/optimus-any2any/ext/salesforce"
@@ -227,9 +226,7 @@ func GetSink(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Logg
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		return kafka.NewSink(commonSink, sinkCfg.BootstrapServers, sinkCfg.Topic,
-			sinkCfg.Key, sinkCfg.ValueSerializer, sinkCfg.KeySourceField, sinkCfg.ValueSourceField,
-			opts...)
+		return kafka.NewSink(commonSink, sinkCfg.BootstrapServers, sinkCfg.Topic, opts...)
 	}
 	return nil, errors.WithStack(fmt.Errorf("sink: unknown sink: %s", sink))
 }
@@ -265,16 +262,6 @@ func GetConnector(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog
 			query = jqCfg.Query
 		}
 		f, err := jq.NewJQConnectorExecFunc(ctx, commonConnector.Logger(), query)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		connectorExecFunc = f
-	case PY:
-		pyCfg, err := config.ProcessorPY(envs...)
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		f, err := py.NewPYConnectorExecFunc(ctx, commonConnector.Logger(), pyCfg.ScriptPath, pyCfg.PythonBinary)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
