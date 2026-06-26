@@ -129,36 +129,103 @@ func (hs *HTTPSource) Process() error {
 	}
 }
 
-// processNDJSON is the backward-compatible path: reads the response body
-// as newline-delimited JSON, sending each line as a record.
-func (hs *HTTPSource) processNDJSON() error {
+// newRequest creates a new HTTP request with the given body and configured headers.
+func (hs *HTTPSource) newRequest(body string) (*http.Request, error) {
 	var bodyReader io.Reader
-	if hs.body != "" {
-		bodyReader = strings.NewReader(hs.body)
+	if body != "" {
+		bodyReader = strings.NewReader(body)
 	}
 
 	req, err := http.NewRequest(hs.method, hs.endpoint, bodyReader)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 
-	if len(hs.headers) > 0 {
-		for key, values := range hs.headers {
-			for _, value := range values {
-				req.Header.Add(key, value)
-			}
+	for key, values := range hs.headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
 		}
 	}
 
+	return req, nil
+}
+
+// doRequest executes the request and validates the response status.
+// The caller is responsible for closing the response body on success.
+func (hs *HTTPSource) doRequest(req *http.Request) (*http.Response, error) {
 	resp, err := hs.client.Do(req)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
+	}
+
+	return resp, nil
+}
+
+// readJSONResponse reads and closes the response body and unmarshals it as JSON.
+func (hs *HTTPSource) readJSONResponse(resp *http.Response) (interface{}, error) {
+	defer resp.Body.Close()
+
+	respBodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	var responseData interface{}
+	if err := json.Unmarshal(respBodyBytes, &responseData); err != nil {
+		return nil, errors.WithStack(errors.Wrap(err, "failed to unmarshal response body"))
+	}
+
+	return responseData, nil
+}
+
+// extractRecords extracts the records list from response data using the configured path.
+func (hs *HTTPSource) extractRecords(responseData interface{}) ([]interface{}, error) {
+	records, err := getByPath(responseData, hs.responseRecordsPath)
+	if err != nil {
+		return nil, errors.WithStack(errors.Wrap(err, "failed to extract records from response"))
+	}
+
+	recordsList, ok := records.([]interface{})
+	if !ok {
+		if records != nil {
+			recordsList = []interface{}{records}
+		}
+	}
+
+	return recordsList, nil
+}
+
+// sendRecords sends the records downstream.
+func (hs *HTTPSource) sendRecords(records []interface{}) {
+	for _, rec := range records {
+		recMap, ok := rec.(map[string]interface{})
+		if !ok {
+			hs.Logger().Warn("skipping non-object record in response")
+			continue
+		}
+		modelRecord := model.NewRecordFromMap(recMap)
+		hs.SendRecord(modelRecord)
+	}
+}
+
+// processNDJSON is the backward-compatible path: reads the response body
+// as newline-delimited JSON, sending each line as a record.
+func (hs *HTTPSource) processNDJSON() error {
+	req, err := hs.newRequest(hs.body)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	resp, err := hs.doRequest(req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
-	}
 
 	// read the response body and send it to the channel
 	reader := bufio.NewReader(resp.Body)
@@ -188,66 +255,27 @@ func (hs *HTTPSource) processNDJSON() error {
 // processJSONSinglePage reads the full response as a single JSON object,
 // extracts records by path, and sends them downstream. No pagination.
 func (hs *HTTPSource) processJSONSinglePage() error {
-	var bodyReader io.Reader
-	if hs.body != "" {
-		bodyReader = strings.NewReader(hs.body)
-	}
-
-	req, err := http.NewRequest(hs.method, hs.endpoint, bodyReader)
+	req, err := hs.newRequest(hs.body)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	if len(hs.headers) > 0 {
-		for key, values := range hs.headers {
-			for _, value := range values {
-				req.Header.Add(key, value)
-			}
-		}
-	}
-
-	resp, err := hs.client.Do(req)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
-	}
-
-	respBodyBytes, err := io.ReadAll(resp.Body)
+	resp, err := hs.doRequest(req)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	var responseData interface{}
-	if err := json.Unmarshal(respBodyBytes, &responseData); err != nil {
-		return errors.WithStack(errors.Wrap(err, "failed to unmarshal response body"))
-	}
-
-	records, err := getByPath(responseData, hs.responseRecordsPath)
+	responseData, err := hs.readJSONResponse(resp)
 	if err != nil {
-		return errors.WithStack(errors.Wrap(err, "failed to extract records from response"))
+		return errors.WithStack(err)
 	}
 
-	recordsList, ok := records.([]interface{})
-	if !ok {
-		if records != nil {
-			recordsList = []interface{}{records}
-		}
+	records, err := hs.extractRecords(responseData)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
-	for _, rec := range recordsList {
-		recMap, ok := rec.(map[string]interface{})
-		if !ok {
-			hs.Logger().Warn("skipping non-object record in response")
-			continue
-		}
-		modelRecord := model.NewRecordFromMap(recMap)
-		hs.SendRecord(modelRecord)
-	}
-
+	hs.sendRecords(records)
 	return nil
 }
 
@@ -257,70 +285,31 @@ func (hs *HTTPSource) processCursorPagination() error {
 	body := hs.body
 
 	for {
-		var bodyReader io.Reader
-		if body != "" {
-			bodyReader = strings.NewReader(body)
-		}
-
-		req, err := http.NewRequest(hs.method, hs.endpoint, bodyReader)
+		req, err := hs.newRequest(body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		if len(hs.headers) > 0 {
-			for key, values := range hs.headers {
-				for _, value := range values {
-					req.Header.Add(key, value)
-				}
-			}
-		}
-
-		resp, err := hs.client.Do(req)
+		resp, err := hs.doRequest(req)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
-		}
-
-		respBodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		responseData, err := hs.readJSONResponse(resp)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		var responseData interface{}
-		if err := json.Unmarshal(respBodyBytes, &responseData); err != nil {
-			return errors.WithStack(errors.Wrap(err, "failed to unmarshal response body"))
-		}
-
-		records, err := getByPath(responseData, hs.responseRecordsPath)
+		records, err := hs.extractRecords(responseData)
 		if err != nil {
-			return errors.WithStack(errors.Wrap(err, "failed to extract records from response"))
+			return errors.WithStack(err)
 		}
 
-		recordsList, ok := records.([]interface{})
-		if !ok {
-			if records != nil {
-				recordsList = []interface{}{records}
-			}
-		}
-
-		if len(recordsList) == 0 {
+		if len(records) == 0 {
 			break
 		}
 
-		for _, rec := range recordsList {
-			recMap, ok := rec.(map[string]interface{})
-			if !ok {
-				hs.Logger().Warn("skipping non-object record in response")
-				continue
-			}
-			modelRecord := model.NewRecordFromMap(recMap)
-			hs.SendRecord(modelRecord)
-		}
+		hs.sendRecords(records)
 
 		// extract cursor
 		if hs.nextCursorPath == "" {
@@ -384,73 +373,34 @@ func (hs *HTTPSource) processOffsetPagination() error {
 			body = compiled
 		}
 
-		var bodyReader io.Reader
-		if body != "" {
-			bodyReader = strings.NewReader(body)
-		}
-
-		req, err := http.NewRequest(hs.method, hs.endpoint, bodyReader)
+		req, err := hs.newRequest(body)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		if len(hs.headers) > 0 {
-			for key, values := range hs.headers {
-				for _, value := range values {
-					req.Header.Add(key, value)
-				}
-			}
-		}
-
-		resp, err := hs.client.Do(req)
+		resp, err := hs.doRequest(req)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
-		}
-
-		respBodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		responseData, err := hs.readJSONResponse(resp)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 
-		var responseData interface{}
-		if err := json.Unmarshal(respBodyBytes, &responseData); err != nil {
-			return errors.WithStack(errors.Wrap(err, "failed to unmarshal response body"))
-		}
-
-		records, err := getByPath(responseData, hs.responseRecordsPath)
+		records, err := hs.extractRecords(responseData)
 		if err != nil {
-			return errors.WithStack(errors.Wrap(err, "failed to extract records from response"))
+			return errors.WithStack(err)
 		}
 
-		recordsList, ok := records.([]interface{})
-		if !ok {
-			if records != nil {
-				recordsList = []interface{}{records}
-			}
-		}
-
-		if len(recordsList) == 0 {
+		if len(records) == 0 {
 			break
 		}
 
-		for _, rec := range recordsList {
-			recMap, ok := rec.(map[string]interface{})
-			if !ok {
-				hs.Logger().Warn("skipping non-object record in response")
-				continue
-			}
-			modelRecord := model.NewRecordFromMap(recMap)
-			hs.SendRecord(modelRecord)
-		}
+		hs.sendRecords(records)
 
 		// stop if fewer records than page size (last page)
-		if len(recordsList) < hs.pageSize {
+		if len(records) < hs.pageSize {
 			break
 		}
 
