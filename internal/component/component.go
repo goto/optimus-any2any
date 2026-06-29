@@ -123,8 +123,16 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
+		body := sourceCfg.Body
+		if sourceCfg.BodyFilePath != "" {
+			body = sourceCfg.BodyFilePath
+		}
 		return http.NewSource(commonSource,
-			sourceCfg.Endpoint, sourceCfg.HeadersFilePath,
+			sourceCfg.Method, sourceCfg.Endpoint, sourceCfg.HeadersFilePath,
+			body,
+			sourceCfg.ResponseFormat,
+			sourceCfg.PaginationType, sourceCfg.ResponseRecordsPath, sourceCfg.NextCursorPath, sourceCfg.NextBodyTemplate,
+			sourceCfg.OffsetParam, sourceCfg.LimitParam, sourceCfg.PageSize,
 			sourceCfg.ClientCredentialsProvider, sourceCfg.ClientCredentialsClientID,
 			sourceCfg.ClientCredentialsClientSecret, sourceCfg.ClientCredentialsTokenURL,
 			opts...)
