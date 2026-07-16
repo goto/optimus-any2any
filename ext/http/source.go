@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"text/template"
 
@@ -38,7 +39,7 @@ var _ flow.Source = (*HTTPSource)(nil)
 
 // NewSource creates a new HTTP source.
 func NewSource(commonSource common.Source,
-	method, endpoint string, headerContent string,
+	method, endpoint string, headerFilePath string,
 	body string,
 	responseFormat string,
 	paginationType string, responseRecordsPath, nextCursorPath string, nextBodyTemplate string,
@@ -46,22 +47,35 @@ func NewSource(commonSource common.Source,
 	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
 	opts ...common.Option) (*HTTPSource, error) {
 
-	// read headers from the headerContent
-	sc := bufio.NewScanner(strings.NewReader(headerContent))
-	headers := make(map[string][]string)
-	for sc.Scan() {
-		h := sc.Text()
-		parts := strings.Split(h, ":")
-		if len(parts) != 2 {
-			return nil, errors.New("invalid header format, expected 'key: value'")
-		}
-		if headers[parts[0]] == nil {
-			headers[parts[0]] = []string{}
-		}
-		headers[parts[0]] = append(headers[parts[0]], strings.Split(parts[1], ",")...)
+	// read headers from the headerFilePath
+	file, err := os.Open(headerFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open headers file: %w", err)
 	}
-	if err := sc.Err(); err != nil {
-		return nil, errors.WithStack(err)
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	headers := make(map[string][]string)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Ignore empty lines
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid header format, expected 'key: value', got: '%s'", line)
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if headers[key] == nil {
+			headers[key] = []string{}
+		}
+		headers[key] = append(headers[key], strings.Split(value, ",")...)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading headers file: %w", err)
 	}
 
 	client := http.DefaultClient
