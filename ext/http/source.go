@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"text/template"
 
@@ -39,7 +38,7 @@ var _ flow.Source = (*HTTPSource)(nil)
 
 // NewSource creates a new HTTP source.
 func NewSource(commonSource common.Source,
-	method, endpoint string, headerFilePath string,
+	method, endpoint string, headerContent string,
 	body string,
 	responseFormat string,
 	paginationType string, responseRecordsPath, nextCursorPath string, nextBodyTemplate string,
@@ -48,13 +47,7 @@ func NewSource(commonSource common.Source,
 	opts ...common.Option) (*HTTPSource, error) {
 
 	// read headers from the headerFilePath
-	file, err := os.Open(headerFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open headers file: %w", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(strings.NewReader(headerContent))
 	headers := make(map[string][]string)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -64,7 +57,7 @@ func NewSource(commonSource common.Source,
 		}
 		parts := strings.SplitN(line, ":", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid header format, expected 'key: value', got: '%s'", line)
+			return nil, errors.New("invalid header format, expected 'key: value'")
 		}
 
 		key := strings.TrimSpace(parts[0])
@@ -75,7 +68,7 @@ func NewSource(commonSource common.Source,
 		headers[key] = append(headers[key], strings.Split(value, ",")...)
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading headers file: %w", err)
+		return nil, errors.WithStack(err)
 	}
 
 	client := http.DefaultClient
