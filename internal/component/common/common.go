@@ -26,6 +26,7 @@ type RecordHelper interface {
 	RecordWithoutMetadata(record *model.Record) *model.Record
 	RecordWithMetadata(record *model.Record) *model.Record
 	IsSpecializedMetadataRecord(record *model.Record) bool
+	MetadataPrefix() string
 }
 
 // Retrier is an interface that defines a method to retry a function
@@ -245,6 +246,11 @@ func (c *Common) ConcurrentQueueWait() error {
 // RecordWithMetadata returns a new record without metadata prefix
 func (c *Common) RecordWithoutMetadata(record *model.Record) *model.Record {
 	return RecordWithoutMetadata(record, c.metadataPrefix)
+}
+
+// MetadataPrefix returns the configured metadata prefix.
+func (c *Common) MetadataPrefix() string {
+	return c.metadataPrefix
 }
 
 // RecordWithMetadata returns a new record with metadata prefix
