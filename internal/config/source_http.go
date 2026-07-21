@@ -3,10 +3,10 @@ package config
 // SourceHTTPConfig is a configuration for the source http component.
 type SourceHTTPConfig struct {
 	Endpoint                      string   `env:"HTTP__ENDPOINT"`
-	HeadersFilePath               string   `env:"HTTP__HEADERS_FILE_PATH,file"`
+	HeadersFileContent            string   `env:"HTTP__HEADERS_FILE_PATH,file"`
 	Method                        string   `env:"HTTP__METHOD" envDefault:"GET"`
 	Body                          string   `env:"HTTP__BODY"`
-	BodyFilePath                  string   `env:"HTTP__BODY_FILE_PATH,file"`
+	BodyFileContent               string   `env:"HTTP__BODY_FILE_PATH,file"`
 	ResponseFormat                string   `env:"HTTP__RESPONSE_FORMAT" envDefault:"ndjson"`
 	PaginationType                string   `env:"HTTP__PAGINATION_TYPE"` // none (default), cursor, offset
 	ResponseRecordsPath           string   `env:"HTTP__RESPONSE_RECORDS_JSONPATH" envDefault:"."`

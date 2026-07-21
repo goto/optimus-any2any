@@ -124,11 +124,11 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			return nil, errors.WithStack(err)
 		}
 		body := sourceCfg.Body
-		if sourceCfg.BodyFilePath != "" {
-			body = sourceCfg.BodyFilePath
+		if sourceCfg.BodyFileContent != "" {
+			body = sourceCfg.BodyFileContent
 		}
 		return http.NewSource(commonSource,
-			sourceCfg.Method, sourceCfg.Endpoint, sourceCfg.HeadersFilePath,
+			sourceCfg.Method, sourceCfg.Endpoint, sourceCfg.HeadersFileContent,
 			body,
 			sourceCfg.ResponseFormat,
 			sourceCfg.PaginationType, sourceCfg.ResponseRecordsPath, sourceCfg.NextCursorPath, sourceCfg.NextBodyTemplate,
