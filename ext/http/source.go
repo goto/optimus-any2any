@@ -46,21 +46,28 @@ func NewSource(commonSource common.Source,
 	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
 	opts ...common.Option) (*HTTPSource, error) {
 
-	// read headers from the headerContent
-	sc := bufio.NewScanner(strings.NewReader(headerContent))
+	// read headers from the headerFilePath
+	scanner := bufio.NewScanner(strings.NewReader(headerContent))
 	headers := make(map[string][]string)
-	for sc.Scan() {
-		h := sc.Text()
-		parts := strings.Split(h, ":")
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Ignore empty lines
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
 		if len(parts) != 2 {
 			return nil, errors.New("invalid header format, expected 'key: value'")
 		}
-		if headers[parts[0]] == nil {
-			headers[parts[0]] = []string{}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if headers[key] == nil {
+			headers[key] = []string{}
 		}
-		headers[parts[0]] = append(headers[parts[0]], strings.Split(parts[1], ",")...)
+		headers[key] = append(headers[key], strings.Split(value, ",")...)
 	}
-	if err := sc.Err(); err != nil {
+	if err := scanner.Err(); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
