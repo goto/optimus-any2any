@@ -135,6 +135,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			sourceCfg.OffsetParam, sourceCfg.LimitParam, sourceCfg.PageSize,
 			sourceCfg.ClientCredentialsProvider, sourceCfg.ClientCredentialsClientID,
 			sourceCfg.ClientCredentialsClientSecret, sourceCfg.ClientCredentialsTokenURL,
+			sourceCfg.LogRequest,
 			opts...)
 	case IO:
 	}

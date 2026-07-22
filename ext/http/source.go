@@ -32,6 +32,7 @@ type HTTPSource struct {
 	offsetParam         string
 	limitParam          string
 	pageSize            int
+	logRequest          bool
 }
 
 var _ flow.Source = (*HTTPSource)(nil)
@@ -44,6 +45,7 @@ func NewSource(commonSource common.Source,
 	paginationType string, responseRecordsPath, nextCursorPath string, nextBodyTemplate string,
 	offsetParam, limitParam string, pageSize int,
 	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
+	logRequest bool,
 	opts ...common.Option) (*HTTPSource, error) {
 
 	// read headers from the headerFilePath
@@ -108,6 +110,7 @@ func NewSource(commonSource common.Source,
 		offsetParam:         offsetParam,
 		limitParam:          limitParam,
 		pageSize:            pageSize,
+		logRequest:          logRequest,
 	}
 
 	hs.AddCleanFunc(func() error {
@@ -154,7 +157,47 @@ func (hs *HTTPSource) newRequest(body string) (*http.Request, error) {
 		}
 	}
 
+	if hs.logRequest {
+		hs.logRequestDebug(req, body)
+	}
+
 	return req, nil
+}
+
+const maxLoggedBodyBytes = 2 << 10 // 2KB
+
+// sensitiveHeader reports whether a header's value should be redacted before logging.
+func sensitiveHeader(key string) bool {
+	k := strings.ToLower(key)
+	for _, s := range []string{"authorization", "cookie", "token", "secret", "key", "auth"} {
+		if strings.Contains(k, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// logRequestDebug logs the outgoing request at debug level for troubleshooting.
+// Sensitive header values are redacted and the body is truncated to keep logs bounded.
+func (hs *HTTPSource) logRequestDebug(req *http.Request, body string) {
+	redacted := make(map[string][]string, len(req.Header))
+	for k, vals := range req.Header {
+		if sensitiveHeader(k) {
+			redacted[k] = []string{"[REDACTED]"}
+			continue
+		}
+		redacted[k] = vals
+	}
+
+	loggedBody := body
+	truncated := false
+	if len(loggedBody) > maxLoggedBodyBytes {
+		loggedBody = loggedBody[:maxLoggedBodyBytes]
+		truncated = true
+	}
+
+	hs.Logger().Debug(fmt.Sprintf("http request: %s %s headers=%v body=%q (truncated=%t)",
+		req.Method, req.URL.String(), redacted, loggedBody, truncated))
 }
 
 // doRequest executes the request and validates the response status.

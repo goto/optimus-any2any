@@ -19,6 +19,7 @@ type SourceHTTPConfig struct {
 	ClientCredentialsClientID     string `env:"HTTP__CLIENT_CREDENTIALS_CLIENT_ID" envDefault:""`
 	ClientCredentialsClientSecret string `env:"HTTP__CLIENT_CREDENTIALS_CLIENT_SECRET" envDefault:""`
 	ClientCredentialsTokenURL     string `env:"HTTP__CLIENT_CREDENTIALS_TOKEN_URL" envDefault:""`
+	LogRequest                    bool   `env:"HTTP__LOG_REQUEST" envDefault:"false"`
 }
 
 // SourceHTTP parses the environment variables and returns the source http configuration.
