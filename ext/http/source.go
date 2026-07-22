@@ -32,7 +32,6 @@ type HTTPSource struct {
 	offsetParam         string
 	limitParam          string
 	pageSize            int
-	logRequest          bool
 }
 
 var _ flow.Source = (*HTTPSource)(nil)
@@ -45,7 +44,6 @@ func NewSource(commonSource common.Source,
 	paginationType string, responseRecordsPath, nextCursorPath string, nextBodyTemplate string,
 	offsetParam, limitParam string, pageSize int,
 	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
-	logRequest bool,
 	opts ...common.Option) (*HTTPSource, error) {
 
 	// read headers from the headerFilePath
@@ -110,7 +108,6 @@ func NewSource(commonSource common.Source,
 		offsetParam:         offsetParam,
 		limitParam:          limitParam,
 		pageSize:            pageSize,
-		logRequest:          logRequest,
 	}
 
 	hs.AddCleanFunc(func() error {
@@ -157,9 +154,7 @@ func (hs *HTTPSource) newRequest(body string) (*http.Request, error) {
 		}
 	}
 
-	if hs.logRequest {
-		hs.logRequestDebug(req, body)
-	}
+	hs.logRequestDebug(req, body)
 
 	return req, nil
 }
