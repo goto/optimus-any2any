@@ -290,8 +290,12 @@ func (hs *HTTPSource) processJSONSinglePage() error {
 // First request uses HTTP__BODY, subsequent requests use NEXT_BODY_TEMPLATE with cursor.
 func (hs *HTTPSource) processCursorPagination() error {
 	body := hs.body
+	page := 0
+	totalRecords := 0
 
 	for {
+		page++
+
 		req, err := hs.newRequest(body)
 		if err != nil {
 			return errors.WithStack(err)
@@ -313,10 +317,13 @@ func (hs *HTTPSource) processCursorPagination() error {
 		}
 
 		if len(records) == 0 {
+			hs.Logger().Info(fmt.Sprintf("cursor pagination: page %d returned 0 records, stopping (total pulled: %d)", page, totalRecords))
 			break
 		}
 
 		hs.sendRecords(records)
+		totalRecords += len(records)
+		hs.Logger().Info(fmt.Sprintf("cursor pagination: page %d pulled %d records (total: %d)", page, len(records), totalRecords))
 
 		// extract cursor
 		if hs.nextCursorPath == "" {
@@ -340,6 +347,8 @@ func (hs *HTTPSource) processCursorPagination() error {
 			break
 		}
 
+		hs.Logger().Info(fmt.Sprintf("cursor pagination: advancing to next cursor %q", cursor))
+
 		body, err = compiler.Compile(hs.nextBodyTemplate, map[string]interface{}{
 			"cursor": cursor,
 		})
@@ -356,6 +365,8 @@ func (hs *HTTPSource) processCursorPagination() error {
 // Offset increments by PAGE_SIZE each iteration until response has fewer records.
 func (hs *HTTPSource) processOffsetPagination() error {
 	offset := 0
+	page := 0
+	totalRecords := 0
 
 	// compile body as Go template for offset injection
 	var bodyTmpl *template.Template
@@ -368,6 +379,8 @@ func (hs *HTTPSource) processOffsetPagination() error {
 	}
 
 	for {
+		page++
+
 		var body string
 		if bodyTmpl != nil {
 			compiled, err := compiler.Compile(bodyTmpl, map[string]interface{}{
@@ -401,13 +414,17 @@ func (hs *HTTPSource) processOffsetPagination() error {
 		}
 
 		if len(records) == 0 {
+			hs.Logger().Info(fmt.Sprintf("offset pagination: page %d (offset %d) returned 0 records, stopping (total pulled: %d)", page, offset, totalRecords))
 			break
 		}
 
 		hs.sendRecords(records)
+		totalRecords += len(records)
+		hs.Logger().Info(fmt.Sprintf("offset pagination: page %d (offset %d) pulled %d records (total: %d)", page, offset, len(records), totalRecords))
 
 		// stop if fewer records than page size (last page)
 		if len(records) < hs.pageSize {
+			hs.Logger().Info(fmt.Sprintf("offset pagination: page %d returned fewer than page size (%d < %d), stopping (total pulled: %d)", page, len(records), hs.pageSize, totalRecords))
 			break
 		}
 
