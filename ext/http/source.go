@@ -204,8 +204,9 @@ func (hs *HTTPSource) doRequest(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		return nil, errors.Errorf("unexpected status code: %d, expected: %d, body: %s", resp.StatusCode, http.StatusOK, string(body))
 	}
 
 	return resp, nil
