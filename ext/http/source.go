@@ -204,8 +204,13 @@ func (hs *HTTPSource) doRequest(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, errors.Errorf("unexpected status code: %d, expected: %d, failed to read body: %v", resp.StatusCode, http.StatusOK, readErr)
+		}
+		return nil, errors.Errorf("unexpected status code: %d, expected: %d, body: %s", resp.StatusCode, http.StatusOK, string(body))
+
 	}
 
 	return resp, nil
