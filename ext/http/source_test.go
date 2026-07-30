@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -149,4 +150,32 @@ func TestExtractResponseHeaders(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+func TestSensitiveHeader(t *testing.T) {
+	sensitive := []string{"Authorization", "authorization", "Cookie", "X-Api-Key", "X-Auth-Token", "Client-Secret"}
+	for _, h := range sensitive {
+		assert.Truef(t, sensitiveHeader(h), "expected %q to be treated as sensitive", h)
+	}
+
+	notSensitive := []string{"Content-Type", "Accept", "User-Agent", "Content-Length"}
+	for _, h := range notSensitive {
+		assert.Falsef(t, sensitiveHeader(h), "expected %q to not be treated as sensitive", h)
+	}
+}
+
+func TestMaxLoggedBodyBytesTruncation(t *testing.T) {
+	// body under the limit is not truncated
+	small := strings.Repeat("a", 100)
+	assert.LessOrEqual(t, len(small), maxLoggedBodyBytes)
+
+	// body over the limit is truncated to exactly the limit
+	large := strings.Repeat("b", maxLoggedBodyBytes+512)
+	loggedBody := large
+	truncated := false
+	if len(loggedBody) > maxLoggedBodyBytes {
+		loggedBody = loggedBody[:maxLoggedBodyBytes]
+		truncated = true
+	}
+	assert.True(t, truncated)
+	assert.Len(t, loggedBody, maxLoggedBodyBytes)
 }

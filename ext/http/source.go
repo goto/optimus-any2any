@@ -157,7 +157,45 @@ func (hs *HTTPSource) newRequest(body string) (*http.Request, error) {
 		}
 	}
 
+	hs.logRequestDebug(req, body)
+
 	return req, nil
+}
+
+const maxLoggedBodyBytes = 2 << 10 // 2KB
+
+// sensitiveHeader reports whether a header's value should be redacted before logging.
+func sensitiveHeader(key string) bool {
+	k := strings.ToLower(key)
+	for _, s := range []string{"authorization", "cookie", "token", "secret", "key", "auth"} {
+		if strings.Contains(k, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// logRequestDebug logs the outgoing request at debug level for troubleshooting.
+// Sensitive header values are redacted and the body is truncated to keep logs bounded.
+func (hs *HTTPSource) logRequestDebug(req *http.Request, body string) {
+	redacted := make(map[string][]string, len(req.Header))
+	for k, vals := range req.Header {
+		if sensitiveHeader(k) {
+			redacted[k] = []string{"[REDACTED]"}
+			continue
+		}
+		redacted[k] = vals
+	}
+
+	loggedBody := body
+	truncated := false
+	if len(loggedBody) > maxLoggedBodyBytes {
+		loggedBody = loggedBody[:maxLoggedBodyBytes]
+		truncated = true
+	}
+
+	hs.Logger().Debug(fmt.Sprintf("http request: %s %s headers=%v body=%q (truncated=%t)",
+		req.Method, req.URL.String(), redacted, loggedBody, truncated))
 }
 
 // doRequest executes the request and validates the response status.
@@ -169,8 +207,13 @@ func (hs *HTTPSource) doRequest(req *http.Request) (*http.Response, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, errors.Errorf("unexpected status code: %d, expected: %d", resp.StatusCode, http.StatusOK)
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, errors.Errorf("unexpected status code: %d, expected: %d, failed to read body: %v", resp.StatusCode, http.StatusOK, readErr)
+		}
+		return nil, errors.Errorf("unexpected status code: %d, expected: %d, body: %s", resp.StatusCode, http.StatusOK, string(body))
+
 	}
 
 	return resp, nil
@@ -325,8 +368,12 @@ func (hs *HTTPSource) processJSONSinglePage() error {
 // First request uses HTTP__BODY, subsequent requests use NEXT_BODY_TEMPLATE with cursor.
 func (hs *HTTPSource) processCursorPagination() error {
 	body := hs.body
+	page := 0
+	totalRecords := 0
 
 	for {
+		page++
+
 		req, err := hs.newRequest(body)
 		if err != nil {
 			return errors.WithStack(err)
@@ -349,10 +396,13 @@ func (hs *HTTPSource) processCursorPagination() error {
 		}
 
 		if len(records) == 0 {
+			hs.Logger().Info(fmt.Sprintf("cursor pagination: page %d returned 0 records, stopping (total pulled: %d)", page, totalRecords))
 			break
 		}
 
-		hs.sendRecords(records, headers)
+		hs.sendRecords(records)
+		totalRecords += len(records)
+		hs.Logger().Info(fmt.Sprintf("cursor pagination: page %d pulled %d records (total: %d)", page, len(records), totalRecords))
 
 		// extract cursor
 		if hs.nextCursorPath == "" {
@@ -376,6 +426,8 @@ func (hs *HTTPSource) processCursorPagination() error {
 			break
 		}
 
+		hs.Logger().Info(fmt.Sprintf("cursor pagination: advancing to next cursor %q", cursor))
+
 		body, err = compiler.Compile(hs.nextBodyTemplate, map[string]interface{}{
 			"cursor": cursor,
 		})
@@ -392,6 +444,8 @@ func (hs *HTTPSource) processCursorPagination() error {
 // Offset increments by PAGE_SIZE each iteration until response has fewer records.
 func (hs *HTTPSource) processOffsetPagination() error {
 	offset := 0
+	page := 0
+	totalRecords := 0
 
 	// compile body as Go template for offset injection
 	var bodyTmpl *template.Template
@@ -404,6 +458,8 @@ func (hs *HTTPSource) processOffsetPagination() error {
 	}
 
 	for {
+		page++
+
 		var body string
 		if bodyTmpl != nil {
 			compiled, err := compiler.Compile(bodyTmpl, map[string]interface{}{
@@ -438,13 +494,17 @@ func (hs *HTTPSource) processOffsetPagination() error {
 		}
 
 		if len(records) == 0 {
+			hs.Logger().Info(fmt.Sprintf("offset pagination: page %d (offset %d) returned 0 records, stopping (total pulled: %d)", page, offset, totalRecords))
 			break
 		}
 
-		hs.sendRecords(records, headers)
+		hs.sendRecords(records)
+		totalRecords += len(records)
+		hs.Logger().Info(fmt.Sprintf("offset pagination: page %d (offset %d) pulled %d records (total: %d)", page, offset, len(records), totalRecords))
 
 		// stop if fewer records than page size (last page)
 		if len(records) < hs.pageSize {
+			hs.Logger().Info(fmt.Sprintf("offset pagination: page %d returned fewer than page size (%d < %d), stopping (total pulled: %d)", page, len(records), hs.pageSize, totalRecords))
 			break
 		}
 
