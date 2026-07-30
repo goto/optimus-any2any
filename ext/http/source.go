@@ -400,7 +400,7 @@ func (hs *HTTPSource) processCursorPagination() error {
 			break
 		}
 
-		hs.sendRecords(records)
+		hs.sendRecords(records, headers)
 		totalRecords += len(records)
 		hs.Logger().Info(fmt.Sprintf("cursor pagination: page %d pulled %d records (total: %d)", page, len(records), totalRecords))
 
@@ -498,7 +498,7 @@ func (hs *HTTPSource) processOffsetPagination() error {
 			break
 		}
 
-		hs.sendRecords(records)
+		hs.sendRecords(records, headers)
 		totalRecords += len(records)
 		hs.Logger().Info(fmt.Sprintf("offset pagination: page %d (offset %d) pulled %d records (total: %d)", page, offset, len(records), totalRecords))
 
