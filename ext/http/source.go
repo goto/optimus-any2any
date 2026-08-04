@@ -19,19 +19,20 @@ import (
 // HTTPSource is a source that reads data from an HTTP endpoint.
 type HTTPSource struct {
 	common.Source
-	client              *http.Client
-	method              string
-	endpoint            string
-	headers             map[string][]string
-	body                string
-	responseFormat      string
-	paginationType      string
-	responseRecordsPath string
-	nextCursorPath      string
-	nextBodyTemplate    *template.Template
-	offsetParam         string
-	limitParam          string
-	pageSize            int
+	client                 *http.Client
+	method                 string
+	endpoint               string
+	headers                map[string][]string
+	body                   string
+	responseFormat         string
+	paginationType         string
+	responseRecordsPath    string
+	nextCursorPath         string
+	nextBodyTemplate       *template.Template
+	offsetParam            string
+	limitParam             string
+	pageSize               int
+	responseHeadersToStore []string
 }
 
 var _ flow.Source = (*HTTPSource)(nil)
@@ -44,6 +45,7 @@ func NewSource(commonSource common.Source,
 	paginationType string, responseRecordsPath, nextCursorPath string, nextBodyTemplate string,
 	offsetParam, limitParam string, pageSize int,
 	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
+	responseHeadersToStore []string,
 	opts ...common.Option) (*HTTPSource, error) {
 
 	// read headers from the headerFilePath
@@ -94,20 +96,21 @@ func NewSource(commonSource common.Source,
 	}
 
 	hs := &HTTPSource{
-		Source:              commonSource,
-		client:              client,
-		method:              method,
-		endpoint:            endpoint,
-		headers:             headers,
-		body:                body,
-		responseFormat:      responseFormat,
-		paginationType:      paginationType,
-		responseRecordsPath: responseRecordsPath,
-		nextCursorPath:      nextCursorPath,
-		nextBodyTemplate:    nextBodyTmpl,
-		offsetParam:         offsetParam,
-		limitParam:          limitParam,
-		pageSize:            pageSize,
+		Source:                 commonSource,
+		client:                 client,
+		method:                 method,
+		endpoint:               endpoint,
+		headers:                headers,
+		body:                   body,
+		responseFormat:         responseFormat,
+		paginationType:         paginationType,
+		responseRecordsPath:    responseRecordsPath,
+		nextCursorPath:         nextCursorPath,
+		nextBodyTemplate:       nextBodyTmpl,
+		offsetParam:            offsetParam,
+		limitParam:             limitParam,
+		pageSize:               pageSize,
+		responseHeadersToStore: responseHeadersToStore,
 	}
 
 	hs.AddCleanFunc(func() error {
@@ -250,8 +253,9 @@ func (hs *HTTPSource) extractRecords(responseData interface{}) ([]interface{}, e
 	return recordsList, nil
 }
 
-// sendRecords sends the records downstream.
-func (hs *HTTPSource) sendRecords(records []interface{}) {
+// sendRecords sends the records downstream. If headers is non-nil, it is attached
+// to every record as a metadata field.
+func (hs *HTTPSource) sendRecords(records []interface{}, headers map[string][]string) {
 	for _, rec := range records {
 		recMap, ok := rec.(map[string]interface{})
 		if !ok {
@@ -259,8 +263,36 @@ func (hs *HTTPSource) sendRecords(records []interface{}) {
 			continue
 		}
 		modelRecord := model.NewRecordFromMap(recMap)
+		hs.setResponseHeaders(modelRecord, headers)
 		hs.SendRecord(modelRecord)
 	}
+}
+
+// setResponseHeaders attaches the given headers to the record as a metadata field,
+// if headers is non-nil.
+func (hs *HTTPSource) setResponseHeaders(record *model.Record, headers map[string][]string) {
+	if headers == nil {
+		return
+	}
+	record.Set(hs.MetadataPrefix()+"http_response_headers", headers)
+}
+
+// extractResponseHeaders returns only the allowlisted headers from header, keyed by
+// their canonical name. Returns nil if no allowlist is configured or none match.
+func extractResponseHeaders(header http.Header, names []string) map[string][]string {
+	if len(names) == 0 {
+		return nil
+	}
+	result := make(map[string][]string)
+	for _, name := range names {
+		if values := header.Values(name); len(values) > 0 {
+			result[http.CanonicalHeaderKey(name)] = values
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // processNDJSON is the backward-compatible path: reads the response body
@@ -276,6 +308,7 @@ func (hs *HTTPSource) processNDJSON() error {
 		return errors.WithStack(err)
 	}
 	defer resp.Body.Close()
+	headers := extractResponseHeaders(resp.Header, hs.responseHeadersToStore)
 
 	// read the response body and send it to the channel
 	reader := bufio.NewReader(resp.Body)
@@ -289,6 +322,7 @@ func (hs *HTTPSource) processNDJSON() error {
 			if err := json.Unmarshal(line, &modelRecord); err != nil {
 				return errors.WithStack(errors.Wrap(err, "failed to unmarshal record"))
 			}
+			hs.setResponseHeaders(modelRecord, headers)
 			hs.SendRecord(modelRecord)
 		}
 		if err == io.EOF {
@@ -314,6 +348,7 @@ func (hs *HTTPSource) processJSONSinglePage() error {
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	headers := extractResponseHeaders(resp.Header, hs.responseHeadersToStore)
 
 	responseData, err := hs.readJSONResponse(resp)
 	if err != nil {
@@ -325,7 +360,7 @@ func (hs *HTTPSource) processJSONSinglePage() error {
 		return errors.WithStack(err)
 	}
 
-	hs.sendRecords(records)
+	hs.sendRecords(records, headers)
 	return nil
 }
 
@@ -348,6 +383,7 @@ func (hs *HTTPSource) processCursorPagination() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		headers := extractResponseHeaders(resp.Header, hs.responseHeadersToStore)
 
 		responseData, err := hs.readJSONResponse(resp)
 		if err != nil {
@@ -364,7 +400,7 @@ func (hs *HTTPSource) processCursorPagination() error {
 			break
 		}
 
-		hs.sendRecords(records)
+		hs.sendRecords(records, headers)
 		totalRecords += len(records)
 		hs.Logger().Info(fmt.Sprintf("cursor pagination: page %d pulled %d records (total: %d)", page, len(records), totalRecords))
 
@@ -445,6 +481,7 @@ func (hs *HTTPSource) processOffsetPagination() error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		headers := extractResponseHeaders(resp.Header, hs.responseHeadersToStore)
 
 		responseData, err := hs.readJSONResponse(resp)
 		if err != nil {
@@ -461,7 +498,7 @@ func (hs *HTTPSource) processOffsetPagination() error {
 			break
 		}
 
-		hs.sendRecords(records)
+		hs.sendRecords(records, headers)
 		totalRecords += len(records)
 		hs.Logger().Info(fmt.Sprintf("offset pagination: page %d (offset %d) pulled %d records (total: %d)", page, offset, len(records), totalRecords))
 
