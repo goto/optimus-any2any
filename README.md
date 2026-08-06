@@ -124,6 +124,7 @@ It applies when sink and source are in the same environment. For example, transf
 | | HTTP__CLIENT_CREDENTIALS_CLIENT_ID | (experimental) HTTP client credentials client ID. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_CLIENT_SECRET | (experimental) HTTP client credentials client secret. (default: "") (optional) |
 | | HTTP__CLIENT_CREDENTIALS_TOKEN_URL | (experimental) HTTP client credentials token URL. (default: "") (optional) |
+| | HTTP__TIMEOUT_IN_MS | HTTP client timeout for each request, in milliseconds. If not set (or 0), the client has no timeout. (optional) |
 
 ## Supported Sinks
 

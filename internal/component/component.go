@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -136,6 +137,7 @@ func GetSource(ctx context.Context, cancelFn context.CancelCauseFunc, l *slog.Lo
 			sourceCfg.ClientCredentialsProvider, sourceCfg.ClientCredentialsClientID,
 			sourceCfg.ClientCredentialsClientSecret, sourceCfg.ClientCredentialsTokenURL,
 			sourceCfg.ResponseHeadersToStore,
+			time.Duration(sourceCfg.TimeoutInMs)*time.Millisecond,
 			opts...)
 	case IO:
 	}

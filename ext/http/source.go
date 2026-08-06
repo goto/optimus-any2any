@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/goccy/go-json"
 	"github.com/goto/optimus-any2any/internal/component/common"
@@ -33,6 +34,7 @@ type HTTPSource struct {
 	limitParam             string
 	pageSize               int
 	responseHeadersToStore []string
+	timeout                time.Duration
 }
 
 var _ flow.Source = (*HTTPSource)(nil)
@@ -46,6 +48,7 @@ func NewSource(commonSource common.Source,
 	offsetParam, limitParam string, pageSize int,
 	clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL string,
 	responseHeadersToStore []string,
+	timeout time.Duration,
 	opts ...common.Option) (*HTTPSource, error) {
 
 	// read headers from the headerFilePath
@@ -73,7 +76,7 @@ func NewSource(commonSource common.Source,
 		return nil, errors.WithStack(err)
 	}
 
-	client := http.DefaultClient
+	client := &http.Client{}
 
 	// experimental
 	if isUsingOAuth2(clientCredentialsProvider, clientCredentialsClientID, clientCredentialsClientSecret, clientCredentialsTokenURL) {
@@ -83,6 +86,11 @@ func NewSource(commonSource common.Source,
 		}
 		client = c
 		commonSource.Logger().Info(fmt.Sprintf("using client credentials provider: %s", clientCredentialsProvider))
+	}
+
+	// use the configured timeout instead of the client's default timeout, if set
+	if timeout > 0 {
+		client.Timeout = timeout
 	}
 
 	// compile next body template if provided
@@ -111,6 +119,7 @@ func NewSource(commonSource common.Source,
 		limitParam:             limitParam,
 		pageSize:               pageSize,
 		responseHeadersToStore: responseHeadersToStore,
+		timeout:                timeout,
 	}
 
 	hs.AddCleanFunc(func() error {

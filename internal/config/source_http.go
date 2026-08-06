@@ -20,6 +20,7 @@ type SourceHTTPConfig struct {
 	ClientCredentialsClientSecret string   `env:"HTTP__CLIENT_CREDENTIALS_CLIENT_SECRET" envDefault:""`
 	ClientCredentialsTokenURL     string   `env:"HTTP__CLIENT_CREDENTIALS_TOKEN_URL" envDefault:""`
 	ResponseHeadersToStore        []string `env:"HTTP__RESPONSE_HEADERS_TO_STORE"`
+	TimeoutInMs                   int      `env:"HTTP__TIMEOUT_IN_MS"`
 }
 
 // SourceHTTP parses the environment variables and returns the source http configuration.
