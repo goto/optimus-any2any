@@ -47,7 +47,7 @@ func NewSink(commonSink common.Sink,
 		Sink:               commonSink,
 		conn:               conn,
 		destinationTableID: destinationTableID,
-		batchSize:          512,
+		batchSize:          batchSize,
 		writerTmpHandler:   nil,
 		fileRecordCounter:  0,
 	}
